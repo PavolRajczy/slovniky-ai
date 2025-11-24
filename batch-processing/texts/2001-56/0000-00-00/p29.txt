@@ -1,0 +1,8 @@
+<var>§ 29</var>
+<var>(1)</var> Výrobou jednotlivého silničního vozidla se rozumí výroba nejvýše pěti kusů jednoho typu silničního vozidla podle vlastní konstrukce nebo s využitím systému vozidla, konstrukční části vozidla a samostatného technického celku vozidla, na něž byla vydána rozhodnutí o schválení typu.
+<var>(2)</var> O povolení výroby jednotlivého silničního motorového vozidla musí výrobce předem písemně požádat okresní úřad. Příslušným k vydání povolení je okresní úřad, v jehož územním obvodu má výrobce sídlo nebo bydliště nebo místo podnikání, liší-li se od bydliště.
+<var>(3)</var> V informačním dokumentu ministerstvo vymezí, z kterých technických požadavků nebo postupů lze povolit při rozhodování o schvalování technické způsobilosti jednotlivě vyrobeného silničního vozidla výjimky. Výjimky nelze povolit z technických požadavků týkajících se
+<var>a)</var> brzd,
+<var>b)</var> vnějšího hluku,
+<var>c)</var> emise škodlivin ve výfukových plynech,
+<var>d)</var> odrušení vozidla a elektromagnetické kompatibility.

@@ -1,0 +1,3 @@
+<var>§ 75</var>
+<var>(1)</var> Výbavou vozidla jsou věci, které jsou určeny k zajištění provozu, údržby a opravám vozidla, nebo k ochraně a zajištění přepravovaných osob nebo nákladů před újmou na zdraví, poškozením nebo před nepříznivými vlivy různého charakteru, nebo pro zvýšení komfortu jízdy a příjem nebo předávání informací z vozidla, například náhradní kolo, nářadí, výstražný trojúhelník, prostředky pro připevnění nákladů, lékárnička, jednotka úpravy vzduchu, rádiový přijímač.
+<var>(2)</var> Náhradním dílem jsou věci, které jsou určeny k nahrazení původního samostatného technického celku nebo konstrukční části vozidla. Náhradní díl, na který se vztahuje homologace typu, musí splňovat požadavky stanovené předpisovou základnou.

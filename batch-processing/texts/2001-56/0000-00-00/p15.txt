@@ -1,0 +1,7 @@
+<var>§ 15</var>
+<var>(1)</var> Výrobce nebo akreditovaný dovozce (dále jen „výrobce“), který hodlá uvádět na trh hromadně vyrobená silniční vozidla, systémy vozidla, konstrukční části vozidla nebo samostatné technické celky vozidla, musí mít pro vozidlo platné osvědčení o schválení technické způsobilosti typu vozidla a pro konstrukční části vozidla, systémy vozidla a samostatné technické celky vozidla platné osvědčení o homologaci.
+<var>(2)</var> Typem silničního vozidla se rozumí vozidla jedné kategorie, která mají stejného výrobce, stejnou značku (obchodní název stanovený výrobcem) a obchodní označení vozidla a která mají podstatné koncepční a konstrukční znaky, kterými je rám nebo podlahová část. Typ silničního vozidla může zahrnovat variantu typu a verzi varianty typu vozidla.
+<var>a)</var> brzd,
+<var>b)</var> vnějšího hluku,
+<var>c)</var> emise škodlivin ve výfukových plynech,
+<var>d)</var> odrušení vozidla a elektromagnetické kompatibility.

@@ -1,0 +1,17 @@
+<var>§ 44</var>
+<var>(1)</var> Kontrolou technického stavu částí silničního motorového vozidla, motoru a příslušenství ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech, se u silničních motorových vozidel se zážehovými motory s neřízenými emisními systémy, včetně systémů s neřízenými katalyzátory, rozumí
+<var>a)</var> kontrola stavu skupin a dílů ovlivňujících emisi výfukových plynů a znečišťování prostředí,
+<var>b)</var> kontrola parametrů základního seřízení motoru zahřátého na provozní teplotu při volnoběhu a při zvýšených otáčkách, včetně měření obsahu oxidu uhelnatého ve výfukovém plynu při současném měření obsahu nespálených uhlovodíků.
+<var>(2)</var> Kontrolou technického stavu částí silničního motorového vozidla, motoru a příslušenství ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech u silničních vozidel se zážehovými motory s řízenými katalytickými systémy se rozumí
+<var>a)</var> kontrola stavu skupin a dílů ovlivňujících emisi výfukových plynů a znečišťování prostředí,
+<var>b)</var> kontrola funkce řídicího systému motoru,
+<var>c)</var> kontrola obsahu oxidu uhelnatého ve výfukovém plynu při volnoběhu a při zvýšených otáčkách a kontrola hodnoty součinitele přebytku vzduchu lambda ve zvýšených otáčkách u motoru zahřátého na provozní teplotu.
+<var>(3)</var> Kontrolou technického stavu částí silničního motorového vozidla, motoru a příslušenství ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech se u silničních motorových vozidel se zážehovými motory s řízenými katalytickými systémy a systémem palubní diagnostiky EOBD rozumí
+<var>a)</var> kontrola stavu skupin a dílů ovlivňujících emisi výfukových plynů a znečišťování prostředí,
+<var>b)</var> kontrola funkce řídicího systému EOBD,
+<var>c)</var> kontrola obsahu oxidu uhelnatého ve výfukovém plynu při volnoběhu a při zvýšených otáčkách a kontrola hodnoty součinitele přebytku vzduchu lambda ve zvýšených otáčkách u motoru zahřátého na provozní teplotu.
+<var>(4)</var> Kontrolou technického stavu částí silničního motorového vozidla, motoru a příslušenství ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech se u silničních vozidel se vznětovými motory rozumí
+<var>a)</var> kontrola stavu skupin a dílů ovlivňujících emisi výfukových plynů a znečišťování prostředí,
+<var>b)</var> kontrola seřízení motoru zahřátého na provozní teplotu, zejména volnoběžných a maximálních otáček; u motorů s řízeným emisním systémem i kontrola funkce řídicího systému motoru,
+<var>c)</var> změření kouřivosti metodou volné akcelerace.
+<var>(5)</var> Před měřením emisí se kontrolují doklady registrovaného vozidla a osvědčení o měření emisí. Ověřují se identifikační údaje vozidla a motoru, homologační štítky a správnost údajů o měření emisí.

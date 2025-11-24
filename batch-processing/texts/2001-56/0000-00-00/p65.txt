@@ -1,0 +1,9 @@
+Rozhodnutí o oprávnění k provozování stanice měření emisí
+Okresní úřad v rozhodnutí o oprávnění k provozování stanice měření emisí uvede
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, jedná-li se o právnickou osobu, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého pobytu, jedná-li se o fyzickou osobu,
+<var>b)</var> typ stanice měření emisí,
+<var>c)</var> typy a značky vozidel, u nichž je stanice měření emisí oprávněna provádět měření emisí,
+<var>d)</var> místo, kde bude stanice měření emisí provozována,
+<var>e)</var> datum zahájení provozu,
+<var>f)</var> rozsah provádění měření emisí,
+<var>g)</var> další podmínky pro zahájení činnosti provozování stanice měření emisí.

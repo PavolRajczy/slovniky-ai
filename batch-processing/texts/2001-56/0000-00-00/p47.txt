@@ -1,0 +1,13 @@
+<var>§ 47</var>
+Technická prohlídka
+<var>(1)</var> Technickou prohlídkou silničního vozidla se rozumí kontrola technického stavu, činnosti ústrojí a zařízení silničního vozidla.
+<var>(2)</var> Kontrolou technického stavu silničního vozidla se rozumí kontrola
+<var>a)</var> brzdové soustavy,
+<var>b)</var> řízení,
+<var>c)</var> náprav, kol, pneumatik, pérování, hřídelů, kloubů,
+<var>d)</var> podvozku a karoserie,
+<var>e)</var> světelných zařízení a světelné signalizace,
+<var>f)</var> ostatního ústrojí a zařízení, zejména elektrického zařízení a vedení, rychloměru a tachografu, palivové soustavy, těsnosti motoru a převodovky, spojky, řazení rychlostních stupňů, vytápění a větracího systému, spojovacího zařízení, výfukové soustavy, odrušení, hluku,
+<var>g)</var> předepsané a zvláštní výbavy.
+<var>(3)</var> Při zahájení technické prohlídky musí být u silničního motorového vozidla předložen protokol o měření emisí s kladným výsledkem a na zadní tabulce registrační značky musí být umístěna kontrolní nálepka s vyznačením doby platnosti provedeného měření.
+<var>(5)</var> Řidič silničního motorového vozidla je oprávněn být přítomen při technické prohlídce ve stanici technické kontroly.

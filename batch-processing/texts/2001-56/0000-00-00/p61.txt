@@ -1,0 +1,5 @@
+<var>§ 61</var>
+<var>(1)</var> Profesní osvědčení kontrolního technika se vydává na dobu neurčitou.
+<var>(2)</var> Ministerstvo rozhodne o odnětí profesního osvědčení kontrolního technika,
+<var>a)</var> porušil-li jeho držitel závažným způsobem povinnosti při provádění prohlídek silničních vozidel,
+<var>b)</var> přestal-li splňovat podmínky pro jeho vydání.

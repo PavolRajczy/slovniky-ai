@@ -1,0 +1,15 @@
+<var>§ 28</var>
+Rejstřík honebních společenstev
+<var>(1)</var> Rejstřík honebních společenstev vedený orgánem státní správy myslivosti je veřejný seznam, do kterého se zapisují nebo vyznačují zákonem stanovené údaje týkající se honebních společenstev. Jeho součástí je sbírka listin obsahující stanovy.
+<var>(2)</var> Rejstřík honebních společenstev je každému přístupný. Každý má právo do něj nahlížet, pořizovat si na své náklady kopie a výpisy. Na požádání vydá orgán státní správy myslivosti úřední potvrzení o zápisu nebo o tom, že zápis není proveden.
+<var>(3)</var> Do rejstříku honebních společenstev se zapisují tyto údaje:
+<var>a)</var> název a sídlo honebního společenstva s uvedením dne a čísla registrace,
+<var>b)</var> zánik honebního společenstva s uvedením dne a právního důvodu výmazu,
+<var>c)</var> identifikační číslo osoby honebního společenstva,
+<var>d)</var> jméno, příjmení a adresa místa trvalého pobytu honebního starosty, honebního místostarosty a dalších členů honebního výboru,
+<var>e)</var> identifikace honebních pozemků tvořících společenstevní honitbu, a to slovním popisem hranice honitby,
+<var>f)</var> zrušení honebního společenstva,
+<var>g)</var> vstup do likvidace včetně jména, příjmení a adresy místa trvalého pobytu likvidátora,
+<var>h)</var> zahájení insolvenčního řízení, prohlášení konkursu, jméno, příjmení (obchodní firma) a sídlo insolvenčního správce.
+<var>(4)</var> Do rejstříku honebních společenstev se zapíše také změna nebo zánik skutečností podle <a data-odkaz-id="30985909" href="#"  class="int_odkaz">odstavce 3.</a>
+<var>(5)</var> Identifikační číslo osoby přiděluje honebnímu společenstvu orgán státní správy myslivosti; identifikační číslo osoby poskytne orgánu státní správy myslivosti správce základního registru osob<a data-odkaz-id="30985959" href="#"  class="int_odkaz"><sup>21a</sup>)</a>.

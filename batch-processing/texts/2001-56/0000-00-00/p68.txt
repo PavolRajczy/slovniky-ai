@@ -1,0 +1,5 @@
+<var>§ 68</var>
+Odnětí oprávnění k provozování stanice měření emisí
+Okresní úřad odejme oprávnění k provozování stanice měření emisí, jestliže
+<var>a)</var> při provádění měření emisí jsou závažným způsobem porušovány povinnosti stanovené tímto zákonem,
+<var>b)</var> ministerstvo v rámci výkonu státního odborného dozoru nařídilo zastavení provádění měření emisí.

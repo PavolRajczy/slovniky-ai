@@ -1,0 +1,16 @@
+<var>§ 35</var>
+<var>(1)</var> Okresní úřad rozhodne o schválení technické způsobilosti jednotlivě dovezeného silničního vozidla, jestliže žadatel prokáže, že
+<var>a)</var> pro silniční vozidlo bylo uděleno osvědčení o homologaci typu ES,
+<var>b)</var> na silničním vozidle nebyly provedeny žádné konstrukční změny,
+<var>c)</var> údaje v předložených dokladech k žádosti odpovídají skutečnosti zjištěné protokolem o evidenční kontrole.
+<var>(2)</var> Okresní úřad rozhodne o schválení technické způsobilosti jednotlivě dovezeného silničního vozidla, u něhož není prokázáno udělení osvědčení o homologaci typu ES a
+<var>a)</var> které nebylo dosud registrováno, nebo
+<var>b)</var> od jehož první registrace v jiném státě neuplynula doba delší než pět let,
+na základě technického protokolu vydaného zkušební stanicí. Zkušební stanice vydá technický protokol, splňuje-li vozidlo technické požadavky stanovené právním předpisem nebo mezinárodní smlouvou, kterou je Česká republika vázána, a které byly platné pro danou kategorii vozidla v České republice v době výroby vozidla.
+<var>(3)</var> Okresní úřad rozhodne nejpozději ve lhůtě do 30 dnů ode dne doručení písemné žádosti doložené předepsanými doklady.
+<var>(4)</var> V případě kladného rozhodnutí o schválení technické způsobilosti jednotlivě dovezeného silničního vozidla vydá okresní úřad technický průkaz silničního vozidla, jedná-li se o silniční vozidlo, které podléhá registraci. U silničních vozidel, která nepodléhají registraci, vydá okresní úřad technické osvědčení silničního vozidla.
+<var>(5)</var> V informačním dokumentu může ministerstvo vymezit, z kterých technických požadavků nebo postupů lze povolit při rozhodování o schvalování technické způsobilosti jednotlivě dovezeného silničního vozidla na žádost výjimky. Výjimky nelze povolit z technických požadavků týkajících se
+<var>a)</var> brzd,
+<var>b)</var> vnějšího hluku,
+<var>c)</var> emise škodlivin ve výfukových plynech,
+<var>d)</var> odrušení vozidla a elektromagnetické kompatibility.

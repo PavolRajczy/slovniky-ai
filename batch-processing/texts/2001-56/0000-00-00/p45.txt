@@ -1,0 +1,8 @@
+<var>§ 45</var>
+Hodnocení a vyznačování měření emisí
+<var>(2)</var> O provedeném měření emisí vyhotoví stanice měření emisí protokol o měření emisí silničního motorového vozidla a předá jej provozovateli vozidla.
+<var>(3)</var> Stanice měření emisí v případě kladného výsledku měření emisí vystaví provozovateli silničního motorového vozidla osvědčení o měření emisí, vyznačí v něm kladný výsledek měření emisí a na zadní tabulku registrační značky umístí kontrolní nálepku s vyznačením měsíce a roku příštího měření emisí.
+<var>(4)</var> Osvědčení o měření emisí je přílohou technického průkazu silničního vozidla, která obsahuje
+<var>a)</var> identifikační údaje o silničním motorovém vozidle a jeho motoru, jen v případě změny,
+<var>b)</var> hodnoty základního seřízení a limity parametrů emisního chování motoru,
+<var>c)</var> datum příštího měření emisí.

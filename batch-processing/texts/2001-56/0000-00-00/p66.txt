@@ -1,0 +1,6 @@
+<var>§ 66</var>
+<var>(1)</var> Stanice měření emisí musí mít ke dni zahájení provozu osvědčení. Osvědčení vydává okresní úřad, který rozhodoval o udělení oprávnění k provozování stanice měření emisí na základě žádosti provozovatele stanice měření emisí.
+<var>(2)</var> Osvědčením provozovatel stanice měření emisí dokládá, že
+<var>a)</var> splňuje podmínky odborné způsobilosti osob zajišťujících provozování stanice měření emisí,
+<var>b)</var> splňuje podmínky stanovené tímto zákonem pro provozování stanice měření emisí,
+<var>c)</var> má vnitřní organizační strukturu a systém řízení pro zajištění měření emisí.

@@ -1,0 +1,7 @@
+<var>§ 22</var>
+Odnětí osvědčení o schválení technické způsobilosti typu
+<var>(1)</var> Ministerstvo rozhodne o odnětí osvědčení o schválení technické způsobilosti typu silničního vozidla nebo systému vozidla, konstrukční části vozidla nebo samostatného technického celku vozidla, jestliže
+<var>a)</var> držitel osvědčení o schválení technické způsobilosti typu přestal splňovat některou z podmínek, na jejichž základě bylo uděleno osvědčení o schválení typu,
+<var>b)</var> neplní povinnosti stanovené tímto zákonem nebo rozhodnutím o udělení osvědčení o schválení technické způsobilosti typu,
+<var>c)</var> to vyžaduje bezpečnost provozu na pozemních komunikacích.
+<var>(2)</var> Ministerstvo odejme osvědčení o schválení technické způsobilosti typu, jestliže o to držitel osvědčení požádal.

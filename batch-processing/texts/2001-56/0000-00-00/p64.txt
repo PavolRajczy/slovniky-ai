@@ -1,0 +1,13 @@
+<var>§ 64</var>
+Žádost o udělení oprávnění k provozování stanice měření emisí
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, jedná-li se o právnickou osobu, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého pobytu, jedná-li se o fyzickou osobu,
+<var>b)</var> typ stanice měření emisí,
+<var>c)</var> značky (obchodní název stanovený výrobcem) a typy vozidel, u nichž bude prováděno měření emisí,
+<var>d)</var> místo, kde bude stanice měření emisí provozována,
+<var>e)</var> termín předpokládaného zahájení provozu.
+<var>a)</var> popis objektu, příjezdových komunikací a parkoviště,
+<var>b)</var> seznam technologického vybavení stanice měření emisí,
+<var>c)</var> kladné vyjádření stavebního úřadu, v jehož územním obvodu má být stanice měření emisí zřízena, k záměru provozovat stanici měření emisí z hlediska územního plánu a ochrany životního prostředí, popřípadě jiného veřejného zájmu,
+<var>d)</var> výpis z evidence Rejstříku trestů, který není starší než tři měsíce, všech fyzických osob, které jsou statutárním orgánem nebo členy statutárního orgánu, je-li žadatelem právnická osoba, nebo výpis z evidence Rejstříku trestů, který není starší než tři měsíce, žadatele, je-li žadatelem fyzická osoba,
+<var>e)</var> stanovisko hygienické služby,
+<var>f)</var> doklad o pověření výrobce vozidla nebo výrobce systému vozidla ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech vozidla zřídit specializované pracoviště opravny.

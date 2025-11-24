@@ -1,0 +1,2 @@
+<var>§ 43</var>
+Měřením emisí se rozumí kontrola technického stavu částí silničního motorového vozidla, motoru a příslušenství ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech, změření hodnot parametrů a vlastností popisujících emisní chování silničního motorového vozidla, jejich seřízení a případné odstranění zjištěných závad.

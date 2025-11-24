@@ -1,0 +1,9 @@
+<var>§ 72</var>
+<var>a)</var> je držitelem oprávnění k provozování stanice technické kontroly,
+<var>b)</var> je technicky a stavebně vybavena k provádění technické kontroly,
+<var>c)</var> alespoň jeden zaměstnanec je držitelem platného osvědčení k provádění technických kontrol vozidel před schválením jejich technické způsobilosti k provozu na pozemních komunikacích,
+<var>d)</var> činnosti budou vykonávat fyzické osoby, které jsou pro tyto činnosti odborně způsobilé a mají povinnost zachovávat státní, obchodní nebo služební tajemství.
+<var>(2)</var> Ministerstvo rozhodne o vydání osvědčení k provádění technických kontrol vozidel před schválením jejich technické způsobilosti k provozu na pozemních komunikacích, jestliže žadatel
+<var>a)</var> je držitelem profesního osvědčení kontrolního technika,
+<var>b)</var> úspěšně absolvoval základní nebo zdokonalovací výcvik v teoretické přípravě a praktické výuce,
+<var>c)</var> složil závěrečnou zkoušku odborné způsobilosti.

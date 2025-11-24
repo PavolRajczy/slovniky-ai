@@ -1,0 +1,5 @@
+Technicky nezpůsobilé silniční vozidlo k provozu
+Silniční vozidlo je technicky nezpůsobilé k provozu na pozemních komunikacích, pokud
+<var>a)</var> pro závady v technickém stavu bezprostředně ohrožuje bezpečnost provozu na pozemních komunikacích,
+<var>c)</var> provozovatel vozidla neprokáže jeho technickou způsobilost k provozu na pozemních komunikacích způsobem stanoveným tímto zákonem,
+<var>d)</var> byly na vozidle provedeny neschválené změny anebo zásahy do identifikátorů vozidla, například VIN.

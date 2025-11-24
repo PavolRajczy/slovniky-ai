@@ -1,0 +1,5 @@
+<var>§ 20</var>
+Rozhodnutí o schválení technické způsobilosti typu
+<var>(1)</var> Ministerstvo v rozhodnutí o schválení technické způsobilosti typu silničního vozidla uvede
+<var>c)</var> účel, pro který má být silniční vozidlo používáno,
+<var>(2)</var> V rozhodnutí o schválení technické způsobilosti typu systému vozidla, konstrukční části vozidla nebo samostatného technického celku vozidla ministerstvo uvede údaje uvedené v <a data-odkaz-id="30438013" href="#"  class="int_odkaz">odstavci 1 písm. a)</a>, <a data-odkaz-id="30438063" href="#"  class="int_odkaz">b)</a>, <a data-odkaz-id="30438113" href="#"  class="int_odkaz">d)</a>, <a data-odkaz-id="30438163" href="#"  class="int_odkaz">e)</a> a <a data-odkaz-id="30438213" href="#"  class="int_odkaz">f)</a> a stanoví podmínky pro jejich použití a podmínky jejich montáže na vozidlo.

@@ -1,0 +1,10 @@
+<var>§ 54</var>
+Oprávnění k provozování stanice technické kontroly
+<var>(1)</var> Stanice technické kontroly je pracoviště specializované na provádění technických prohlídek silničních vozidel.
+<var>(2)</var> Stanici technické kontroly může provozovat právnická nebo fyzická osoba, která má k jejímu provozování oprávnění udělené okresním úřadem. Příslušným k rozhodování o udělení oprávnění je okresní úřad, v jehož územním obvodu bude provozovatel stanice technické kontroly vykonávat svoji činnost.
+<var>(3)</var> Okresní úřad udělí žadateli oprávnění k provozování stanice technické kontroly za těchto podmínek:
+<var>a)</var> žadatel, statutární orgán nebo členové statutárního orgánu právnické osoby dosáhli věku 18 let, jsou způsobilí k právním úkonům, bezúhonní a alespoň jeden člen statutárního orgánu je odborně způsobilý,
+<var>b)</var> žadatel nesmí být právně nebo ekonomicky spjat s výrobou, prodejem nebo opravou vozidel nebo jejich součástí tak, že současně provozuje výrobu nebo opravy vozidel nebo jejich součástí, pro něž žádá o udělení oprávnění k provozování stanice technické kontroly, po celou dobu provozování stanice technické kontroly,
+<var>c)</var> žadatel má parkovací plochy, provozní a technické vybavení nezbytné k provozování stanice technické kontroly,
+<var>d)</var> žadatel zajistí, aby prohlídky ve stanici technické kontroly prováděly jen osoby, které jsou držiteli profesního osvědčení kontrolního technika.
+<var>(5)</var> Odbornou způsobilost prokáže žadatel platným profesním osvědčením odborné způsobilosti kontrolního technika (dále jen „profesní osvědčení kontrolního technika“) (<a data-odkaz-id="30439383" href="#"  class="int_odkaz">§ 60</a>), jehož je držitelem alespoň jeden člen statutárního orgánu.

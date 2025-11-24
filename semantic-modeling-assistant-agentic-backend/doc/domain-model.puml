@@ -1,0 +1,143 @@
+@startuml
+' Generated PlantUML domain model
+' Assumptions:
+'   - Primitive types (str, int, float, bool, date, datetime, URIRef) are shown as attributes
+'   - Enum types are shown as attributes with their Enum type name
+'   - Complex types are shown as associations
+'   - Optional[T] indicates 0..1 cardinality
+'   - List[T] indicates 0..* cardinality
+'   - Dict[K,V] indicates 0..* cardinality to V
+'   - Simple types indicate 1..1 cardinality
+
+package design_project {
+  class DesignProject {
+    id: str
+    name: str [0..1]
+    patternsFactoryId: str
+  }
+
+  class DesignIteration {
+    id: str
+    name: str [0..1]
+    status: DesignIterationStatus
+    specification: str [0..1]
+    designedOntologyChangesSpecification: str [0..1]
+  }
+
+  class DesignTask {
+    id: str
+    name: str [0..1]
+    status: DesignTaskStatus
+    specification: str [0..1]
+    designedOntologyChangesSpecification: str [0..1]
+  }
+
+  class DesignTaskPattern {
+    id: str
+    name: str
+    category: DesignTaskCategory
+    specification: str [0..1]
+    whenApplicable: str [0..1]
+  }
+
+  class KnowledgeDomainArea {
+    id: str
+    label: str
+    description: str [0..1]
+    keyConcepts: str [0..*]
+  }
+
+  class KnowledgeDomain {
+    label: str
+    description: str [0..1]
+  }
+
+}
+
+package knowledge_base {
+  class KnowledgeDocumentElement {
+    id: str
+    title: str [0..1]
+    content: str [0..1]
+    contentSummary: str [0..1]
+    elementType: str
+  }
+
+  class KnowledgeDocument {
+    elementType: str
+    cacheFilePath: str [0..1]
+  }
+
+}
+
+package ontology {
+  class OntologyElement {
+    uri: URIRef
+    label: str
+    definition: str [0..1]
+    description: str [0..1]
+  }
+
+  class OntologyClass {
+    kind: Kind
+  }
+
+  class OntologyAttribute {
+  }
+
+  class OntologyRelationship {
+  }
+
+  class Ontology {
+    uri: URIRef
+    label: str
+    description: str [0..1]
+  }
+
+}
+
+KnowledgeDocumentElement <|-- KnowledgeDocument
+OntologyElement <|-- OntologyClass
+OntologyElement <|-- OntologyAttribute
+OntologyElement <|-- OntologyRelationship
+
+DesignProject --> "0..*" DesignIteration : finishedIterations
+DesignProject --> "0..1" DesignIteration : currentIteration
+DesignProject --> "0..*" DesignIteration : plannedIterations
+DesignProject --> "0..*" DesignTaskPattern : patterns
+DesignProject --> "0..*" KnowledgeDocument : legalKnowledgeBase
+DesignProject --> "0..*" KnowledgeDocument : expertKnowledgeBase
+DesignProject --> "0..1" KnowledgeDocument : keyKnowledgeDocument
+DesignProject --> "0..1" KnowledgeDomain : modeledKnowledgeDomain
+DesignProject --> Ontology : designedOntology
+DesignIteration --> "0..*" DesignTask : finishedTasks
+DesignIteration --> "0..1" DesignTask : currentTask
+DesignIteration --> "0..*" DesignTask : plannedTasks
+DesignIteration --> KnowledgeDomainArea : focusedArea
+DesignTask --> DesignTaskPattern : followedPattern
+DesignTask --> "0..*" KnowledgeDocumentElement : knowledgeResources
+DesignTaskPattern --> "0..*" DesignTask : exampleTasks
+KnowledgeDomainArea --> KnowledgeDomain : parent
+KnowledgeDomainArea --> "0..*" OntologyClass : modelingClasses
+KnowledgeDomainArea --> "0..*" OntologyAttribute : modelingAttributes
+KnowledgeDomainArea --> "0..*" OntologyRelationship : modelingRelationships
+KnowledgeDomainArea --> "0..*" KnowledgeDocumentElement : explainingKnowledgeResources
+KnowledgeDomain --> "0..*" KnowledgeDomainArea : areas
+KnowledgeDocumentElement --> "0..*" KnowledgeDocumentElement : childElements
+KnowledgeDocumentElement --> "0..1" KnowledgeDocumentElement : parentElement
+KnowledgeDocumentElement --> "0..*" OntologyElement : definedOntologyElements
+KnowledgeDocumentElement --> "0..*" OntologyElement : specifiedOntologyElements
+KnowledgeDocumentElement --> "0..*" OntologyElement : referencedOntologyElements
+OntologyClass --> "0..*" OntologyClass : generalizations
+OntologyClass --> "0..*" OntologyClass : specializations
+OntologyClass --> "0..*" OntologyAttribute : attributes
+OntologyClass --> "0..*" OntologyRelationship : outgoingRelationships
+OntologyClass --> "0..*" OntologyRelationship : incomingRelationships
+OntologyAttribute --> OntologyClass : owningClass
+OntologyRelationship --> OntologyClass : sourceClass
+OntologyRelationship --> OntologyClass : targetClass
+Ontology --> "0..*" OntologyClass : classes
+Ontology --> "0..*" OntologyAttribute : attributes
+Ontology --> "0..*" OntologyRelationship : relationships
+
+@enduml

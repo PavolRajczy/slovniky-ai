@@ -1,0 +1,10 @@
+<var>§ 38</var>
+Silniční motorová vozidla a jejich přípojná vozidla v provozu
+<var>(1)</var> Provozovatel silničního motorového vozidla a přípojného vozidla nesmí provozovat na pozemních komunikacích vozidlo,
+<var>a)</var> které je technicky nezpůsobilé k provozu,
+<var>b)</var> které není zaregistrováno v registru silničních vozidel v České republice nebo v registru silničních vozidel jiného státu,
+<var>c)</var> které není opatřeno registrační značkou nebo registrační značkou jiného státu,
+<var>d)</var> k němuž není sjednáno pojištění odpovědnosti z provozu vozidla,<a data-odkaz-id="30438939" href="#"  class="int_odkaz"><sup>5</sup>)</a>
+<var>e)</var> které nemá platné osvědčení o technické způsobilosti vydané stanicí měření emisí a stanicí technické kontroly,
+<var>f)</var> které nemá identifikační údaje v souladu s údaji uvedenými v registru silničních vozidel.
+<var>(2)</var> Provozovatel silničního motorového vozidla a přípojného vozidla musí při jízdě do zahraničí umístit na silničním motorovém vozidle mezinárodní rozlišovací značku České republiky. Mezinárodní rozlišovací značka České republiky obsahuje označení CZ.

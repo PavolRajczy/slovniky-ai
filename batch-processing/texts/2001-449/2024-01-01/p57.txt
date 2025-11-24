@@ -1,0 +1,8 @@
+<var>§ 57</var>
+Orgány státní správy myslivosti
+<var>(1)</var> Ústředním orgánem státní správy myslivosti v České republice, s výjimkou území národních parků, je Ministerstvo zemědělství. Na území národních parků je ústředním orgánem státní správy Ministerstvo životního prostředí.
+<var>(2)</var> Na území krajů je orgánem státní správy myslivosti krajský úřad v přenesené působnosti.
+<var>(3)</var> Na území hlavního města Prahy je orgánem státní správy myslivosti Magistrát hlavního města Prahy. Přenesená působnost, která je tímto zákonem svěřena obecním úřadům obcí s rozšířenou působností, může být statutem hlavního města Prahy svěřena městským částem.
+<var>(4)</var> Na území obcí je orgánem státní správy obecní úřad obce s rozšířenou působností.
+<var>(5)</var> Na pozemcích určených pro obranu státu vykonává působnost krajů v přenesené působnosti a obecních úřadů obcí s rozšířenou působností Ministerstvo zemědělství. V národních parcích vykonávají správy národních parků působnost, která je svěřena obcím; působnost krajů vykonává Ministerstvo životního prostředí.
+<var>(6)</var> Ministr zemědělství zřizuje Mysliveckou radu jako svůj poradní sbor složený zejména ze zástupců jiných správních úřadů, celostátně působících mysliveckých organizací,<a data-odkaz-id="31038527" href="#"  class="int_odkaz"><sup>6</sup>)</a> zemědělských a lesnických organizací, vysokých škol a výzkumných ústavů s činností na úseku myslivosti.

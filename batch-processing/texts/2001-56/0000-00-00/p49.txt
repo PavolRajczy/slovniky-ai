@@ -1,0 +1,5 @@
+<var>§ 49</var>
+Technickou prohlídkou silničního vozidla ve stanici technické kontroly mohou být zjištěny tyto stupně závad na technickém stavu vozidla, jeho ústrojí a částech:
+<var>a)</var> lehká závada, která nemá vliv na bezpečnost provozu na pozemních komunikacích,
+<var>b)</var> vážná závada, která ovlivňuje provozní vlastnosti vozidla a nepříznivě působí na životní prostředí, ale neohrožuje bezprostředně bezpečnost jízdy vozidla nebo provoz na pozemních komunikacích,
+<var>c)</var> nebezpečná závada, která bezprostředně ohrožuje bezpečnost jízdy silničního vozidla nebo provoz na pozemních komunikacích.

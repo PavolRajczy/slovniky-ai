@@ -1,0 +1,7 @@
+<var>§ 23</var>
+Pozbytí platnosti osvědčení o schválení technické způsobilosti typu
+Osvědčení o schválení technické způsobilosti typu silničního vozidla nebo systému vozidla, konstrukční části vozidla nebo samostatného technického celku vozidla pozbývá platnosti
+<var>a)</var> uplynutím doby, na kterou bylo osvědčení o schválení technické způsobilosti typu uděleno,
+<var>b)</var> dnem zániku právnické osoby, která je držitelem osvědčení o schválení technické způsobilosti typu,
+<var>c)</var> uplynutím 30 dnů od úmrtí fyzické osoby, které bylo osvědčení o schválení technické způsobilosti typu uděleno,
+<var>d)</var> dnem, kdy rozhodnutí ministerstva o odnětí osvědčení o schválení technické způsobilosti typu nabylo právní moci.

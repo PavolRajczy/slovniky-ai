@@ -1,0 +1,4 @@
+<var>§ 84</var>
+<var>(1)</var> Pokutu uloží ministerstvo, Česká obchodní inspekce nebo okresní úřad do jednoho roku ode dne, kdy bylo porušení povinností zjištěno, a nejdéle do tří let ode dne, kdy k porušení povinností došlo, a jde-li o pokračující neoprávněné provozování stanice technické kontroly nebo stanice měření emisí, nejdéle do pěti let od doby, kdy neoprávněná činnost ještě trvala.
+<var>(2)</var> Pokuty uložené okresním úřadem vybírá a vymáhá okresní úřad. Pokuty uložené ministerstvem vybírá a vymáhá ministerstvo.
+<var>(3)</var> Pokuty uložené a vybrané podle tohoto zákona jsou příjmem státního rozpočtu.

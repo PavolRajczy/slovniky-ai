@@ -1,0 +1,9 @@
+<var>§ 20</var>
+Vznik honebního společenstva
+<var>(1)</var> Návrh na registraci se podává příslušnému orgánu státní správy myslivosti. Nemá-li návrh na registraci předepsané náležitosti anebo jsou-li údaje v něm neúplné nebo nepřesné, orgán státní správy myslivosti na to přípravný výbor bezodkladně, nejpozději do 5 dnů od doručení návrhu, upozorní s tím, že nebudou-li tyto vady ve stanovené lhůtě odstraněny, řízení bude zastaveno.
+<var>(2)</var> Pokud orgán státní správy myslivosti nezjistí důvod k odmítnutí registrace, provede registraci a zašle zmocněnci přípravného výboru jedno vyhotovení předložených stanov a seznamu členů, na nichž vyznačí den registrace.
+<var>(3)</var> Honební společenstvo vzniká dnem registrace. Ke stejnému dni zapíše orgán státní správy myslivosti honební společenstvo do rejstříku honebních společenstev. Vznik honebního společenstva, jeho název a sídlo oznámí orgán státní správy myslivosti do 7 dnů ode dne registrace Českému statistickému úřadu.
+<var>(4)</var> Orgán státní správy myslivosti odmítne zapsat honební společenstvo do rejstříku a uznat společenstevní honitbu, jestliže
+<var>a)</var> celková výměra honebních pozemků ve vlastnictví osob uvedených v seznamu členů nedosahuje výměry stanovené tímto zákonem pro vznik společenstevní honitby,
+<var>b)</var> předložené stanovy nesplňují podmínky podle <a data-odkaz-id="30985509" href="#"  class="int_odkaz">§ 19 odst. 6 písm. a)</a>.
+<var>(5)</var> Rozhodnutí o odmítnutí registrace honebního společenstva doručí orgán státní správy myslivosti zmocněnci přípravného výboru.

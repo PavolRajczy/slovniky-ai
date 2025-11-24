@@ -1,0 +1,3 @@
+<var>§ 48</var>
+<var>(2)</var> Stanice technické kontroly nesmí při pravidelné technické prohlídce seřizovat a opravovat silniční vozidlo, s výjimkou jednoduchého seřízení světlometů, pokud to umožňuje stav a přístupnost seřizovacích prvků.
+<var>(3)</var> O provedení pravidelné technické prohlídky silničního vozidla vyhotoví stanice technické kontroly protokol o technické prohlídce, předá jej provozovateli vozidla a výsledek technické prohlídky vozidla oznámí příslušnému okresnímu úřadu.

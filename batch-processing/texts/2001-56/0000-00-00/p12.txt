@@ -1,0 +1,8 @@
+<var>§ 12</var>
+Žádost o zápis změn údajů v registru silničních vozidel
+<var>(1)</var> Žádost o zápis změn údajů zapisovaných do registru silničních vozidel jsou osoby uvedené v <a data-odkaz-id="30437083" href="#"  class="int_odkaz">§ 11</a> povinny podat do 10 pracovních dnů od vzniku skutečnosti, která zakládá změnu zapisovaného údaje.
+<var>(2)</var> K žádosti se přikládá
+<var>a)</var> technický průkaz silničního motorového vozidla a přípojného vozidla,
+<var>b)</var> osvědčení o registraci silničního motorového vozidla a přípojného vozidla,
+<var>c)</var> rozhodnutí okresního úřadu o schválení technické způsobilosti po provedené změně, v případě změny podstatných částí mechanismu nebo konstrukce vozidla provedené formou individuální přestavby,
+<var>d)</var> ostatní doklady osvědčující změnu zapisovaných údajů.

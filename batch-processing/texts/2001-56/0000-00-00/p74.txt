@@ -1,0 +1,11 @@
+<var>§ 74</var>
+<var>(2)</var> Hromadnou přestavbu typu silničního vozidla povoluje ministerstvo na základě písemné žádosti, pokud jsou splněny podmínky pro hromadnou přestavbu stanovené prováděcím právním předpisem.
+<var>(3)</var> Žádost o povolení přestavby silničního vozidla nebo hromadné přestavby typu silničního vozidla musí obsahovat
+<var>a)</var> obchodní jméno, sídlo a právní formu právnické osoby a její identifikační číslo, pokud bylo přiděleno, je-li žadatelem právnická osoba, nebo jméno a příjmení, pobyt, obchodní jméno, rodné číslo a identifikační číslo fyzické osoby, pokud bylo přiděleno, je-li žadatelem fyzická osoba,
+<var>b)</var> druh a kategorii silničního vozidla,
+<var>c)</var> účel, pro který má být silniční vozidlo používáno.
+<var>(4)</var> Žádost musí být doložena těmito doklady:
+<var>a)</var> podrobným popisem přestavby silničního vozidla,
+<var>b)</var> návrhem na změnu údajů zapisovaných v technickém průkazu silničního vozidla,
+<var>c)</var> technickým popisem a výkresovou dokumentací systému vozidla, konstrukční části vozidla nebo samostatného technického celku vozidla, pokud nebyla schválena jejich technická způsobilost typu,
+<var>d)</var> technickým protokolem vydaným zkušební stanicí a u hromadné přestavby vozidla pověřenou zkušebnou.

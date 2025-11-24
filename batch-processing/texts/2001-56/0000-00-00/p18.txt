@@ -1,0 +1,7 @@
+<var>§ 18</var>
+Vícestupňové schvalování technické způsobilosti typu silničního vozidla
+<var>(1)</var> Je-li silniční vozidlo vyráběno ve více stupních u dvou nebo více výrobců, může výrobce žádat o schválení technické způsobilosti typu vozidla postupně, v samostatných řízeních, podle stavu rozestavěnosti silničního vozidla.
+<var>(2)</var> Vícestupňové schvalování technické způsobilosti typu silničního vozidla lze zahájit řízením o schválení technické způsobilosti typu základního vozidla. Základním vozidlem se rozumí nedokončené silniční vozidlo, které je výrobcem identifikováno výrobní značkou, kódem vozidla nebo identifikačním číslem vozidla VIN, které zůstanou zachovány i pro následná řízení o schválení technické způsobilosti typu ve více stupních.
+<var>(3)</var> Pro žádost o schválení technické způsobilosti typu základního vozidla platí <a data-odkaz-id="30437463" href="#"  class="int_odkaz">§ 17 odst. 2</a> a <a data-odkaz-id="30437513" href="#"  class="int_odkaz">3</a> obdobně. V dalších řízeních je výrobce povinen žádost doložit
+<var>a)</var> informační složkou, která odpovídá stavu výroby silničního vozidla a kterou nepředkládal v předchozích řízeních o schválení technické způsobilosti typu nedokončeného (rozestavěného) silničního vozidla,
+<var>b)</var> osvědčeními o schválení technické způsobilosti typu nedokončeného (rozestavěného) silničního vozidla v předchozích stupních.

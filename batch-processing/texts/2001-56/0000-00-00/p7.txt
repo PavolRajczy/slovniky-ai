@@ -1,0 +1,7 @@
+<var>§ 7</var>
+<var>(1)</var> Okresní úřad při registraci silničního vozidla
+<var>a)</var> přidělí silničnímu motorovému vozidlu a přípojnému vozidlu registrační značku,
+<var>b)</var> zapíše do technického průkazu silničního motorového vozidla a přípojného vozidla údaje o vlastníkovi silničního motorového vozidla a přípojného vozidla a údaje o provozovateli silničního vozidla, není-li vlastník současně provozovatelem silničního motorového vozidla a přípojného vozidla, a registrační značku,
+<var>c)</var> vydá žadateli osvědčení o registraci silničního motorového vozidla a přípojného vozidla,
+<var>d)</var> vydá tabulku s přidělenou registrační značkou.
+<var>(3)</var> Při prvním přidělení tabulky s registrační značkou okresní úřad opatří registrační značku nálepkou, na níž vyznačí termín pravidelné technické prohlídky a měření emisí, pokud silniční vozidlo měření emisí podléhá.

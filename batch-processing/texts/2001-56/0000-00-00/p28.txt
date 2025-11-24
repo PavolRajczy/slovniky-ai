@@ -1,0 +1,4 @@
+<var>§ 28</var>
+Silniční vozidla vyráběná v malých sériích
+<var>(1)</var> Ministerstvo může na základě písemné žádosti výrobce, který hodlá hromadně vyrábět silniční vozidla v malé sérii, rozhodnout o povolení výjimky z informačního dokumentu stanoveného pro schvalování typu silničního motorového vozidla. Na náležitosti žádosti se vztahuje ustanovení <a data-odkaz-id="30438809" href="#"  class="int_odkaz">§ 17 odst. 2</a> a <a data-odkaz-id="30438859" href="#"  class="int_odkaz">3.</a> Kromě toho musí žádost obsahovat, jaká výjimka má být povolena, a její odůvodnění.
+<var>(2)</var> Malou sérií hromadné výroby se rozumí výroba nebo dovoz nejvýše 500 kusů silničních vozidel vyrobených nebo dovezených v průběhu jednoho kalendářního roku.

@@ -1,0 +1,11 @@
+<var>§ 63</var>
+Oprávnění k provozování stanice měření emisí
+<var>(1)</var> Stanice měření emisí je pracoviště specializované na měření emisí, které je pověřeno výrobcem vozidla nebo výrobcem systému vozidla ovlivňujícího tvorbu škodlivých emisí ve výfukových plynech vozidla. Stanice měření emisí se dělí na typy stanic měření emisí podle druhů vozidel a druhu motorů na stanice měření emisí pro vozidla
+<var>a)</var> poháněná zážehovými motory,
+<var>b)</var> poháněná zážehovými motory a motory upravenými na pohon zkapalněným ropným plynem nebo stlačeným zemním plynem,
+<var>c)</var> poháněná vznětovými motory a motory upravenými na pohon zkapalněným ropným plynem nebo stlačeným zemním plynem.
+<var>(2)</var> Stanici měření emisí může provozovat právnická nebo fyzická osoba, která má k jejímu provozování oprávnění udělené okresním úřadem. Příslušným k rozhodování o udělení oprávnění je okresní úřad, v jehož územním obvodu bude provozovatel stanice měření emisí mít sídlo.
+<var>(3)</var> Okresní úřad udělí žadateli oprávnění k provozování stanice měření emisí za těchto podmínek:
+<var>a)</var> statutární orgán nebo členové statutárního orgánu žadatele dosáhli věku 18 let, jsou způsobilí k právním úkonům a bezúhonní, jedná-li se o právnickou osobu, fyzická osoba dosáhla věku 18 let, je způsobilá k právním úkonům a bezúhonná,
+<var>b)</var> žadatel má provozní a technické vybavení nezbytné k provozování stanice měření emisí.
+<var>(4)</var> Pro vymezení bezúhonnosti platí ustanovení <a data-odkaz-id="30439527" href="#"  class="int_odkaz">§ 54 odst. 4.</a>

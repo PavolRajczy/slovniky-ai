@@ -1,0 +1,3 @@
+<var>§ 41</var>
+Pravidelné měření emisí
+Provozovatel silničního motorového vozidla uvedeného v <a data-odkaz-id="30439065" href="#"  class="int_odkaz">§ 40</a>, s výjimkou motocyklu, jehož provozní hmotnost je nižší než 400 kg, a elektromobilu přistaví toto silniční vozidlo k pravidelnému měření emisí jeden měsíc před ukončením platnosti technické prohlídky ve lhůtách stanovených pro jeho pravidelnou technickou prohlídku.

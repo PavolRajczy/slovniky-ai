@@ -1,0 +1,4 @@
+<var>§ 42</var>
+Doba lovu a podmínky lovu
+<var>(1)</var> Lovit lze jen zvěř, která není hájena podle <a data-odkaz-id="31027017" href="#"  class="int_odkaz">§ 2 písm. c)</a>, a to ve stanovené době lovu. Pokud orgán ochrany přírody stanoví opatření k regulaci nepůvodního druhu nebo křížence<a data-odkaz-id="31027023" href="#"  class="int_odkaz"><sup>39</sup>)</a> nebo povolí usmrcení jiného živočicha, který není zvěří, může usmrcení živočichů, kteří nejsou zvěří, v rámci těchto opatření nebo povolení provést za stanovených podmínek osoba oprávněná podle tohoto zákona.
+<var>(2)</var> Vyhláška stanoví dobu lovu jednotlivých druhů zvěře a bližší podmínky provádění lovu.

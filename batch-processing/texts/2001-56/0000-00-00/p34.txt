@@ -1,0 +1,13 @@
+<var>§ 34</var>
+<var>(1)</var> Technickou způsobilost jednotlivě dovezeného silničního vozidla schvaluje okresní úřad na základě písemné žádosti. Příslušným je okresní úřad, v jehož územním obvodu má žadatel pobyt nebo sídlo.
+<var>(2)</var> Žádost o schválení technické způsobilosti jednotlivě dovezeného silničního vozidla musí obsahovat
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, je-li žadatelem právnická osoba, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého nebo povoleného pobytu, je-li žadatelem fyzická osoba,
+<var>b)</var> druh a kategorii silničního vozidla, výrobce silničního vozidla, značku (obchodní název stanovený výrobcem), typ vozidla a obchodní označení vozidla,
+<var>c)</var> účel, pro který má být silniční vozidlo používáno.
+<var>(3)</var> Žádost musí být doložena těmito doklady:
+<var>a)</var> osvědčením o schválení technické způsobilosti silničního motorového vozidla vydaným jiným státem nebo jeho ověřenou kopií,
+<var>b)</var> dokladem o vyřazení silničního vozidla z registru jiného státu, jedná-li se o vozidlo, které již bylo registrováno v jiném státě,
+<var>c)</var> protokolem o evidenční kontrole, jedná-li se o vozidlo, které již bylo registrováno v jiném státě,
+<var>d)</var> technickým protokolem vydaným zkušební stanicí, jedná-li se o vozidlo, které nebylo registrováno v jiném státě, nebo vozidlo, od jehož první registrace v jiném státě neuplynula doba delší než pět let,
+<var>e)</var> technickým protokolem vydaným pověřenou zkušebnou, jedná-li se o vozidlo, které bylo dovezeno ze státu Evropské unie a od jehož první registrace v tomto státě uplynula doba delší než pět let,
+<var>f)</var> návodem k údržbě a obsluze vozidla v českém jazyce.

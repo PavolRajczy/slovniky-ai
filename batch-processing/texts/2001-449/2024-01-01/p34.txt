@@ -1,0 +1,4 @@
+<var>§ 34</var>
+Evidence využití honiteb
+<var>(1)</var> Orgán státní správy myslivosti vede evidenci honiteb v územním obvodu své působnosti a evidenci jejich využití na základě vydaných rozhodnutí nebo jiných úkonů a skutečností.
+<var>(2)</var> V rámci evidence využití honiteb jsou vedeny evidence mysliveckých hospodářů a mysliveckých stráží s jejich osobními údaji, s daty jmenování, odvolání a vydání průkazů, jakož i evidence loveckých psů používaných pro honitbu.

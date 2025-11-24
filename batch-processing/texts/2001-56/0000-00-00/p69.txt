@@ -1,0 +1,5 @@
+<var>(1)</var> Provádět měření emisí ve stanici měření emisí mohou osoby, které jsou držiteli profesního osvědčení mechanika. O vydání profesního osvědčení mechanika rozhoduje ministerstvo. V případě zamítnutí žádosti vydá ministerstvo rozhodnutí podle <a data-odkaz-id="30439665" href="#"  class="ext_odkaz">správního řádu</a>.
+<var>(2)</var> Profesní osvědčení mechanika vydá ministerstvo osobě, která
+<var>a)</var> má ukončené úplné střední odborné vzdělání technického směru a odbornou praxi nejméně tři roky nebo je vyučena v technickém oboru a má odbornou praxi nejméně šest roků,
+<var>b)</var> absolvovala teoretickou výuku měření emisí pro vozidla poháněná zážehovými motory nebo vozidla poháněná zážehovými motory a motory upravenými na pohon zkapalněným ropným plynem nebo stlačeným zemním plynem nebo vozidla poháněná vznětovými motory a motory upravenými na pohon zkapalněným ropným plynem nebo stlačeným zemním plynem,
+<var>c)</var> složila závěrečnou zkoušku odborné způsobilosti k provádění měření emisí.

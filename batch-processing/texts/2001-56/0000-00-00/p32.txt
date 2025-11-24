@@ -1,0 +1,6 @@
+<var>§ 32</var>
+Okresní úřad v rozhodnutí o technické způsobilosti jednotlivě vyrobeného silničního vozidla uvede
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, je-li žadatelem právnická osoba, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého nebo povoleného pobytu, je-li žadatelem fyzická osoba,
+<var>b)</var> druh a kategorii silničního vozidla,
+<var>c)</var> účel, pro který má být silniční vozidlo používáno,
+<var>d)</var> způsob zajištění záručního a pozáručního servisu silničního vozidla.

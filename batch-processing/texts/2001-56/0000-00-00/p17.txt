@@ -1,0 +1,10 @@
+<var>§ 17</var>
+Žádost o schválení technické způsobilosti typu
+<var>(1)</var> O schválení technické způsobilosti typu silničního vozidla, typu systému vozidla, typu konstrukční části vozidla nebo typu samostatného technického celku rozhoduje ministerstvo na základě písemné žádosti výrobce.
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, jedná-li se o právnickou osobu, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého nebo povoleného pobytu, jedná-li se o fyzickou osobu,
+<var>b)</var> obchodní označení, značku (obchodní název stanovený výrobcem) a typ silničního vozidla, jeho systémů, konstrukční části nebo samostatného technického celku silničního vozidla,
+<var>c)</var> účel, pro který má být silniční vozidlo používáno,
+<var>d)</var> údaje o způsobu zajištění záručního a pozáručního servisu.
+<var>c)</var> osvědčeními o homologaci typu systémů vozidla, konstrukčních částí a samostatných technických celků, které tvoří silniční vozidlo,
+<var>d)</var> návodem k obsluze silničního vozidla v českém jazyce,
+<var>(4)</var> Dokládá-li výrobce žádost o schválení technické způsobilosti osvědčeními o homologaci typu vozidla podle <a data-odkaz-id="30437313" href="#"  class="int_odkaz">§ 27 odst. 2</a>, nemusí být žádost doložena doklady uvedenými v <a data-odkaz-id="30437363" href="#"  class="int_odkaz">odstavci 3 písm. a) až c)</a> a <a data-odkaz-id="30437413" href="#"  class="int_odkaz">e)</a>.

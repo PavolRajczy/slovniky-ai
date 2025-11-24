@@ -1,0 +1,8 @@
+<var>(1)</var> Provádět technické prohlídky vozidel ve stanici technické kontroly mohou osoby, které jsou držiteli profesního osvědčení kontrolního technika. O vydání profesního osvědčení kontrolního technika rozhoduje ministerstvo. V případě zamítnutí žádosti vydá ministerstvo rozhodnutí podle <a data-odkaz-id="30439465" href="#"  class="ext_odkaz">správního řádu</a>.
+<var>(2)</var> Profesní osvědčení kontrolního technika vydá ministerstvo osobě, která
+<var>a)</var> má ukončené úplné střední odborné vzdělání technického směru a má odbornou praxi v autoopravárenství nejméně dva roky nebo střední odborné vzdělání technického směru a odbornou praxi v autoopravárenství nejméně šest let,
+<var>b)</var> dosáhla věku 21 let,
+<var>c)</var> má řidičské oprávnění skupiny nebo podskupiny řidičského oprávnění k řízení vozidla, jehož technické prohlídky ve stanici technické kontroly bude provádět,
+<var>d)</var> absolvovala výuku spočívající v teoretické přípravě a praktickém výcviku na kontrolních linkách stanice technické kontroly,
+<var>e)</var> složila závěrečnou zkoušku odborné způsobilosti k provádění technických prohlídek,
+<var>f)</var> je bezúhonná; za bezúhonného se pro účely tohoto zákona nepovažuje ten, kdo byl pravomocně odsouzen pro trestný čin spáchaný úmyslně k nepodmíněnému trestu odnětí svobody v trvání alespoň jednoho roku, pro trestný čin spáchaný úmyslně, jehož skutková podstata souvisí s podnikáním, nebo pro trestný čin spáchaný z nedbalosti, jehož skutková podstata souvisí s předmětem podnikání, pokud se na něho nehledí, jako by nebyl odsouzen.

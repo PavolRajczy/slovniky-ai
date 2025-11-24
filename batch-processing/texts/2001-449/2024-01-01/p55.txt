@@ -1,0 +1,8 @@
+<var>§ 55</var>
+Uplatnění nároků
+<var>(1)</var> Nárok na náhradu škody způsobené zvěří musí poškozený u uživatele honitby uplatnit
+<var>a)</var> u škody na zemědělských pozemcích, polních plodinách a zemědělských porostech do 20 dnů ode dne, kdy škoda vznikla,
+<var>b)</var> u škod na lesních pozemcích a na lesních porostech vzniklých v období od 1. července předcházejícího roku do 30. června běžného roku do 20 dnů od uplynutí uvedeného období.
+<var>(2)</var> Současně s uplatněním nároku na náhradu škody způsobené zvěří vyčíslí poškozený výši škody. Na polních plodinách a zemědělských porostech, u nichž lze vyčíslit škodu teprve v době sklizně, ji poškozený vyčíslí do 15 dnů po provedené sklizni.
+<var>(3)</var> Poškozený a uživatel honitby se mají o náhradě škody způsobené zvěří dohodnout. Pokud uživatel honitby nenahradí škodu do 60 dnů ode dne, kdy poškozený uplatnil svůj nárok a vyčíslil výši škody nebo ve stejné lhůtě neuzavřel s poškozeným písemnou dohodu o náhradě této škody, může poškozený ve lhůtě 3 měsíců uplatnit svůj nárok na náhradu škody u soudu.
+<var>(4)</var> Nárok na náhradu škody způsobené zvěří zaniká, nebyl-li poškozeným uplatněn ve lhůtách uvedených v <a data-odkaz-id="31038393" href="#"  class="int_odkaz">odstavcích 1 až 3.</a> Spory z dohody uzavřené podle <a data-odkaz-id="31038435" href="#"  class="int_odkaz">odstavce 3</a> rozhoduje soud.

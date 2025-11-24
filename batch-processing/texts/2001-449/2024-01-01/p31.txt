@@ -1,0 +1,13 @@
+<var>§ 31</var>
+Změna a zánik honiteb
+<var>(1)</var> Vyžadují-li to zásady řádného mysliveckého hospodaření, může orgán státní správy myslivosti povolit změnu honitby vyrovnáváním hranic nebo výměnou honebních pozemků (dále jen „změna honitby“). Při změně honitby se nepřihlíží k územním hranicím obcí, okresů nebo krajů a výměry směňovaných pozemků nemusí být stejné.
+<var>(2)</var> Návrh na změnu honitby podávají držitelé dotčených honiteb společně, a to orgánu státní správy myslivosti, do jehož územního obvodu zasahují dotčené honební pozemky největší částí. Nedohodnou-li se vlastníci dotčených honiteb na předložení společného návrhu na změnu honitby, může návrh podat kterýkoliv z nich. Jde-li o společenstevní honitbu, podá návrh honební společenstvo.
+<var>(3)</var> Změnu honitby podle <a data-odkaz-id="30986091" href="#"  class="int_odkaz">odstavců 1</a> a <a data-odkaz-id="30986141" href="#"  class="int_odkaz">2</a> orgán státní správy myslivosti nepovolí, pokud by vedla ke změně celkové výměry alespoň jedné z dotčených honiteb o více než 10 %. V důsledku změny honitby může klesnout její výměra i pod tímto zákonem stanovenou minimální výměru. Rozhodnutím o změně honitby nezaniká nájem honitby, je-li sjednán.
+<var>(4)</var> Změnu honitby vyplývající ze změn vlastnictví honebních pozemků, o kterou požádá vlastník honebních pozemků, provede orgán státní správy myslivosti vždy k 31. prosinci roku následujícího po roce, v němž vlastník o úpravu požádal.
+<var>(5)</var> Orgán státní správy myslivosti může na návrh držitele honitby, orgánu ochrany přírody nebo orgánu státní správy lesa v odůvodněných případech rozhodnout o změně minimálních nebo normovaných stavů zvěře pro danou honitbu.
+<var>(6)</var> Honitba zaniká
+<var>a)</var> zrušením, sloučením nebo rozdělením honitby na žádost jejich držitelů a nabytím právní moci nových rozhodnutí o uznání honitby,
+<var>b)</var> zrušením honebního společenstva,
+<var>c)</var> poklesne-li výměra honitby pod minimální výměru v důsledku změny vlastnického práva k honebním pozemkům, zaniká honitba k 31. prosinci roku následujícího po roce, v němž k poklesu došlo,
+<var>d)</var> prohlásí-li orgán státní správy myslivosti v honitbě více než 10 % pozemků pod stanovenou minimální výměru za nehonební, zaniká honitba k 31. prosinci roku následujícího po roce, v němž k prohlášení došlo,
+<var>e)</var> rozhodnutím orgánu státní správy myslivosti, není-li ohrazení obory funkční a nezjedná-li držitel honitby v přiměřené lhůtě stanovené orgánem státní správy myslivosti nápravu.

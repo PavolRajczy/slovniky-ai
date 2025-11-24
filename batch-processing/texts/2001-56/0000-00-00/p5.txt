@@ -1,0 +1,4 @@
+<var>§ 5</var>
+Centrální registr silničních vozidel
+<var>(1)</var> Ministerstvo vede centrální registr silničních vozidel, který obsahuje údaje předávané okresními úřady, a registr silničních vozidel členů diplomatické mise.<a data-odkaz-id="30436883" href="#"  class="int_odkaz"><sup>4</sup>)</a>
+<var>(2)</var> Ministerstvo zajistí Policii České republiky výdej informací z centrálního registru vozidel způsobem umožňujícím dálkový a nepřetržitý přístup.

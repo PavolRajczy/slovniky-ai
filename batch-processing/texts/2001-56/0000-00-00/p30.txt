@@ -1,0 +1,12 @@
+Žádost o povolení výroby jednotlivého silničního vozidla
+<var>(1)</var> Žádost výrobce o povolení výroby jednotlivého silničního vozidla musí obsahovat
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, je-li žadatelem právnická osoba, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého nebo povoleného pobytu, je-li žadatelem fyzická osoba,
+<var>b)</var> druh a kategorii silničního vozidla,
+<var>c)</var> účel, pro který má být silniční vozidlo používáno,
+<var>d)</var> způsob zajištění záručního a pozáručního servisu.
+<var>(2)</var> Žádost musí být doložena těmito doklady:
+<var>a)</var> ověřenou kopií smlouvy nebo listiny o zřízení nebo založení právnické osoby nebo u právnických osob zapsaných v obchodním rejstříku výpisem z obchodního rejstříku, u fyzických osob podnikatelů ověřenou kopií živnostenského oprávnění,
+<var>b)</var> technickým popisem silničního vozidla v rozsahu údajů uváděných v technickém průkazu vozidla, včetně údajů o předpokládaných provozních, jízdních a dynamických vlastnostech,
+<var>c)</var> nákresem sestavy silničního vozidla s uvedením rozměrů a hmotností,
+<var>d)</var> návodem k údržbě a obsluze vozidla v českém jazyce,
+<var>e)</var> osvědčeními o schválení typu systémů vozidla, konstrukčních částí a samostatných technických celků vozidla, které tvoří silniční vozidlo, nebo technickým protokolem.

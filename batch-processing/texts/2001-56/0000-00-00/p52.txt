@@ -1,0 +1,7 @@
+<var>§ 52</var>
+<var>(1)</var> Pokud je technickou prohlídkou silničního vozidla zjištěna nebezpečná závada, je vozidlo technicky nezpůsobilé k provozu a nesmí být používáno v provozu. Provozovatel je povinen zajistit na vlastní náklad
+<var>a)</var> odtažení vozidla ze stanice technické kontroly,
+<var>b)</var> odstranění nebezpečné závady,
+<var>c)</var> přistavení silničního vozidla k opakované technické prohlídce.
+<var>(2)</var> Stanice technické kontroly při zjištění nebezpečné závady odstraní kontrolní nálepku o technické způsobilosti silničního vozidla ze zadní tabulky registrační značky a provede zápis o výsledku technické prohlídky silničního vozidla v technickém průkazu vozidla.
+<var>(3)</var> Pokud provozovatel silničního vozidla přistaví silniční vozidlo s odstraněnou nebezpečnou závadou stanici technické kontroly, která zjistila tuto nebezpečnou závadu, ve lhůtě do 30 kalendářních dnů od jejího zjištění, provede stanice technické kontroly pouze kontrolu odstranění nebezpečné závady.

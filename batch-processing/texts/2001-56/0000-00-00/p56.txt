@@ -1,0 +1,8 @@
+Rozhodnutí o oprávnění k provozování stanice technické kontroly
+Okresní úřad v rozhodnutí o udělení oprávnění k provozování stanice technické kontroly uvede
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, jedná-li se o právnickou osobu, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého pobytu, jedná-li se o fyzickou osobu,
+<var>b)</var> druh stanice technické kontroly,
+<var>c)</var> adresu provozovny stanice technické kontroly,
+<var>d)</var> datum zahájení provozu,
+<var>e)</var> rozsah provádění technických prohlídek,
+<var>f)</var> další podmínky pro zahájení činnosti provozování stanice technické kontroly.

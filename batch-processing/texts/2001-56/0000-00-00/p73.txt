@@ -1,0 +1,12 @@
+<var>§ 73</var>
+<var>(1)</var> Přestavbou silničního vozidla je změna nebo úprava podstatných částí mechanismu nebo konstrukce provozovaného silničního vozidla.
+<var>(2)</var> Za změnu podstatných částí mechanismu nebo konstrukce silničního vozidla se považují
+<var>a)</var> změna druhu pohonu, vestavění jiného typu motoru,
+<var>b)</var> změna karoserie, pérování vozidla a kol způsobující změnu povoleného zatížení,
+<var>c)</var> změna druhu karoserie nebo nástavby, pro které se mění účel a způsob použití silničního vozidla,
+<var>d)</var> změna kategorie vozidla.
+<var>(3)</var> Největší povolenou hmotnost silničního vozidla lze snížit jen v případě přestavby vozidla na speciální vozidlo jednoúčelového využití za podmínky, že nedojde ke změně kategorie vozidla.
+<var>(4)</var> Přestavbou vozidla nesmí být změněna kategorie vozidla, jestliže se na nově vzniklou kategorii vztahují přísnější technické požadavky stanovené prováděcím právním předpisem pro brzdy vozidla, vnější hluk vozidla, emise škodlivin ve výfukových plynech vozidla nebo prvky aktivní a pasivní bezpečnosti.
+<var>(5)</var> Přestavbu vozidla výměnou karoserie lze povolit jen v rámci jedné typové řady vozidla.
+<var>(6)</var> Nahrazuje-li se nebo doplňuje-li se vozidlo novou nebo jinou součástí nebo výbavou, musí tato součást nebo výbava splňovat podmínky stanovené tímto zákonem.
+<var>(7)</var> O přestavbu silničního vozidla se nejedná, jestliže výrobce vozidla prohlásí podstatnou část mechanismu nebo konstrukce silničního vozidla za náhradní díl k tomuto vozidlu.

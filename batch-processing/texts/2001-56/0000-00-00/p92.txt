@@ -1,0 +1,4 @@
+<var>§ 92</var>
+Zrušují se:
+<var>1.</var> <a data-odkaz-id="30424179" href="#"  class="ext_odkaz">Zákon č. 38/1995 Sb., o technických podmínkách provozu silničních vozidel na pozemních komunikacích</a>.
+<var>2.</var> <a data-odkaz-id="30424273" href="#"  class="ext_odkaz">Zákon č. 355/1999 Sb., kterým se mění zákon č. 38/1995 Sb., o technických podmínkách provozu silničních vozidel na pozemních komunikacích</a>.

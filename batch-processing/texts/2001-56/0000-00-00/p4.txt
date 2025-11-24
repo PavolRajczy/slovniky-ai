@@ -1,0 +1,28 @@
+<var>§ 4</var>
+Registr silničních vozidel
+<var>(1)</var> Registr silničních vozidel je evidencí silničních motorových vozidel, přípojných vozidel a provozovatelů těchto vozidel.
+<var>(2)</var> Registr silničních vozidel je seznam, který vedou okresní úřady. Příslušným pro registraci silničního motorového vozidla a přípojného vozidla je okresní úřad, v jehož územním obvodu má provozovatel silničního motorového vozidla a přípojného vozidla bydliště nebo místo podnikání, liší-li se od bydliště, nebo sídlo.
+<var>(3)</var> Do registru silničních vozidel je oprávněn nahlížet a požadovat od okresního úřadu opis nebo výpis zapsaných údajů pouze ten, kdo prokáže právní zájem.
+<var>c)</var> státní poznávací značka silničního motorového vozidla a přípojného vozidla (dále jen „registrační značka“), datum přidělení a odebrání registrační značky,
+<var>d)</var> číslo technického průkazu silničního motorového vozidla a přípojného vozidla, datum a místo jeho vydání,
+<var>e)</var> číslo osvědčení o registraci silničního motorového vozidla a přípojného vozidla,
+<var>f)</var> druh a kategorie silničního motorového vozidla a přípojného vozidla,
+<var>g)</var> výrobce silničního motorového vozidla a přípojného vozidla, značka (obchodní název stanovený výrobcem), typ vozidla, obchodní označení,
+<var>h)</var> identifikační číslo silničního motorového vozidla a přípojného vozidla (VIN), není-li, pak výrobní číslo podvozku silničního motorového vozidla a přípojného vozidla,
+<var>i)</var> výrobce podvozku silničního motorového vozidla a přípojného vozidla,
+<var>j)</var> výrobce motoru, typ, výkon, zdvihový objem motoru a palivo,
+<var>k)</var> výrobce karoserie, typ, výrobní číslo, barva, počet míst k sezení a stání, popřípadě lůžek, rozměry ložné plochy, objem skříně nebo cisterny,
+<var>l)</var> údaj o celkových rozměrech silničního motorového vozidla a přípojného vozidla,
+<var>m)</var> největší technicky přípustná hmotnost, největší povolená hmotnost a provozní hmotnost silničního motorového vozidla a největší technicky přípustná hmotnost na nápravu a největší povolená hmotnost na nápravu,
+<var>n)</var> druh spojovacího zařízení, největší technicky přípustná hmotnost naloženého přípojného vozidla, největší povolená hmotnost přípojného vozidla, největší technicky přípustná hmotnost naložené jízdní soupravy a největší povolená hmotnost soupravy,
+<var>o)</var> datum první registrace vozidla.
+<var>(5)</var> Do registru silničních motorových vozidel a přípojných vozidel se kromě údajů uvedených v <a data-odkaz-id="30436797" href="#"  class="int_odkaz">odstavci 4</a> dále zapisují tyto údaje:
+<var>a)</var> účel, pro který je silniční motorové vozidlo a přípojné vozidlo určeno,
+<var>b)</var> zástavní práva váznoucí na silničním motorovém vozidle a přípojném vozidle,
+<var>c)</var> údaje o pojištění odpovědnosti za škodu způsobenou provozem vozidla (dále jen „pojištění odpovědnosti z provozu vozidla“) v rozsahu údajů uvedených v dokladu o pojištění odpovědnosti z provozu vozidla,<a data-odkaz-id="30436847" href="#"  class="int_odkaz"><sup>2</sup>)</a>
+<var>d)</var> záznam o technických prohlídkách,
+<var>e)</var> záznam o schválení technické způsobilosti silničního motorového vozidla a přípojného vozidla,
+<var>f)</var> záznam o provedených a schválených přestavbách silničního motorového vozidla a přípojného vozidla,
+<var>g)</var> vyřazení silničního motorového vozidla a přípojného vozidla z registru.
+<var>(6)</var> Ministerstvo vnitra, Ministerstvo obrany a zpravodajské služby vedou registr silničních vozidel používaných pro jejich účely podle tohoto zákona. Ministerstvo vnitra vede registr vozidel používaný pro účely celních orgánů podle tohoto zákona.
+<var>(8)</var> Okresní úřad využívá k zápisu osobních údajů o vlastníkovi a provozovateli do registru silničních vozidel údajů z evidence obyvatel vedené podle zvláštního právního předpisu.<a data-odkaz-id="30436873" href="#"  class="int_odkaz"><sup>3</sup>)</a>

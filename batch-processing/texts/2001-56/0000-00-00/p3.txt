@@ -1,0 +1,18 @@
+<var>§ 3</var>
+Druhy vozidel
+<var>(1)</var> Silniční vozidla se rozdělují na jednotlivé druhy a kategorie. Rozdělení silničních vozidel do kategorií, technický popis jednotlivých kategorií silničních vozidel a jejich další členění se stanoví v <a data-odkaz-id="30436747" href="#"  class="int_odkaz">příloze</a> k tomuto zákonu.
+<var>(2)</var> Silniční vozidla se rozdělují na tyto základní druhy:
+<var>a)</var> motocykly,
+<var>b)</var> osobní automobily,
+<var>c)</var> autobusy,
+<var>d)</var> nákladní automobily,
+<var>e)</var> speciální vozidla,
+<var>f)</var> přípojná vozidla,
+<var>g)</var> ostatní silniční vozidla.
+<var>(3)</var> Zvláštní vozidla se rozdělují na tyto základní druhy:
+<var>a)</var> zemědělské nebo lesnické traktory a jejich přípojná vozidla,
+<var>b)</var> pracovní stroje samojízdné,
+<var>c)</var> pracovní stroje přípojné,
+<var>d)</var> nemotorové pracovní stroje nebo nemotorová vozidla tažená nebo tlačená pěšky jdoucí osobou,
+<var>e)</var> vozíky pro invalidy s ručním nebo motorickým pohonem, pokud jejich šířka nebo délka nepřesahuje jeden metr, jejich konstrukční rychlost nepřevyšuje 6 km.h<sup>-1</sup> nebo jejich maximální přípustná hmotnost nepřevyšuje 450 kg.
+Pro účely tohoto zákona se zvláštním vozidlem rozumí i mobilní stroj, průmyslové zařízení schopné přepravy nebo vozidlo bez karoserie, ve kterých je zabudován spalovací motor.

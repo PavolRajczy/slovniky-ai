@@ -1,0 +1,5 @@
+<var>§ 58</var>
+Povinnosti provozovatele stanice technické kontroly
+<var>(1)</var> Provozovatel stanice technické kontroly je povinen zajistit po celou dobu provozování stanice technické kontroly, aby
+<var>a)</var> technické prohlídky vozidel byly prováděny osobami, které jsou držiteli profesního osvědčení kontrolního technika,
+<var>(2)</var> Provozovatel stanice technické kontroly je povinen oznámit okresnímu úřadu změny týkající se údajů a dokladů, které jsou stanoveny jako náležitosti žádosti podle <a data-odkaz-id="30439445" href="#"  class="int_odkaz">§ 55 odst. 1</a> a <a data-odkaz-id="30439455" href="#"  class="int_odkaz">2.</a>

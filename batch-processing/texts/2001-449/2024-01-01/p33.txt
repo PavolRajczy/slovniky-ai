@@ -1,0 +1,19 @@
+<var>§ 33</var>
+Smlouva o nájmu honitby
+<var>(1)</var> Smlouva o nájmu honitby musí být uzavřena písemně na dobu 10 let. Držitel honitby je povinen do 15 dnů ode dne uzavření smlouvy zaslat jedno její vyhotovení orgánu státní správy myslivosti.
+<var>(2)</var> Nájemné z honitby se stanoví dohodou smluvních stran, pokud tento zákon nestanoví jinak.
+<var>(3)</var> Pokud v případech stávající honitby na honebních pozemcích státu uplatní dosavadní nájemce zájem o opětovné uzavření nájemní smlouvy na další období, bude s ním jednáno o uzavření smlouvy podle podmínek stanovených pro výběrové řízení jako s prvním. Toto právo nevzniká, jestliže se držitel rozhodne užívat honitbu na vlastní náklad nebo pokud nájemce v průběhu uplynulé doby nájmu porušil nájemní smlouvu nebo mu byla orgánem státní správy myslivosti uložena pokuta podle zákona o myslivosti.
+<var>(4)</var> Pokud nájemci honiteb na honebních pozemcích ve vlastnictví státu provedou opatření na ochranu proti škodám působeným zvěří po předchozím souhlasu zástupce právnické osoby, která hospodaří s majetkem státu nebo majetek státu spravuje, přijme se toto plnění jako naturální plnění na nájem ve výši ceny takového opatření v místě honitby obvyklé.
+<var>(5)</var> Při zániku smlouvy o nájmu honitby se mezi stranami vyrovná rozdíl v hodnotě mysliveckých zařízení existujících při vzniku a zániku smlouvy, pokud se nedohodnou strany jinak.
+<var>(6)</var> Smlouva o nájmu honitby zaniká
+<var>a)</var> uplynutím doby,
+<var>b)</var> zánikem honitby,
+<var>c)</var> zánikem nebo smrtí nájemce honitby,
+<var>d)</var> přestane-li nájemce splňovat podmínku uvedenou v <a data-odkaz-id="30986391" href="#"  class="int_odkaz">§ 32 odst. 3</a>,
+<var>e)</var> dohodou,
+<var>f)</var> výpovědí s 18měsíční výpovědní lhůtou po změně držitele honitby v případě, že nový držitel honitby ji bude využívat na vlastní účet,
+<var>g)</var> výpovědí pronajímatele nebo nájemce pro nedodržení podmínek smlouvy o nájmu,
+<var>h)</var> rozhodnutím orgánu státní správy myslivosti v případech, kdy porušením smlouvy nájemcem dojde k vážnému ohrožení životního prostředí anebo poklesu počtu zvěře v honitbě pod stanovené minimální stavy.
+<var>(7)</var> Přejde-li vlastnické právo k honebním pozemkům v honitbě, která je pronajata, vstupuje nový vlastník do smlouvy o nájmu honitby na místo vlastníka dosavadního. Dojde-li ke změně pronajaté honitby podle <a data-odkaz-id="30986441" href="#"  class="int_odkaz">§ 31 odst. 4</a>, upraví se stávající nájemní smlouva k datu provedené změny.
+<var>(8)</var> Držitel honitby je povinen oznámit písemně orgánu státní správy myslivosti zánik smlouvy o nájmu honitby v případech uvedených v <a data-odkaz-id="30986491" href="#"  class="int_odkaz">odstavci 6 písm. a) až g)</a>, a to do 15 dnů ode dne, kdy k takové skutečnosti došlo.
+<var>(9)</var> Není-li tímto zákonem nebo smlouvou o nájmu stanoveno jinak, řídí se právní vztahy ze smlouvy o nájmu honitby ustanoveními <a data-odkaz-id="30986541" href="#"  class="ext_odkaz">občanského zákoníku</a> o nájmu. Pronájem části honitby nebo podnájem honitby nebo její části je zakázán.

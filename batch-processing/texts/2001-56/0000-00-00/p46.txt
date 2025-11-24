@@ -1,0 +1,5 @@
+<var>§ 46</var>
+<var>(1)</var> Provozovatel silničního motorového vozidla je povinen předložit osvědčení o měření emisí
+<var>a)</var> stanici měření emisí při pravidelném měření emisí,
+<var>b)</var> stanici technické kontroly před pravidelnou technickou prohlídkou silničního motorového vozidla.
+<var>(2)</var> Řidič silničního motorového vozidla je oprávněn být přítomen při měření emisí ve stanici měření emisí.

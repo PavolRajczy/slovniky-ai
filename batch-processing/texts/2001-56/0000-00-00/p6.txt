@@ -1,0 +1,18 @@
+<var>§ 6</var>
+<var>(1)</var> Každý, kdo hodlá provozovat na území České republiky silniční motorové vozidlo a přípojné vozidlo, je povinen tato vozidla přihlásit k registraci na předepsaném tiskopisu u příslušného okresního úřadu, s výjimkou osob, jejichž pobyt na území České republiky netrvá déle než 185 dnů v příslušném kalendářním roce, (dále jen „žadatel“).
+<var>(2)</var> Do registru silničních vozidel lze zapsat silniční motorové vozidlo a přípojné vozidlo,
+<var>a)</var> jehož technická způsobilost k provozu na pozemních komunikacích byla schválena, a
+<var>b)</var> je-li sjednáno pojištění odpovědnosti z provozu vozidla<a data-odkaz-id="30436893" href="#"  class="int_odkaz"><sup>5</sup>)</a> týkající se takového vozidla.
+<var>(3)</var> Přihláška k registraci silničního motorového vozidla a přípojného vozidla musí obsahovat
+<var>a)</var> údaj o druhu a kategorii silničního motorového vozidla a přípojného vozidla, značku (obchodní název stanovený výrobcem), typ silničního motorového vozidla a přípojného vozidla, obchodní označení, číslo technického průkazu silničního motorového vozidla a přípojného vozidla a číslo schválení technické způsobilosti silničního motorového vozidla a přípojného vozidla,
+<var>b)</var> údaje o vlastníkovi silničního motorového vozidla a přípojného vozidla podle <a data-odkaz-id="30436907" href="#"  class="int_odkaz">§ 4 odst. 4 písm. a)</a>,
+<var>c)</var> údaje o provozovateli silničního motorového vozidla a přípojného vozidla, není-li vlastník současně provozovatelem silničního motorového vozidla a přípojného vozidla podle <a data-odkaz-id="30436957" href="#"  class="int_odkaz">§ 4 odst. 4 písm. b)</a>.
+<var>(4)</var> K přihlášce silničního motorového vozidla a přípojného vozidla k registraci žadatel přiloží
+<var>a)</var> technický průkaz silničního motorového vozidla a přípojného vozidla,
+<var>b)</var> doklad o technické prohlídce, jedná-li se o silniční motorové vozidlo a přípojné vozidlo, které již bylo provozováno,
+<var>c)</var> souhlas vlastníka k zaregistrování silničního motorového vozidla a přípojného vozidla na jiného provozovatele,
+<var>d)</var> protokol o evidenční kontrole silničního motorového vozidla a přípojného vozidla, nejedná-li se o nové vozidlo,
+<var>e)</var> doklad o pojištění odpovědnosti z provozu vozidla,
+<var>f)</var> doklad o zástavním právu váznoucím na silničním motorovém vozidle a přípojném vozidle, bylo-li zřízeno,
+<var>g)</var> doklad o povolení k pobytu nebo o udělení azylu na území České republiky, není-li provozovatel silničního motorového vozidla a přípojného vozidla státním občanem České republiky,
+<var>h)</var> doklad o vyřazení vozidla z registru vozidel jiného státu, pokud bylo v registru vozidel jiného státu vozidlo registrováno.

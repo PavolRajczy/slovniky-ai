@@ -1,0 +1,4603 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Semantic Modeling Assistant API",
+        "description": "Backend API for AI-assisted semantic modeling and ontology design",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/health": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health Check",
+                "description": "Health check endpoint.",
+                "operationId": "health_check_api_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ontologies": {
+            "get": {
+                "tags": [
+                    "Ontologies"
+                ],
+                "summary": "List Ontologies",
+                "description": "List all available ontologies.\n\nReturns metadata for all ontologies in the system.",
+                "operationId": "list_ontologies_api_ontologies_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/OntologyMetadata"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Ontologies Api Ontologies Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Ontologies"
+                ],
+                "summary": "Create Ontology",
+                "description": "Create a new empty ontology.\n\nUser Story: Create a new empty ontology\n\nArgs:\n    request: Ontology creation request with URI, label, and description\n\nReturns:\n    Metadata of the created ontology",
+                "operationId": "create_ontology_api_ontologies_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateOntologyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OntologyMetadata"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ontologies/{ontology_uri}": {
+            "get": {
+                "tags": [
+                    "Ontologies"
+                ],
+                "summary": "Get Ontology",
+                "description": "Get a specific ontology by URI.\n\nArgs:\n    ontology_uri: The URI of the ontology (URL-encoded)\n\nReturns:\n    Complete ontology with all classes, attributes, and relationships",
+                "operationId": "get_ontology_api_ontologies__ontology_uri__get",
+                "parameters": [
+                    {
+                        "name": "ontology_uri",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Ontology Uri"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OntologyModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Ontologies"
+                ],
+                "summary": "Update Ontology",
+                "description": "Update ontology metadata (label, description).\n\nUser Story: Change an existing ontology\n\nArgs:\n    ontology_uri: The URI of the ontology (URL-encoded)\n    request: Update request with new label and/or description\n\nReturns:\n    Updated ontology metadata",
+                "operationId": "update_ontology_api_ontologies__ontology_uri__put",
+                "parameters": [
+                    {
+                        "name": "ontology_uri",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Ontology Uri"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateOntologyRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OntologyMetadata"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/knowledge-base/legal": {
+            "get": {
+                "tags": [
+                    "Knowledge Base"
+                ],
+                "summary": "List Legal Documents",
+                "description": "List available legal documents.\n\nReturns summary information for all legal documents in the knowledge base.",
+                "operationId": "list_legal_documents_api_knowledge_base_legal_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/KnowledgeDocumentSummary"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Legal Documents Api Knowledge Base Legal Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/knowledge-base/expert": {
+            "get": {
+                "tags": [
+                    "Knowledge Base"
+                ],
+                "summary": "List Expert Documents",
+                "description": "List available expert documents.\n\nReturns summary information for all expert documents in the knowledge base.",
+                "operationId": "list_expert_documents_api_knowledge_base_expert_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/KnowledgeDocumentSummary"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Expert Documents Api Knowledge Base Expert Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/knowledge-base/documents/{document_id}/outline": {
+            "get": {
+                "tags": [
+                    "Knowledge Base"
+                ],
+                "summary": "Get Knowledge Document Outline",
+                "description": "Get a summarized outline of a knowledge document based on element summaries.\n\nArgs:\n    document_id: The ID of the knowledge document (URL-encoded)\n\nReturns:\n    Hierarchical XML outline of the document",
+                "operationId": "get_knowledge_document_outline_api_knowledge_base_documents__document_id__outline_get",
+                "parameters": [
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeDocumentOutline"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/knowledge-base/documents/{document_id}": {
+            "get": {
+                "tags": [
+                    "Knowledge Base"
+                ],
+                "summary": "Get Knowledge Document",
+                "description": "Get a specific knowledge document with its full content and hierarchical structure.\n\nUser Story: Read knowledge base document\n\nArgs:\n    document_id: The ID of the knowledge document (URL-encoded)\n\nReturns:\n    Complete knowledge document with hierarchical structure",
+                "operationId": "get_knowledge_document_api_knowledge_base_documents__document_id__get",
+                "parameters": [
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeDocument"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "List Projects",
+                "description": "List all existing design projects.\n\nUser Story: Load an existing design project",
+                "operationId": "list_projects_api_projects_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ProjectSummary"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Projects Api Projects Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Create Project",
+                "description": "Create a new design project with empty knowledge base.\n\nUser Story: Create a new design project\n\nThis operation creates a project without knowledge documents or domain areas.\nUse subsequent operations to:\n1. Add knowledge documents (legal/expert)\n2. Set key knowledge document\n3. Generate domain areas",
+                "operationId": "create_project_api_projects_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProjectModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Project",
+                "description": "Get a specific design project with full details.\n\nUser Story: Load an existing design project",
+                "operationId": "get_project_api_projects__project_id__get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProjectModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Update Project",
+                "description": "Update project metadata.\n\nUser Story: Edit an existing design project",
+                "operationId": "update_project_api_projects__project_id__put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProjectModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Delete Project",
+                "description": "Delete a design project.",
+                "operationId": "delete_project_api_projects__project_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/legal": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Add Legal Documents",
+                "description": "Add legal documents to project knowledge base.\n\nUser Story: Edit the knowledge base of the design project",
+                "operationId": "add_legal_documents_api_projects__project_id__knowledge_base_legal_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddKnowledgeDocumentsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/legal/{document_id}": {
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Remove Legal Document",
+                "description": "Remove a legal document from knowledge base.\n\nUser Story: Edit the knowledge base of the design project",
+                "operationId": "remove_legal_document_api_projects__project_id__knowledge_base_legal__document_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/expert": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Add Expert Documents",
+                "description": "Add expert documents to project knowledge base.\n\nUser Story: Edit the knowledge base of the design project",
+                "operationId": "add_expert_documents_api_projects__project_id__knowledge_base_expert_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddKnowledgeDocumentsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/expert/{document_id}": {
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Remove Expert Document",
+                "description": "Remove an expert document from knowledge base.\n\nUser Story: Edit the knowledge base of the design project",
+                "operationId": "remove_expert_document_api_projects__project_id__knowledge_base_expert__document_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeleteResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Project Knowledge Base",
+                "description": "Get all knowledge base documents for a project.",
+                "operationId": "get_project_knowledge_base_api_projects__project_id__knowledge_base_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeBaseResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/documents/{document_id}": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Project Knowledge Document",
+                "description": "Get full content of a specific knowledge base document in the project.\n\nUser Story: Read knowledge base document\n\nValidates that the document belongs to the project's knowledge base.",
+                "operationId": "get_project_knowledge_document_api_projects__project_id__knowledge_base_documents__document_id__get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/knowledge-base/documents/{document_id}/coverage": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Project Knowledge Document Coverage",
+                "description": "Get knowledge document with ontology coverage information for the project.\n\nUser Story: See coverage of documents in knowledge base by ontology\n\nShows which document elements have ontology elements defined, specified, or referenced.",
+                "operationId": "get_project_knowledge_document_coverage_api_projects__project_id__knowledge_base_documents__document_id__coverage_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Document Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/key-document": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Set Key Knowledge Document",
+                "description": "Set the key knowledge document for domain area generation.\n\nThe key document is used to structure the knowledge domain and identify areas.\nThe document must already exist in the project's knowledge base.",
+                "operationId": "set_key_knowledge_document_api_projects__project_id__key_document_put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetKeyDocumentRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/domain-areas/generate": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Generate Domain Areas",
+                "description": "Generate domain areas using AI based on the key knowledge document.\n\nUser Story: Create a new design project (final step)\n\nThis operation:\n1. Analyzes the key knowledge document\n2. Identifies domain areas within the knowledge domain\n3. Returns the generated areas\n\nPrerequisites:\n- Key knowledge document must be set\n- At least one knowledge document in the knowledge base",
+                "operationId": "generate_domain_areas_api_projects__project_id__domain_areas_generate_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenerateDomainAreasRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                    },
+                                    "title": "Response Generate Domain Areas Api Projects  Project Id  Domain Areas Generate Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/domain-areas": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "List Domain Areas",
+                "description": "List all domain areas for a project.",
+                "operationId": "list_domain_areas_api_projects__project_id__domain_areas_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                    },
+                                    "title": "Response List Domain Areas Api Projects  Project Id  Domain Areas Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Create Domain Area",
+                "description": "Add a new domain area manually.\n\nUser Story: Edit knowledge areas of the design project",
+                "operationId": "create_domain_area_api_projects__project_id__domain_areas_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateDomainAreaRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/domain-areas/{area_id}": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Domain Area",
+                "description": "Get details of a specific domain area.",
+                "operationId": "get_domain_area_api_projects__project_id__domain_areas__area_id__get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "area_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Area Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Update Domain Area",
+                "description": "Update a domain area.\n\nUser Story: Edit knowledge areas of the design project",
+                "operationId": "update_domain_area_api_projects__project_id__domain_areas__area_id__put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "area_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Area Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateDomainAreaRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Delete Domain Area",
+                "description": "Remove a domain area.\n\nUser Story: Edit knowledge areas of the design project",
+                "operationId": "delete_domain_area_api_projects__project_id__domain_areas__area_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "area_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Area Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/domain-areas/reidentify": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Reidentify Domain Areas",
+                "description": "Re-identify domain areas with AI assistance.\n\nUser Story: Reidentify knowledge areas of the design project\n\nThe AI analyzes the key knowledge document and current areas,\nthen applies the user's instruction to modify the areas.",
+                "operationId": "reidentify_domain_areas_api_projects__project_id__domain_areas_reidentify_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReidentifyDomainAreasRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                                    },
+                                    "title": "Response Reidentify Domain Areas Api Projects  Project Id  Domain Areas Reidentify Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/patterns": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "List Task Patterns",
+                "description": "Get the list of design task patterns available for the project.\n\nThese patterns are used when creating or updating tasks to indicate which\ndesign pattern the task follows.",
+                "operationId": "list_task_patterns_api_projects__project_id__patterns_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaskPatternsListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "List Iterations",
+                "description": "List all iterations (planned, current, finished).",
+                "operationId": "list_iterations_api_projects__project_id__iterations_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Status"
+                        }
+                    },
+                    {
+                        "name": "area_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Area Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IterationsListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Create Iteration",
+                "description": "Add a new iteration manually.\n\nUser Story: Edit iterations for a domain area",
+                "operationId": "create_iteration_api_projects__project_id__iterations_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateIterationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DesignIterationModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Iteration",
+                "description": "Get details of a specific iteration.",
+                "operationId": "get_iteration_api_projects__project_id__iterations__iteration_id__get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DesignIterationModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Update Iteration",
+                "description": "Update an iteration.\n\nUser Story: Edit iterations for a domain area",
+                "operationId": "update_iteration_api_projects__project_id__iterations__iteration_id__put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateIterationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DesignIterationModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Delete Iteration",
+                "description": "Remove an iteration (planned or current).\n\nUser Story: Edit iterations for a domain area\n\nThis endpoint can remove:\n- Planned iterations (in any status: suggested or planned)\n- Current iteration (in any status: prepared, generating, applying, etc.)\n\nCannot remove finished/completed iterations.",
+                "operationId": "delete_iteration_api_projects__project_id__iterations__iteration_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/suggest": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Suggest Iterations",
+                "description": "Suggest new iterations for a domain area with AI assistance.\n\nUser Story: Suggest iterations for a domain area\n\nThe AI analyzes the ontology, knowledge base, and focused area to suggest iterations.",
+                "operationId": "suggest_iterations_api_projects__project_id__iterations_suggest_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SuggestIterationsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DesignIterationModel"
+                                    },
+                                    "title": "Response Suggest Iterations Api Projects  Project Id  Iterations Suggest Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/reorder": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Reorder Iterations",
+                "description": "Reorder planned iterations.\n\nUser Story: Edit iterations for a domain area (changing order)",
+                "operationId": "reorder_iterations_api_projects__project_id__iterations_reorder_put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReorderIterationsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/tasks": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "List Tasks",
+                "description": "List all tasks for an iteration.",
+                "operationId": "list_tasks_api_projects__project_id__iterations__iteration_id__tasks_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TasksListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Create Task",
+                "description": "Add a new task manually.\n\nUser Story: Edit tasks of an iteration",
+                "operationId": "create_task_api_projects__project_id__iterations__iteration_id__tasks_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTaskRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DesignTaskModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/tasks/plan": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Plan Tasks",
+                "description": "Plan tasks for an iteration with AI assistance.\n\nUser Story: Plan tasks for an iteration\n\nThe AI analyzes the iteration specification and creates a task plan.",
+                "operationId": "plan_tasks_api_projects__project_id__iterations__iteration_id__tasks_plan_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlanTasksRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/DesignTaskModel"
+                                    },
+                                    "title": "Response Plan Tasks Api Projects  Project Id  Iterations  Iteration Id  Tasks Plan Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/tasks/reorder": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Reorder Tasks",
+                "description": "Reorder tasks within an iteration.\n\nUser Story: Edit tasks of an iteration (changing order)\n\nNote: This endpoint must be defined BEFORE the update_task endpoint to avoid\nFastAPI matching \"reorder\" as a task_id parameter.",
+                "operationId": "reorder_tasks_api_projects__project_id__iterations__iteration_id__tasks_reorder_put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReorderTasksRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/tasks/{task_id}": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Update Task",
+                "description": "Update a task.\n\nUser Story: Edit tasks of an iteration",
+                "operationId": "update_task_api_projects__project_id__iterations__iteration_id__tasks__task_id__put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    },
+                    {
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Task Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DesignTaskModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Delete Task",
+                "description": "Remove a task.\n\nUser Story: Edit tasks of an iteration",
+                "operationId": "delete_task_api_projects__project_id__iterations__iteration_id__tasks__task_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    },
+                    {
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Task Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/prepare": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Prepare Iteration",
+                "description": "Prepare an iteration by materializing tasks into ontology edit operations.\n\nUser Story: Execute an iteration with planned tasks\n\nThis operation:\n1. Moves iteration from plannedIterations to currentIteration (status becomes \"prepared\")\n2. AI generates operations for each task sequentially\n3. Sets iteration status to \"prepared\" (operations ready)\n4. Returns operations for user review (not applied yet)",
+                "operationId": "prepare_iteration_api_projects__project_id__iterations__iteration_id__prepare_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IterationPreparedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/operations": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Iteration Operations",
+                "description": "Get the prepared operations for an iteration.\n\nUser Story: Execute an iteration with planned tasks (client reload scenario)\n\nThis operation:\n1. Retrieves the specified iteration\n2. Returns the already-prepared operations without re-generating them\n3. Useful when client reloads after prepare but before apply\n\nThe iteration must be the current iteration and must have prepared operations.\nThis endpoint only returns operations when it's meaningful - when the iteration\nis in a state where operations have been generated but not yet applied.\n\nReturns:\n- 404 if project or iteration not found\n- 409 if iteration is not current or has no prepared operations",
+                "operationId": "get_iteration_operations_api_projects__project_id__iterations__iteration_id__operations_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IterationPreparedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/operations/reorder": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Reorder Operations",
+                "description": "Reorder operations within the current iteration.\n\nUser Story: Edit materialized operations for an iteration\n\nThis endpoint allows users to change the order in which operations will be applied\nto the ontology. This is useful when operation order matters for semantic correctness\n(e.g., creating a class before creating its attributes).\n\nNote: This endpoint must be defined BEFORE the update_operation endpoint to avoid\nFastAPI matching \"reorder\" as an operation_id parameter.",
+                "operationId": "reorder_operations_api_projects__project_id__iterations__iteration_id__operations_reorder_put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReorderOperationsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/operations/{operation_id}": {
+            "put": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Update Operation",
+                "description": "Update a specific operation within the current iteration.\n\nUser Story: Edit materialized operations for an iteration\n\nThis endpoint allows users to modify the details of a generated operation before\napplying it to the ontology. Users can change labels, definitions, references, etc.",
+                "operationId": "update_operation_api_projects__project_id__iterations__iteration_id__operations__operation_id__put",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    },
+                    {
+                        "name": "operation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Operation Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateOperationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OntologyOperationModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Delete Operation",
+                "description": "Delete a specific operation from the current iteration.\n\nUser Story: Edit materialized operations for an iteration\n\nThis endpoint allows users to remove unwanted operations before applying\nchanges to the ontology. This is useful when AI generates operations that\nthe user determines are incorrect or unnecessary.",
+                "operationId": "delete_operation_api_projects__project_id__iterations__iteration_id__operations__operation_id__delete",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    },
+                    {
+                        "name": "operation_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Operation Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/apply": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Apply Iteration Changes",
+                "description": "Apply the operations to the ontology and complete the iteration.\n\nUser Story: Execute an iteration with planned tasks\n\nThis operation:\n1. Validates iteration_id from URL matches current iteration\n2. Validates iteration is in \"operations_generated\" status\n3. Uses persisted operations from prepare step (or accepts operations from client for filtering scenarios)\n4. Applies operations to ontology\n5. Moves iteration to \"finished\"\n6. Updates ontology in storage\n7. Returns updated ontology with change statistics",
+                "operationId": "apply_iteration_changes_api_projects__project_id__iterations__iteration_id__apply_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ApplyOperationsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/IterationAppliedResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/iterations/{iteration_id}/cancel": {
+            "post": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Cancel Iteration",
+                "description": "Cancel the iteration preparation and rollback to planned state.\n\nValidates that the iteration is the current iteration, then rolls back \niteration state without modifying ontology.",
+                "operationId": "cancel_iteration_api_projects__project_id__iterations__iteration_id__cancel_post",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "iteration_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Iteration Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/ontology": {
+            "get": {
+                "tags": [
+                    "Design Projects"
+                ],
+                "summary": "Get Project Ontology",
+                "description": "Get the current state of the designed ontology.\n\nUser Story: See an existing ontology\n\nNote: The backend does not maintain version history. If the client needs\nto show diffs, it should maintain its own snapshots and compute differences client-side.",
+                "operationId": "get_project_ontology_api_projects__project_id__ontology_get",
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    },
+                    {
+                        "name": "format",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "description": "Output format: json or rdf",
+                            "default": "json",
+                            "title": "Format"
+                        },
+                        "description": "Output format: json or rdf"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OntologyModel"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AddKnowledgeDocumentsRequest": {
+                "properties": {
+                    "document_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Document Ids"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "document_ids"
+                ],
+                "title": "AddKnowledgeDocumentsRequest",
+                "description": "Request to add knowledge documents."
+            },
+            "ApplyOperationsRequest": {
+                "properties": {
+                    "operations": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "$ref": "#/components/schemas/OntologyOperationModel"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Operations"
+                    }
+                },
+                "type": "object",
+                "title": "ApplyOperationsRequest",
+                "description": "Request to apply operations to ontology. The iteration_id is provided in the URL path."
+            },
+            "CreateDomainAreaRequest": {
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description"
+                    },
+                    "parent_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Parent Id"
+                    },
+                    "key_concepts": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Key Concepts"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "label",
+                    "description"
+                ],
+                "title": "CreateDomainAreaRequest",
+                "description": "Request to create a new domain area."
+            },
+            "CreateIterationRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "type": "string",
+                        "title": "Specification"
+                    },
+                    "focused_area_id": {
+                        "type": "string",
+                        "title": "Focused Area Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "specification",
+                    "focused_area_id"
+                ],
+                "title": "CreateIterationRequest",
+                "description": "Request to create a new iteration."
+            },
+            "CreateOntologyRequest": {
+                "properties": {
+                    "ontology_uri": {
+                        "type": "string",
+                        "title": "Ontology Uri"
+                    },
+                    "ontology_label": {
+                        "type": "string",
+                        "title": "Ontology Label"
+                    },
+                    "ontology_description": {
+                        "type": "string",
+                        "title": "Ontology Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "ontology_uri",
+                    "ontology_label",
+                    "ontology_description"
+                ],
+                "title": "CreateOntologyRequest",
+                "description": "Request to create a new ontology."
+            },
+            "CreateProjectRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "ontology_uri": {
+                        "type": "string",
+                        "title": "Ontology Uri"
+                    },
+                    "knowledge_domain_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Knowledge Domain Name"
+                    },
+                    "knowledge_domain_description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Knowledge Domain Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "ontology_uri"
+                ],
+                "title": "CreateProjectRequest",
+                "description": "Request to create a new design project."
+            },
+            "CreateTaskRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "type": "string",
+                        "title": "Specification"
+                    },
+                    "followed_pattern_id": {
+                        "type": "string",
+                        "title": "Followed Pattern Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "specification",
+                    "followed_pattern_id"
+                ],
+                "title": "CreateTaskRequest",
+                "description": "Request to create a new task."
+            },
+            "DeleteResponse": {
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "title": "Success",
+                        "default": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "DeleteResponse",
+                "description": "Response for delete operations."
+            },
+            "DesignIterationModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "type": "string",
+                        "title": "Specification"
+                    },
+                    "focused_area_id": {
+                        "type": "string",
+                        "title": "Focused Area Id"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "suggested",
+                            "planned",
+                            "prepared",
+                            "completed"
+                        ],
+                        "title": "Status"
+                    },
+                    "total_tasks": {
+                        "type": "integer",
+                        "title": "Total Tasks",
+                        "default": 0
+                    },
+                    "planned_tasks_count": {
+                        "type": "integer",
+                        "title": "Planned Tasks Count",
+                        "default": 0
+                    },
+                    "finished_tasks_count": {
+                        "type": "integer",
+                        "title": "Finished Tasks Count",
+                        "default": 0
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "specification",
+                    "focused_area_id",
+                    "status"
+                ],
+                "title": "DesignIterationModel",
+                "description": "Design iteration."
+            },
+            "DesignTaskModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "type": "string",
+                        "title": "Specification"
+                    },
+                    "followed_pattern_id": {
+                        "type": "string",
+                        "title": "Followed Pattern Id"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "planned",
+                            "generating",
+                            "completed"
+                        ],
+                        "title": "Status"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "specification",
+                    "followed_pattern_id",
+                    "status"
+                ],
+                "title": "DesignTaskModel",
+                "description": "Design task."
+            },
+            "DesignTaskPatternModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "category": {
+                        "type": "string",
+                        "title": "Category"
+                    },
+                    "specification": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Specification"
+                    },
+                    "when_applicable": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "When Applicable"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "category"
+                ],
+                "title": "DesignTaskPatternModel",
+                "description": "Design task pattern."
+            },
+            "GenerateDomainAreasRequest": {
+                "properties": {
+                    "user_instruction": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "User Instruction"
+                    }
+                },
+                "type": "object",
+                "title": "GenerateDomainAreasRequest",
+                "description": "Request to generate domain areas."
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "IterationAppliedResponse": {
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "title": "Success"
+                    },
+                    "iteration_id": {
+                        "type": "string",
+                        "title": "Iteration Id"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "applied_operations_count": {
+                        "type": "integer",
+                        "title": "Applied Operations Count"
+                    },
+                    "ontology_changes": {
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "type": "object",
+                        "title": "Ontology Changes"
+                    },
+                    "updated_ontology": {
+                        "$ref": "#/components/schemas/OntologyModel"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "success",
+                    "iteration_id",
+                    "status",
+                    "applied_operations_count",
+                    "ontology_changes",
+                    "updated_ontology"
+                ],
+                "title": "IterationAppliedResponse",
+                "description": "Response after applying iteration changes."
+            },
+            "IterationPreparedResponse": {
+                "properties": {
+                    "iteration_id": {
+                        "type": "string",
+                        "title": "Iteration Id"
+                    },
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "operations": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyOperationModel"
+                        },
+                        "type": "array",
+                        "title": "Operations"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "iteration_id",
+                    "status",
+                    "operations"
+                ],
+                "title": "IterationPreparedResponse",
+                "description": "Response after preparing an iteration."
+            },
+            "IterationsListResponse": {
+                "properties": {
+                    "planned_iterations": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignIterationModel"
+                        },
+                        "type": "array",
+                        "title": "Planned Iterations"
+                    },
+                    "current_iteration": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DesignIterationModel"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "finished_iterations": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignIterationModel"
+                        },
+                        "type": "array",
+                        "title": "Finished Iterations"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "planned_iterations",
+                    "current_iteration",
+                    "finished_iterations"
+                ],
+                "title": "IterationsListResponse",
+                "description": "Response with iterations list."
+            },
+            "KnowledgeBaseResponse": {
+                "properties": {
+                    "legal_documents": {
+                        "items": {
+                            "$ref": "#/components/schemas/KnowledgeDocumentSummary"
+                        },
+                        "type": "array",
+                        "title": "Legal Documents"
+                    },
+                    "expert_documents": {
+                        "items": {
+                            "$ref": "#/components/schemas/KnowledgeDocumentSummary"
+                        },
+                        "type": "array",
+                        "title": "Expert Documents"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "legal_documents",
+                    "expert_documents"
+                ],
+                "title": "KnowledgeBaseResponse",
+                "description": "Response with knowledge base documents."
+            },
+            "KnowledgeDocument": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "content": {
+                        "type": "string",
+                        "title": "Content"
+                    },
+                    "content_summary": {
+                        "type": "string",
+                        "title": "Content Summary"
+                    },
+                    "element_type": {
+                        "type": "string",
+                        "title": "Element Type"
+                    },
+                    "child_elements": {
+                        "items": {
+                            "$ref": "#/components/schemas/KnowledgeDocumentElement"
+                        },
+                        "type": "array",
+                        "title": "Child Elements"
+                    },
+                    "coverage": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/KnowledgeDocumentElementCoverage"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "content",
+                    "content_summary",
+                    "element_type"
+                ],
+                "title": "KnowledgeDocument",
+                "description": "Complete knowledge document with hierarchical structure."
+            },
+            "KnowledgeDocumentElement": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "content": {
+                        "type": "string",
+                        "title": "Content"
+                    },
+                    "content_summary": {
+                        "type": "string",
+                        "title": "Content Summary"
+                    },
+                    "element_type": {
+                        "type": "string",
+                        "title": "Element Type"
+                    },
+                    "child_elements": {
+                        "items": {
+                            "$ref": "#/components/schemas/KnowledgeDocumentElement"
+                        },
+                        "type": "array",
+                        "title": "Child Elements"
+                    },
+                    "coverage": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/KnowledgeDocumentElementCoverage"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "content",
+                    "content_summary",
+                    "element_type"
+                ],
+                "title": "KnowledgeDocumentElement",
+                "description": "Knowledge document element (recursive structure)."
+            },
+            "KnowledgeDocumentElementCoverage": {
+                "properties": {
+                    "defined_ontology_elements": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyElementReference"
+                        },
+                        "type": "array",
+                        "title": "Defined Ontology Elements"
+                    },
+                    "specified_ontology_elements": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyElementReference"
+                        },
+                        "type": "array",
+                        "title": "Specified Ontology Elements"
+                    },
+                    "referenced_ontology_elements": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyElementReference"
+                        },
+                        "type": "array",
+                        "title": "Referenced Ontology Elements"
+                    },
+                    "has_coverage": {
+                        "type": "boolean",
+                        "title": "Has Coverage"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "has_coverage"
+                ],
+                "title": "KnowledgeDocumentElementCoverage",
+                "description": "Coverage information for a knowledge document element."
+            },
+            "KnowledgeDocumentOutline": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "content_summary": {
+                        "type": "string",
+                        "title": "Content Summary"
+                    },
+                    "outline": {
+                        "type": "string",
+                        "title": "Outline"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "content_summary",
+                    "outline"
+                ],
+                "title": "KnowledgeDocumentOutline",
+                "description": "Knowledge document outline."
+            },
+            "KnowledgeDocumentSummary": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "title": {
+                        "type": "string",
+                        "title": "Title"
+                    },
+                    "element_type": {
+                        "type": "string",
+                        "title": "Element Type"
+                    },
+                    "content_summary": {
+                        "type": "string",
+                        "title": "Content Summary"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "title",
+                    "element_type",
+                    "content_summary"
+                ],
+                "title": "KnowledgeDocumentSummary",
+                "description": "Knowledge document summary for list views."
+            },
+            "KnowledgeDomainAreaModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description"
+                    },
+                    "parent_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Parent Id"
+                    },
+                    "key_concepts": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Key Concepts"
+                    },
+                    "modeling_classes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Modeling Classes"
+                    },
+                    "modeling_attributes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Modeling Attributes"
+                    },
+                    "modeling_relationships": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Modeling Relationships"
+                    },
+                    "explaining_knowledge_resources": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Explaining Knowledge Resources"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "label",
+                    "description"
+                ],
+                "title": "KnowledgeDomainAreaModel",
+                "description": "Knowledge domain area."
+            },
+            "OntologyAttributeModel": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "definition": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "domain_class": {
+                        "type": "string",
+                        "title": "Domain Class"
+                    },
+                    "range_type": {
+                        "type": "string",
+                        "title": "Range Type"
+                    },
+                    "definition_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Definition References"
+                    },
+                    "specification_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Specification References"
+                    },
+                    "references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "References"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label",
+                    "domain_class",
+                    "range_type"
+                ],
+                "title": "OntologyAttributeModel",
+                "description": "Ontology attribute."
+            },
+            "OntologyClassModel": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "definition": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "parent_classes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Parent Classes"
+                    },
+                    "definition_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Definition References"
+                    },
+                    "specification_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Specification References"
+                    },
+                    "references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "References"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label"
+                ],
+                "title": "OntologyClassModel",
+                "description": "Ontology class."
+            },
+            "OntologyElementReference": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "element_type": {
+                        "type": "string",
+                        "enum": [
+                            "class",
+                            "attribute",
+                            "relationship"
+                        ],
+                        "title": "Element Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label",
+                    "element_type"
+                ],
+                "title": "OntologyElementReference",
+                "description": "Reference to an ontology element."
+            },
+            "OntologyMetadata": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label",
+                    "description"
+                ],
+                "title": "OntologyMetadata",
+                "description": "Ontology metadata."
+            },
+            "OntologyModel": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description"
+                    },
+                    "classes": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyClassModel"
+                        },
+                        "type": "array",
+                        "title": "Classes"
+                    },
+                    "attributes": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyAttributeModel"
+                        },
+                        "type": "array",
+                        "title": "Attributes"
+                    },
+                    "relationships": {
+                        "items": {
+                            "$ref": "#/components/schemas/OntologyRelationshipModel"
+                        },
+                        "type": "array",
+                        "title": "Relationships"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label",
+                    "description"
+                ],
+                "title": "OntologyModel",
+                "description": "Complete ontology model."
+            },
+            "OntologyOperationModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "operation_type": {
+                        "type": "string",
+                        "enum": [
+                            "create",
+                            "update",
+                            "delete"
+                        ],
+                        "title": "Operation Type"
+                    },
+                    "target_type": {
+                        "type": "string",
+                        "enum": [
+                            "class",
+                            "attribute",
+                            "relationship"
+                        ],
+                        "title": "Target Type"
+                    },
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    },
+                    "definition": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "definition_references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition References"
+                    },
+                    "specification_references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Specification References"
+                    },
+                    "references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "References"
+                    },
+                    "kind": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Kind"
+                    },
+                    "generalization_uris": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Generalization Uris"
+                    },
+                    "owning_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Owning Class Uri"
+                    },
+                    "source_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Source Class Uri"
+                    },
+                    "target_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target Class Uri"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "operation_type",
+                    "target_type",
+                    "uri"
+                ],
+                "title": "OntologyOperationModel",
+                "description": "Ontology edit operation - complete representation with identity.\n\nThis model must contain all fields from all OntologyEditOperation subclasses\nto allow full round-trip serialization (backend -> frontend -> backend)."
+            },
+            "OntologyRelationshipModel": {
+                "properties": {
+                    "uri": {
+                        "type": "string",
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "type": "string",
+                        "title": "Label"
+                    },
+                    "definition": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "domain_class": {
+                        "type": "string",
+                        "title": "Domain Class"
+                    },
+                    "range_class": {
+                        "type": "string",
+                        "title": "Range Class"
+                    },
+                    "definition_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Definition References"
+                    },
+                    "specification_references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Specification References"
+                    },
+                    "references": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "References"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "uri",
+                    "label",
+                    "domain_class",
+                    "range_class"
+                ],
+                "title": "OntologyRelationshipModel",
+                "description": "Ontology relationship."
+            },
+            "PlanTasksRequest": {
+                "properties": {
+                    "user_instruction": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "User Instruction"
+                    }
+                },
+                "type": "object",
+                "title": "PlanTasksRequest",
+                "description": "Request to plan tasks for an iteration."
+            },
+            "ProjectModel": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "ontology_uri": {
+                        "type": "string",
+                        "title": "Ontology Uri"
+                    },
+                    "knowledge_domain_name": {
+                        "type": "string",
+                        "title": "Knowledge Domain Name"
+                    },
+                    "knowledge_domain_description": {
+                        "type": "string",
+                        "title": "Knowledge Domain Description"
+                    },
+                    "key_knowledge_document_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Key Knowledge Document Id"
+                    },
+                    "legal_knowledge_document_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Legal Knowledge Document Ids"
+                    },
+                    "expert_knowledge_document_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Expert Knowledge Document Ids"
+                    },
+                    "domain_areas": {
+                        "items": {
+                            "$ref": "#/components/schemas/KnowledgeDomainAreaModel"
+                        },
+                        "type": "array",
+                        "title": "Domain Areas"
+                    },
+                    "planned_iterations": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignIterationModel"
+                        },
+                        "type": "array",
+                        "title": "Planned Iterations"
+                    },
+                    "current_iteration": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DesignIterationModel"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "finished_iterations": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignIterationModel"
+                        },
+                        "type": "array",
+                        "title": "Finished Iterations"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "ontology_uri",
+                    "knowledge_domain_name",
+                    "knowledge_domain_description"
+                ],
+                "title": "ProjectModel",
+                "description": "Complete project model."
+            },
+            "ProjectSummary": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "ontology_uri": {
+                        "type": "string",
+                        "title": "Ontology Uri"
+                    },
+                    "knowledge_domain_name": {
+                        "type": "string",
+                        "title": "Knowledge Domain Name"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "title": "Created At"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "title": "Updated At"
+                    },
+                    "domain_areas_count": {
+                        "type": "integer",
+                        "title": "Domain Areas Count"
+                    },
+                    "iterations_count": {
+                        "type": "integer",
+                        "title": "Iterations Count"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "ontology_uri",
+                    "knowledge_domain_name",
+                    "created_at",
+                    "updated_at",
+                    "domain_areas_count",
+                    "iterations_count"
+                ],
+                "title": "ProjectSummary",
+                "description": "Project summary for list views."
+            },
+            "ReidentifyDomainAreasRequest": {
+                "properties": {
+                    "user_instruction": {
+                        "type": "string",
+                        "title": "User Instruction"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "user_instruction"
+                ],
+                "title": "ReidentifyDomainAreasRequest",
+                "description": "Request to re-identify domain areas."
+            },
+            "ReorderIterationsRequest": {
+                "properties": {
+                    "iteration_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Iteration Ids"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "iteration_ids"
+                ],
+                "title": "ReorderIterationsRequest",
+                "description": "Request to reorder planned iterations."
+            },
+            "ReorderOperationsRequest": {
+                "properties": {
+                    "operation_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Operation Ids"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "operation_ids"
+                ],
+                "title": "ReorderOperationsRequest",
+                "description": "Request to reorder operations within an iteration."
+            },
+            "ReorderTasksRequest": {
+                "properties": {
+                    "task_ids": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Task Ids"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "task_ids"
+                ],
+                "title": "ReorderTasksRequest",
+                "description": "Request to reorder tasks."
+            },
+            "SetKeyDocumentRequest": {
+                "properties": {
+                    "document_id": {
+                        "type": "string",
+                        "title": "Document Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "document_id"
+                ],
+                "title": "SetKeyDocumentRequest",
+                "description": "Request to set the key knowledge document."
+            },
+            "SuccessResponse": {
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "title": "Success",
+                        "default": true
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "SuccessResponse",
+                "description": "Generic success response."
+            },
+            "SuggestIterationsRequest": {
+                "properties": {
+                    "focused_area_id": {
+                        "type": "string",
+                        "title": "Focused Area Id"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "maximum": 20.0,
+                        "minimum": 1.0,
+                        "title": "Count",
+                        "default": 5
+                    },
+                    "user_instruction": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "User Instruction"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "focused_area_id"
+                ],
+                "title": "SuggestIterationsRequest",
+                "description": "Request to suggest iterations for a domain area."
+            },
+            "TaskPatternsListResponse": {
+                "properties": {
+                    "patterns": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignTaskPatternModel"
+                        },
+                        "type": "array",
+                        "title": "Patterns"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "patterns"
+                ],
+                "title": "TaskPatternsListResponse",
+                "description": "Response with task patterns list."
+            },
+            "TasksListResponse": {
+                "properties": {
+                    "planned_tasks": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignTaskModel"
+                        },
+                        "type": "array",
+                        "title": "Planned Tasks"
+                    },
+                    "current_task": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DesignTaskModel"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "finished_tasks": {
+                        "items": {
+                            "$ref": "#/components/schemas/DesignTaskModel"
+                        },
+                        "type": "array",
+                        "title": "Finished Tasks"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "planned_tasks",
+                    "current_task",
+                    "finished_tasks"
+                ],
+                "title": "TasksListResponse",
+                "description": "Response with tasks list."
+            },
+            "UpdateDomainAreaRequest": {
+                "properties": {
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "parent_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Parent Id"
+                    },
+                    "key_concepts": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Key Concepts"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateDomainAreaRequest",
+                "description": "Request to update a domain area."
+            },
+            "UpdateIterationRequest": {
+                "properties": {
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Specification"
+                    },
+                    "focused_area_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Focused Area Id"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateIterationRequest",
+                "description": "Request to update an iteration."
+            },
+            "UpdateOntologyRequest": {
+                "properties": {
+                    "ontology_label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Ontology Label"
+                    },
+                    "ontology_description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Ontology Description"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateOntologyRequest",
+                "description": "Request to update ontology metadata."
+            },
+            "UpdateOperationRequest": {
+                "properties": {
+                    "operation_type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "create",
+                                    "update",
+                                    "delete"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Operation Type"
+                    },
+                    "target_type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "class",
+                                    "attribute",
+                                    "relationship"
+                                ]
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target Type"
+                    },
+                    "uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Uri"
+                    },
+                    "label": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Label"
+                    },
+                    "definition": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "definition_references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Definition References"
+                    },
+                    "specification_references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Specification References"
+                    },
+                    "references": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "References"
+                    },
+                    "kind": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Kind"
+                    },
+                    "generalization_uris": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Generalization Uris"
+                    },
+                    "owning_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Owning Class Uri"
+                    },
+                    "source_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Source Class Uri"
+                    },
+                    "target_class_uri": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target Class Uri"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateOperationRequest",
+                "description": "Request to update an operation."
+            },
+            "UpdateProjectRequest": {
+                "properties": {
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "knowledge_domain_name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Knowledge Domain Name"
+                    },
+                    "knowledge_domain_description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Knowledge Domain Description"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateProjectRequest",
+                "description": "Request to update project metadata."
+            },
+            "UpdateTaskRequest": {
+                "properties": {
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "specification": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Specification"
+                    },
+                    "followed_pattern_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Followed Pattern Id"
+                    }
+                },
+                "type": "object",
+                "title": "UpdateTaskRequest",
+                "description": "Request to update a task."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+<var>§ 51</var>
+<var>(2)</var> Při zjištění vážné závady platí pro postup stanice technické kontroly <a data-odkaz-id="30439177" href="#"  class="int_odkaz">§ 50 odst. 2</a> obdobně.
+<var>(3)</var> Pokud provozovatel silničního vozidla nepostupuje způsobem uvedeným v <a data-odkaz-id="30439259" href="#"  class="int_odkaz">odstavci 1</a> nebo bude-li při prohlídce způsobu odstranění vážné závady zjištěna tato závada opakovaně, je vozidlo technicky nezpůsobilé k provozu (<a data-odkaz-id="30439321" href="#"  class="int_odkaz">§ 37</a>) a nesmí být v provozu používáno. Provozovatel je povinen zajistit na vlastní náklad jeho odtažení ze stanice technické kontroly.

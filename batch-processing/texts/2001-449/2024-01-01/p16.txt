@@ -1,0 +1,6 @@
+<var>§ 16</var>
+Odpovědnost za způsobenou škodu
+<var>(1)</var> Stát odpovídá za škodu osobě, která poskytla pomoc myslivecké stráži na její žádost nebo s jejím vědomím, (dále jen „poškozený“). Stát se této odpovědnosti může zprostit jen tehdy, způsobil-li si tuto škodu poškozený úmyslně. Došlo-li u poškozeného k újmě na zdraví nebo smrti, určí se rozsah a výše náhrady škody podle předpisů o odškodňování pracovních úrazů. Při škodě na věcech, která poškozenému vznikla v souvislosti s poskytnutím této pomoci, se hradí skutečná škoda, a to uvedením v předešlý stav; není-li to možné nebo účelné, hradí se v penězích. Poškozenému může být přiznána i úhrada nákladů spojených s pořízením nové věci náhradou za věc poškozenou.
+<var>(2)</var> Stát odpovídá i za škodu, kterou osoba způsobila v souvislosti s pomocí poskytnutou myslivecké stráži.
+<var>(3)</var> Stát odpovídá obdobně podle <a data-odkaz-id="30984959" href="#"  class="int_odkaz">odstavce 1</a> též za škodu způsobenou myslivecké stráži v souvislosti s plněním jejích úkolů a dále za škodu způsobenou mysliveckou stráží v souvislosti s plněním jejích úkolů, pokud se nejedná o škodu způsobenou osobě, která svým protiprávním jednáním oprávněný a přiměřený zákrok vyvolala.
+<var>(4)</var> Náhradu škody za stát poskytuje orgán státní správy myslivosti, který mysliveckou stráž ustanovil.

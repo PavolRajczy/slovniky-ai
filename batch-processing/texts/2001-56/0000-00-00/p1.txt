@@ -1,0 +1,11 @@
+<var>§ 1</var>
+Předmět úpravy
+<var>(1)</var> Zákon upravuje tyto podmínky provozu vozidel na pozemních komunikacích:
+<var>a)</var> registraci vozidel a vyřazování vozidel z registru,
+<var>b)</var> technické požadavky na provoz silničních vozidel a zvláštních vozidel a schvalování jejich technické způsobilosti k provozu na pozemních komunikacích,
+<var>c)</var> práva a povinnosti osob, které vyrábějí, dovážejí a uvádějí na trh vozidla a pohonné hmoty,
+<var>d)</var> práva a povinnosti vlastníků a provozovatelů vozidel,
+<var>e)</var> práva a povinnosti stanice technické kontroly a stanice měření emisí,
+<var>f)</var> kontroly technického stavu vozidel v provozu.
+<var>(2)</var> Zákon upravuje výkon státní správy a státního dozoru v oblasti podmínek provozu vozidel na pozemních komunikacích.
+<var>(3)</var> Zákon se nevztahuje na vojenská vozidla.<a data-odkaz-id="30436617" href="#"  class="int_odkaz"><sup>1</sup>)</a>

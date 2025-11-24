@@ -1,0 +1,12 @@
+<var>§ 55</var>
+Žádost o udělení oprávnění k provozování stanice technické kontroly
+<var>a)</var> obchodní firmu, sídlo a identifikační číslo, jedná-li se o právnickou osobu, nebo jméno, příjmení, obchodní firmu, jde-li o podnikatele, rodné číslo, místo trvalého pobytu, jedná-li se o fyzickou osobu,
+<var>b)</var> typ stanice technické kontroly,
+<var>c)</var> provozovnu stanice technické kontroly,
+<var>d)</var> termín předpokládaného zahájení provozu.
+<var>a)</var> popis objektu, příjezdových komunikací a parkoviště,
+<var>b)</var> seznam technologického vybavení kontrolní linky,
+<var>c)</var> kladné vyjádření stavebního úřadu, v jehož územním obvodu má být stanice technické kontroly provozována, k záměru provozovat stanici technické kontroly z hlediska územního plánu, ochrany životního prostředí a popřípadě jiného veřejného zájmu,
+<var>d)</var> platné profesní osvědčení kontrolního technika (<a data-odkaz-id="30439389" href="#"  class="int_odkaz">§ 60</a>), jehož držitelem je alespoň jeden člen statutárního orgánu,
+<var>e)</var> prohlášení žadatele, že není právně nebo ekonomicky spjat s výrobou, prodejem nebo opravou vozidel nebo jejich součástí tak, že současně provozuje výrobu nebo opravy vozidel nebo jejich součástí, pro něž žádá o udělení oprávnění k provozování stanice technické kontroly,
+<var>f)</var> výpis z evidence Rejstříku trestů, který není starší než tři měsíce, všech fyzických osob, které jsou statutárním orgánem nebo členy statutárního orgánu, a osob, které budou zajišťovat prohlídky ve stanici technické kontroly.
