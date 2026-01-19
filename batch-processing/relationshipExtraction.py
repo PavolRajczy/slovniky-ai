@@ -3,7 +3,6 @@
 
 import time
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from typing import (
     List, Optional
 )
@@ -12,6 +11,7 @@ from pydantic import BaseModel, Field
 import json
 import os
 import openai
+from llm_provider import get_llm_instance
 
 
 def relationshipExtraction(legal_act_number: str, legal_act_year: str, legal_act_valid_from_date: str, legal_act_url: str):
@@ -220,7 +220,9 @@ def relationshipExtraction(legal_act_number: str, legal_act_year: str, legal_act
         ("user", user_prompt_relationships),
 
     ])
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    
+    # Load LLM using abstraction layer
+    llm = get_llm_instance()
 
     chain_relationships = prompt_relationships | llm | output_parser_relationships
 
