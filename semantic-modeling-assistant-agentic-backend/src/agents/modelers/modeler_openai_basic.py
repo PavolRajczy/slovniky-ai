@@ -394,8 +394,16 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 </GOAL_CONTEXT>"""
     
     def _get_tasks_context(self, iteration: DesignIteration, task: DesignTask) -> str:
+        finished_tasks_str = (
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.finishedTasks)
+            if iteration.finishedTasks else "- None"
+        )
+        planned_tasks_str = (
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.plannedTasks)
+            if iteration.plannedTasks else "- None"
+        )
         return f"""<FINISHED_DESIGN_TASKS>
-{''.join([f"- {dt.name}: {dt.specification}\n" for dt in iteration.finishedTasks]) if iteration.finishedTasks else "- None"}
+{finished_tasks_str}
 </FINISHED_DESIGN_TASKS>
 
 <CURRENT_DESIGN_TASK>
@@ -403,7 +411,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 </CURRENT_DESIGN_TASK>
 
 <PLANNED_DESIGN_TASKS>
-{''.join([f"- {dt.name}: {dt.specification}\n" for dt in iteration.plannedTasks]) if iteration.plannedTasks else "- None"}
+{planned_tasks_str}
 </PLANNED_DESIGN_TASKS>"""
     
     def _get_domain_knowledge_context(self) -> str:
@@ -547,6 +555,9 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             return None
         
         local_name = prefixed_name[1:]  # Remove the ':' prefix
+        # If LLM returned e.g. ":turistické-cíle#SilnicniVozidlo", use only the fragment after last '#'
+        if '#' in local_name:
+            local_name = local_name.split('#')[-1]
         
         # If local name is empty after removing ':', return None
         if not local_name.strip():
