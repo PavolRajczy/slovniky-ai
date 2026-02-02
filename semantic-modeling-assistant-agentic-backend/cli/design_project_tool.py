@@ -34,10 +34,13 @@ Usage:
   python cli/design_project_tool.py
 """
 
+import json
 import os
 import sys
 import uuid
 from typing import List, Optional
+
+import requests
 
 # Make src importable
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -46,10 +49,12 @@ if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
 
 # Imports from project
-from design_project.domain import DesignProject
+from design_project.domain import DesignProject, DesignIterationStatus
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from ontology.service import OntologyService
+from ontology.owl_loader import load_ontology_from_url
+from ontology.dataspecer_simplified import ontology_to_simplified, simplified_to_ontology
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
@@ -125,8 +130,14 @@ def build_services():
 
 
 def index_documents(kb_index_service: KnowledgeBaseIndexService, kb_service: KnowledgeBaseService, legal_ids: List[str], expert_ids: List[str]):
-    """Index specified legal and expert knowledge documents (idempotent)."""
-    docs = kb_service.load_knowledge_documents(legal_ids, expert_ids)
+    """Index specified legal and expert knowledge documents (idempotent). Skips missing expert docs."""
+    if not legal_ids and not expert_ids:
+        return
+    try:
+        docs = kb_service.load_knowledge_documents(legal_ids, expert_ids)
+    except FileNotFoundError as e:
+        print(f"Warning: skipping index (missing document): {e}")
+        return
     for doc in docs:
         try:
             kb_index_service.add_document(doc)
@@ -376,6 +387,82 @@ def prepare_iteration(design_service: DesignProjectService, project_id: str):
         return None
 
 
+# FOAF (Friend of a Friend) TTL artifact; use when ontology references foaf: e.g. foaf:Organization.
+# From DataSpecer spec isProfileOf.hasArtifact: https://datagov-cz.github.io/cache-slovniku/foaf.ttl
+FOAF_TTL_URL = "https://datagov-cz.github.io/cache-slovniku/foaf.ttl"
+
+
+def import_ontology_from_url(design_service: DesignProjectService):
+    """Fetch OWL/Turtle from URL (GET), parse, and store as ontology in data/ontologies."""
+    print("\n=== Import Ontology from URL (OWL/Turtle) ===")
+    default_url = "https://tool.dataspecer.com/api/preview/en/model.owl.ttl?iri=d5308e81-2ddc-49a3-8afa-f11fde41a2ab"
+    url = input(f"URL (Enter for default): ").strip() or default_url
+    if not url:
+        print("URL is required.")
+        return
+    print(f"External vocabularies (e.g. FOAF for foaf:Organization); comma-separated URLs, or Enter to skip.")
+    print(f"  Example: {FOAF_TTL_URL}")
+    external_input = input("External vocabulary URLs: ").strip()
+    external_urls = [u.strip() for u in external_input.split(",") if u.strip()] if external_input else None
+    try:
+        ontology = load_ontology_from_url(url, external_vocabulary_urls=external_urls)
+        design_service.ontology_service.store_ontology(ontology)
+        print(f"Imported ontology: {ontology.uri}")
+        print(f"  Classes: {len(ontology.classes)}, Attributes: {len(ontology.attributes)}, Relationships: {len(ontology.relationships)}")
+        print(f"  Stored under: data/ontologies/ (URI: {ontology.uri})")
+    except Exception as e:
+        print(f"Import failed: {e}")
+
+
+def export_ontology_to_simplified(design_service: DesignProjectService):
+    """PUT stored ontology to DataSpecer as simplified-semantic-model. Only classes/relationships in the ontology namespace are sent; external vocabularies (e.g. FOAF) are not included in classes."""
+    print("\n=== Export Ontology to DataSpecer (PUT simplified-semantic-model) ===")
+    ontology_uri = input("Ontology URI (must exist in data/ontologies): ").strip()
+    if not ontology_uri:
+        print("Ontology URI is required.")
+        return
+    default_put_url = "https://tool.dataspecer.com/api/simplified-semantic-model?iri=50b4fcbf-05b8-4a71-ab63-f12693136688"
+    put_url = input(f"DataSpecer PUT URL (Enter for default): ").strip() or default_put_url
+    if not put_url:
+        print("PUT URL is required.")
+        return
+    try:
+        ontology = design_service.ontology_service.load_ontology(ontology_uri)
+        payload = ontology_to_simplified(ontology)
+        print("PUT body:")
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        response = requests.put(put_url, json=payload, timeout=30)
+        response.raise_for_status()
+        print(f"PUT succeeded ({response.status_code}). Model updated at DataSpecer.")
+    except Exception as e:
+        print(f"Export (PUT) failed: {e}")
+
+
+def import_ontology_from_simplified_url(design_service: DesignProjectService):
+    """Fetch DataSpecer simplified-semantic-model from URL and store as ontology (ontology.json). Short IRIs are expanded using base URI."""
+    print("\n=== Import Ontology from DataSpecer Simplified-Semantic-Model URL ===")
+    default_url = "https://tool.dataspecer.com/api/simplified-semantic-model?iri=50b4fcbf-05b8-4a71-ab63-f12693136688"
+    url = input(f"URL (Enter for default): ").strip() or default_url
+    if not url:
+        print("URL is required.")
+        return
+    base_uri = input("Ontology base URI for expanding short IRIs (e.g. https://example.com/vocabulary#): ").strip()
+    if not base_uri:
+        print("Base URI is required.")
+        return
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        ontology = simplified_to_ontology(data, base_uri)
+        design_service.ontology_service.store_ontology(ontology)
+        print(f"Imported ontology: {ontology.uri}")
+        print(f"  Classes: {len(ontology.classes)}, Attributes: {len(ontology.attributes)}, Relationships: {len(ontology.relationships)}")
+        print(f"  Stored under: data/ontologies/")
+    except Exception as e:
+        print(f"Import failed: {e}")
+
+
 def apply_prepared_operations(design_service: DesignProjectService, project_id: str, operations):
     """Apply the prepared operations to complete the iteration."""
     if not operations:
@@ -387,8 +474,12 @@ def apply_prepared_operations(design_service: DesignProjectService, project_id: 
         print("No current iteration to apply operations to.")
         return False
     
-    if project.currentIteration.status.value != 'prepared':
-        print(f"Current iteration is not in PREPARED status: {project.currentIteration.status}")
+    # After prepare, status is OPERATIONS_GENERATED (ready to apply), not "prepared"
+    if project.currentIteration.status not in (
+        DesignIterationStatus.OPERATIONS_GENERATED,
+        DesignIterationStatus.APPLYING_OPERATIONS,
+    ):
+        print(f"Current iteration is not ready to apply (status: {project.currentIteration.status}). Prepare first (choice 9).")
         return False
     
     print(f"\nAbout to apply {len(operations)} operations to iteration '{project.currentIteration.name}'.")
@@ -414,7 +505,6 @@ def main():
 
     project_id: Optional[str] = None
     prepared_operations = None  # Store operations between prepare and apply phases
-    prepared_operations = None  # Store operations between prepare and apply phases
 
 
     MENU = (
@@ -431,6 +521,9 @@ def main():
         "8. List planned tasks for iteration\n"
         "9. Prepare planned iteration (get operations)\n"
         "10. Apply prepared operations (execute operations)\n"
+        "11. Import ontology from URL (OWL/Turtle)\n"
+        "12. Export ontology to DataSpecer (PUT simplified-semantic-model)\n"
+        "13. Import ontology from DataSpecer simplified-semantic-model URL\n"
         "0. Exit\n"
         "Choice: "
     )
@@ -450,7 +543,10 @@ def main():
         elif choice == '2':
             project_id = load_existing_project(design_service) or project_id
             if project_id:
-                index_documents(kb_index_service, kb_service, LEGISLATION_IDS, EXPERT_LOCAL_IDS)
+                project = design_service.load_project(project_id)
+                legal_ids = [doc.id for doc in project.legalKnowledgeBase]
+                expert_ids = [doc.id for doc in project.expertKnowledgeBase]
+                index_documents(kb_index_service, kb_service, legal_ids, expert_ids)
         elif choice == '3':
             if not project_id:
                 print("Create or load a project first.")
@@ -492,6 +588,12 @@ def main():
             else:
                 if apply_prepared_operations(design_service, project_id, prepared_operations):
                     prepared_operations = None  # Clear operations after successful application
+        elif choice == '11':
+            import_ontology_from_url(design_service)
+        elif choice == '12':
+            export_ontology_to_simplified(design_service)
+        elif choice == '13':
+            import_ontology_from_simplified_url(design_service)
         elif choice == '0':
             print("Goodbye!")
             break

@@ -36,9 +36,15 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
     A summarizer for knowledge documents using OpenAI API.
     
     Computes summaries bottom-up: leaf summaries are from their content, non-leaf summaries combine their content and child summaries.
+    
+    Optional limit: set only_element_id_contains (or env SUMMARIZE_ONLY_ELEMENT_ID_CONTAINS)
+    to summarize only the subtree of elements whose id contains that string.
+    Use comma-separated values for multiple parts (e.g. "cast_1,cast_2" for Part 1 and Part 2).
     """
-    def __init__(self, model: str = "gpt-4.1"):
+    def __init__(self, model: str = "gpt-4.1", only_element_id_contains: Optional[str] = None):
         self.model = model
+        raw = only_element_id_contains or os.getenv("SUMMARIZE_ONLY_ELEMENT_ID_CONTAINS")
+        self._only_contains_list = [s.strip() for s in (raw or "").split(",") if s.strip()] or None
         self.open_api_key = os.getenv("OPENAI_API_KEY")
         if not self.open_api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
@@ -48,8 +54,20 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
         """
         Computes summaries for all elements in the document hierarchy, storing them in contentSummary.
         Modifies the document in place and saves the updated document to its cache file.
+        If only_element_id_contains is set, only root children whose id contains any of those strings (and their descendants) are summarized. Comma-separated for multiple parts.
         """
-        self._summarize_element(document)
+        if self._only_contains_list:
+            allowed = self._only_contains_list
+            summarized = 0
+            for child in document.childElements:
+                if any(part in child.id for part in allowed):
+                    print(f"Summarizing subtree: id contains one of {allowed} (e.g. {child.id})")
+                    self._summarize_element(child)
+                    summarized += 1
+            if not summarized:
+                print(f"No root child id contains any of {allowed}; nothing summarized.")
+        else:
+            self._summarize_element(document)
         
         # Save the updated document with summaries back to the cache file
         # Only update content part to preserve metadata
@@ -76,10 +94,14 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
             text_to_summarize = element.title or ""
         
         print(f"Summarizing element ID {element.id}.")
-        summary = self._summarize_text(text_to_summarize)
+        try:
+            summary = self._summarize_text(text_to_summarize)
+        except Exception as e:
+            print(f"Failed to summarize element {element.id}: {e}")
+            summary = ""  # Leave contentSummary set so we persist progress; empty = failed
         print(f"Summarized element ID {element.id}.")
-        element.contentSummary = summary
-        return summary
+        element.contentSummary = summary if summary else None  # Keep None if failed so re-run retries
+        return element.contentSummary or ""
     
     def _prepare_text(self, text:str) -> str:
         text = text.strip()

@@ -130,11 +130,20 @@ Specification: Focus on spacecrafts and their space missions and refine in detai
 
         document_outline = self.knowledge_base_service.get_knowledge_document_outline_from_summaries(design_project.keyKnowledgeDocument)
 
+        finished_iterations_str = (
+            "".join(f"\t<ITERATION><NAME>{it.name}</NAME><SPECIFICATION>{it.specification}</SPECIFICATION></ITERATION>\n" for it in design_project.finishedIterations)
+            if design_project.finishedIterations else "None"
+        )
+        planned_iterations_str = (
+            "".join(f"\t<ITERATION><NAME>{it.name}</NAME><SPECIFICATION>{it.specification}</SPECIFICATION></ITERATION>\n" for it in design_project.plannedIterations)
+            if design_project.plannedIterations else "None"
+        )
+
         user_prompt = f"""<PREVIOUS_ITERATIONS>
-{"".join([f"\t<ITERATION><NAME>{it.name}</NAME><SPECIFICATION>{it.specification}</SPECIFICATION></ITERATION>\n" for it in design_project.finishedIterations]) if design_project.finishedIterations else 'None'}
+{finished_iterations_str}
 </PREVIOUS_ITERATIONS>
 <PLANNED_ITERATIONS>
-{"".join([f"\t<ITERATION><NAME>{it.name}</NAME><SPECIFICATION>{it.specification}</SPECIFICATION></ITERATION>\n" for it in design_project.plannedIterations]) if design_project.plannedIterations else 'None'}
+{planned_iterations_str}
 </PLANNED_ITERATIONS>
 <CURRENT_ONTOLOGY>
 {self._ontology_to_prompt(design_project.designedOntology) if design_project.designedOntology else 'None'}
