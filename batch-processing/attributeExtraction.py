@@ -2,6 +2,7 @@
 
 import time
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from typing import (
     List, Optional
 )
@@ -10,7 +11,6 @@ from pydantic import BaseModel, Field
 import json
 import os
 import openai
-from llm_provider import get_llm_instance
 
 
 def attributeExtraction(legal_act_number: str, legal_act_year: str, legal_act_valid_from_date: str, legal_act_url: str):
@@ -173,9 +173,7 @@ def attributeExtraction(legal_act_number: str, legal_act_year: str, legal_act_va
         ("user", user_prompt_attributes),
 
     ])
-    
-    # Load LLM using abstraction layer
-    llm = get_llm_instance()
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     chain_attributes = prompt_attributes | llm | output_parser_attributes
 

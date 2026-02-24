@@ -1,8 +1,0 @@
-{
-  "provider": "openai",
-  "model_name": "gpt-4o",
-  "temperature": 0.0,
-  "api_key": null,
-  "extra_params": {}
-}
-

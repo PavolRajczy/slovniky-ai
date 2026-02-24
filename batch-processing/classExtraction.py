@@ -1,6 +1,7 @@
 # %%
 import json
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from typing import (
     List, Optional
 )
@@ -8,7 +9,6 @@ from langchain_core.output_parsers import JsonOutputParser
 from pydantic import BaseModel, Field
 import openai
 import os
-from llm_provider import LLMFactory, LLMConfig, LLMProvider, load_llm_config_from_file, load_llm_config_from_env
 
 
 def merge_classes(conceptual_model, result):
@@ -208,26 +208,7 @@ def classExtraction(legal_act_number: str, legal_act_year: str, legal_act_valid_
         ("user", user_prompt),
 
     ])
-    
-    # Load LLM using abstraction layer
-    from llm_provider import get_llm_instance
-    llm = get_llm_instance()
-    
-    # Get config for output path (need to reload to get model name)
-    llm_config = None
-    config_file = os.getenv("LLM_CONFIG_FILE")
-    if config_file and os.path.exists(config_file):
-        llm_config = load_llm_config_from_file(config_file)
-    else:
-        llm_config = load_llm_config_from_env()
-    
-    if llm_config is None:
-        # Default to OpenAI gpt-4o
-        llm_config = LLMConfig(
-            provider=LLMProvider.OPENAI,
-            model_name="gpt-4o",
-            temperature=0.0
-        )
+    llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
     chain = prompt | llm | output_parser
 
@@ -270,9 +251,7 @@ def classExtraction(legal_act_number: str, legal_act_year: str, legal_act_valid_
     print(reversed_conceptual_model_sources)
 
     # %%
-    # Use model name from config for output directory
-    model_name_for_path = llm_config.model_name.replace("/", "-").replace(":", "-")
-    outputs_path = f"{os.getcwd()}/outputs/{legal_act_year}-{legal_act_number}/{legal_act_valid_from_date}/{model_name_for_path}/"
+    outputs_path = f"{os.getcwd()}/outputs/{legal_act_year}-{legal_act_number}/{legal_act_valid_from_date}/gpt-4o/"
     os.makedirs(outputs_path, exist_ok=True)
 
     class_definitions_file = f"{outputs_path}/class_definitions.json"
