@@ -17,13 +17,10 @@ sys.path.insert(0, str(src_path))
 import uvicorn
 
 if __name__ == "__main__":
-    # Watch only src/ so editing examples/ or tests/ does not restart the server
-    root = Path(__file__).parent
     uvicorn.run(
         "api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        reload_dirs=[str(root / "src")],
         log_level="info"
     )

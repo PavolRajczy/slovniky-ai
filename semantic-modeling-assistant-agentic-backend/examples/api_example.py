@@ -47,11 +47,9 @@ def main():
     }
     response = requests.post(f"{BASE_URL}/ontologies", json=ontology_data)
     print_response(response, "Create Ontology")
-    if response.status_code == 409:
-        print("(Ontology already exists from a previous run; continuing.)\n")
     
-    # 3. Get the ontology (works for both newly created and existing)
-    if response.status_code in (201, 409):
+    # 3. Get the ontology
+    if response.status_code == 201:
         print("\n3. Retrieving the created ontology...")
         ontology_uri = requests.utils.quote(ontology_data["ontology_uri"], safe='')
         response = requests.get(f"{BASE_URL}/ontologies/{ontology_uri}")
@@ -110,14 +108,6 @@ def main():
                 json=suggest_data
             )
             print_response(response, "Suggest Iterations")
-            if response.status_code == 500:
-                try:
-                    msg = response.json().get("message", "") or response.json().get("detail", "")
-                    if "key knowledge document" in (msg if isinstance(msg, str) else str(msg)):
-                        print("(Suggest iterations requires a key knowledge document on the project; "
-                              "see new_project_workflow_example.py for upload + set key document.)\n")
-                except Exception:
-                    pass
             
             # 9. List iterations
             print(f"\n9. Listing all iterations...")

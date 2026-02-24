@@ -1,13 +1,5 @@
 """
 Example: Using the new multi-step project creation workflow via API
-
-Why it can take long:
-- Step 2a (Add legal documents): Loads the act from ESEL SPARQL, then summarizes
-  every structural element via OpenAI (one API call per part/chapter/section/etc.),
-  then builds a search index (embeddings via OpenAI). A single act can trigger dozens
-  of API calls.
-- Step 4 (Generate domain areas): Sends the key document to an OpenAI-based agent
-  to propose domain areas. One or more API calls with large context.
 """
 
 import requests
@@ -46,14 +38,14 @@ def create_project_example():
     print(f"  Legal documents: {len(project['legal_knowledge_document_ids'])}")
     print(f"  Domain areas: {len(project['domain_areas'])}")
     
-    # Step 2a: Add legal knowledge documents (can take several minutes: load + summarize + index)
-    # Document ID must be in ESEL format: https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/YEAR/NUMBER/DATE
-    legal_doc_id = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01"
-    print("\n[Step 2a] Adding legal knowledge documents... (load, summarize per element, index; may take 2–5+ min)")
+    # Step 2a: Add legal knowledge documents
+    print("\n[Step 2a] Adding legal knowledge documents...")
     response = requests.post(
         f"{BASE_URL}/projects/{project_id}/knowledge-base/legal",
         json={
-            "document_ids": [legal_doc_id]
+            "document_ids": [
+                "https://www.zakonyprolidi.cz/cs/2000-361"
+            ]
         }
     )
     response.raise_for_status()
@@ -70,14 +62,14 @@ def create_project_example():
     response = requests.put(
         f"{BASE_URL}/projects/{project_id}/key-document",
         json={
-            "document_id": legal_doc_id
+            "document_id": "https://www.zakonyprolidi.cz/cs/2000-361"
         }
     )
     response.raise_for_status()
     result = response.json()
     print(f"✓ {result['message']}")
     
-    # Step 4: Generate domain areas (AI analyzes key document; may take 1–2 min)
+    # Step 4: Generate domain areas
     print("\n[Step 4] Generating domain areas...")
     response = requests.post(
         f"{BASE_URL}/projects/{project_id}/domain-areas/generate",
@@ -138,7 +130,7 @@ def error_examples():
         response = requests.put(
             f"{BASE_URL}/projects/{project_id}/key-document",
             json={
-                "document_id": "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01"
+                "document_id": "https://www.zakonyprolidi.cz/cs/2000-361"
             }
         )
         response.raise_for_status()
