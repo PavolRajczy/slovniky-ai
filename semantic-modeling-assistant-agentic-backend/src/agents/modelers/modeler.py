@@ -27,19 +27,3 @@ class ModelerAgent:
         """
         ...
         return []  # Placeholder for actual implementation
-
-    def get_operations_from_instruction(self, design_project: DesignProject, current_ontology: Ontology, user_instruction: str) -> List[OntologyEditOperation]:
-        """
-        Generates ontology edit operations from a free-form user instruction (human in the loop).
-        The user describes desired changes (e.g. rename a class, change a relationship); the model outputs the minimal set of create/update/delete operations.
-
-        Args:
-            design_project (DesignProject): The design project (for ontology base URI and context).
-            current_ontology (Ontology): The current ontology to modify.
-            user_instruction (str): The user's instruction describing the desired changes.
-
-        Returns:
-            List[OntologyEditOperation]: A list of ontology edit operations that fulfill the instruction.
-        """
-        ...
-        return []  # Placeholder for actual implementation

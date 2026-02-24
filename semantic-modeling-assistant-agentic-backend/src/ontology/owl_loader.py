@@ -34,20 +34,6 @@ def _get_label(g: Graph, subject: URIRef) -> str:
     return str(labels[0])
 
 
-def _get_comment(g: Graph, subject: URIRef) -> Optional[str]:
-    """Get rdfs:comment for a resource (description), with optional language preference."""
-    comments = list(g.objects(subject, RDFS.comment))
-    if not comments:
-        return None
-    # Prefer literal with no lang or "en"
-    for lit in comments:
-        if hasattr(lit, "language") and lit.language in ("en", ""):
-            return str(lit)
-        if not hasattr(lit, "language"):
-            return str(lit)
-    return str(comments[0])
-
-
 def _parse_into_graph(g: Graph, content: str, url: str, content_type: str) -> None:
     """Parse RDF content into graph; format inferred from content_type and url."""
     if "turtle" in content_type or "ttl" in content_type or ".ttl" in url or "turtle" in url:
@@ -135,7 +121,7 @@ def load_ontology_from_url(
                     uri=URIRef(uri_str),
                     label=_get_label(g, s) or uri_str.split("#")[-1].split("/")[-1],
                     definition=None,
-                    description=_get_comment(g, s),
+                    description=None,
                     kind=Kind.OBJECT,
                     definition_references=[],
                     specification_references=[],
@@ -149,7 +135,7 @@ def load_ontology_from_url(
                     uri=URIRef(uri_str),
                     label=_get_label(g, s) or uri_str.split("#")[-1].split("/")[-1],
                     definition=None,
-                    description=_get_comment(g, s),
+                    description=None,
                     kind=Kind.OBJECT,
                     definition_references=[],
                     specification_references=[],
@@ -159,12 +145,11 @@ def load_ontology_from_url(
     def ensure_class(uri_ref) -> OntologyClass:
         uri_str = str(uri_ref)
         if uri_str not in classes_by_uri:
-            s_ref = uri_ref if isinstance(uri_ref, URIRef) else URIRef(uri_ref)
             classes_by_uri[uri_str] = OntologyClass(
                 uri=URIRef(uri_str),
-                label=_get_label(g, s_ref) or uri_str.split("#")[-1].split("/")[-1],
+                label=uri_str.split("#")[-1].split("/")[-1],
                 definition=None,
-                description=_get_comment(g, s_ref),
+                description=None,
                 kind=Kind.OBJECT,
                 definition_references=[],
                 specification_references=[],
@@ -199,7 +184,7 @@ def load_ontology_from_url(
             uri=URIRef(uri_str),
             label=_get_label(g, s) or uri_str.split("#")[-1].split("/")[-1],
             definition=None,
-            description=_get_comment(g, s),
+            description=None,
             sourceClass=source_class,
             targetClass=target_class,
             definition_references=[],
@@ -224,7 +209,7 @@ def load_ontology_from_url(
             uri=URIRef(uri_str),
             label=_get_label(g, s) or uri_str.split("#")[-1].split("/")[-1],
             definition=None,
-            description=_get_comment(g, s),
+            description=None,
             owningClass=owning_class,
             definition_references=[],
             specification_references=[],
@@ -237,7 +222,7 @@ def load_ontology_from_url(
     ontology = Ontology(
         uri=ontology_uri_ref,
         label=_get_label(g, ontology_uri_ref) if ontology_uri_ref else "",
-        description=_get_comment(g, ontology_uri_ref),
+        description=None,
         classes={URIRef(k): v for k, v in classes_by_uri.items()},
         attributes={URIRef(k): v for k, v in attributes_by_uri.items()},
         relationships={URIRef(k): v for k, v in relationships_by_uri.items()},

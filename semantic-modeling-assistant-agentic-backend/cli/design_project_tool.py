@@ -463,37 +463,6 @@ def import_ontology_from_simplified_url(design_service: DesignProjectService):
         print(f"Import failed: {e}")
 
 
-def edit_ontology_from_instruction(design_service: DesignProjectService, project_id: str):
-    """Generate operations from a free-form instruction, show them, and optionally apply to project ontology."""
-    print("\n=== Edit Ontology from Instruction ===")
-    user_instruction = input("Instruction (e.g. rename class X to Y, add attribute Z to class W): ").strip()
-    if not user_instruction:
-        print("Instruction is required.")
-        return
-    try:
-        operations = design_service.generate_operations_from_instruction(project_id, user_instruction)
-        if not operations:
-            print("No operations generated.")
-            return
-        print(f"\nGenerated {len(operations)} operation(s):")
-        for i, op in enumerate(operations, 1):
-            op_type = type(op).__name__
-            if hasattr(op, "label") and op.label:
-                print(f"  {i}. {op_type}: {op.label}")
-            elif hasattr(op, "uri"):
-                print(f"  {i}. {op_type}: {op.uri}")
-            else:
-                print(f"  {i}. {op_type}")
-        confirm = input("\nApply these operations to the project ontology? (y/N): ").strip().lower()
-        if confirm != "y":
-            print("Cancelled.")
-            return
-        design_service.apply_operations_to_project_ontology(project_id, operations)
-        print("Operations applied successfully. Ontology saved.")
-    except Exception as e:
-        print(f"Failed: {e}")
-
-
 def apply_prepared_operations(design_service: DesignProjectService, project_id: str, operations):
     """Apply the prepared operations to complete the iteration."""
     if not operations:
@@ -555,7 +524,6 @@ def main():
         "11. Import ontology from URL (OWL/Turtle)\n"
         "12. Export ontology to DataSpecer (PUT simplified-semantic-model)\n"
         "13. Import ontology from DataSpecer simplified-semantic-model URL\n"
-        "14. Edit ontology from instruction\n"
         "0. Exit\n"
         "Choice: "
     )
@@ -626,11 +594,6 @@ def main():
             export_ontology_to_simplified(design_service)
         elif choice == '13':
             import_ontology_from_simplified_url(design_service)
-        elif choice == '14':
-            if not project_id:
-                print("Create or load a project first.")
-            else:
-                edit_ontology_from_instruction(design_service, project_id)
         elif choice == '0':
             print("Goodbye!")
             break

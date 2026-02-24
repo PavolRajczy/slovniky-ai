@@ -202,43 +202,6 @@ class DesignProjectService:
         else:
             print(f"  → {operation_type_str.upper()} operation completed: No element returned")
 
-    def generate_operations_from_instruction(self, project_id: str, user_instruction: str) -> List[OntologyEditOperation]:
-        """
-        Generates ontology edit operations from a free-form user instruction (human in the loop).
-        Loads the project, gets the current designed ontology, and asks the modeler to produce operations.
-
-        Args:
-            project_id (str): The ID of the project.
-            user_instruction (str): The user's instruction describing the desired ontology changes.
-
-        Returns:
-            List[OntologyEditOperation]: The list of proposed edit operations.
-        """
-        project = self.load_project(project_id)
-        return self.modeler_agent.get_operations_from_instruction(
-            design_project=project,
-            current_ontology=project.designedOntology,
-            user_instruction=user_instruction,
-        )
-
-    def apply_operations_to_project_ontology(self, project_id: str, operations: List[OntologyEditOperation]) -> Ontology:
-        """
-        Applies the given ontology edit operations directly to the project's designed ontology,
-        saves the project, and persists the ontology. Does not use iteration state.
-
-        Args:
-            project_id (str): The ID of the project.
-            operations (List[OntologyEditOperation]): The operations to apply.
-
-        Returns:
-            Ontology: The updated ontology.
-        """
-        project = self.load_project(project_id)
-        self._apply_operations_to_ontology(project.designedOntology, operations, project)
-        self.store.store_project(project)
-        self.ontology_service.store_ontology(project.designedOntology)
-        return project.designedOntology
-
     def load_project(self, project_id: str) -> DesignProject:
         """
         Loads an existing design project by its ID.
