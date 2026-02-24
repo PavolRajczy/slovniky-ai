@@ -3,7 +3,6 @@
 
 import time
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from typing import (
     List, Optional
 )
@@ -13,6 +12,7 @@ import json
 import os
 import openai
 from collections import defaultdict
+from llm_provider import get_llm_instance
 
 
 class ConceptualClass(BaseModel):
@@ -105,7 +105,9 @@ def classMerging(legal_act_number: str, legal_act_year: str, legal_act_valid_fro
         ("user", user_prompt),
 
     ])
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    
+    # Load LLM using abstraction layer
+    llm = get_llm_instance()
 
     chain = prompt | llm | output_parser
     conceptual_model = {"classes": []}

@@ -3,7 +3,6 @@
 
 import time
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from typing import (
     List, Optional
 )
@@ -12,6 +11,7 @@ from pydantic import BaseModel, Field
 import json
 import os
 import openai
+from llm_provider import LLMFactory, LLMConfig, LLMProvider, load_llm_config_from_file, load_llm_config_from_env
 
 
 def classCategorization(legal_act_number: str, legal_act_year: str, legal_act_valid_from_date: str, legal_act_url: str):
@@ -115,7 +115,10 @@ def classCategorization(legal_act_number: str, legal_act_year: str, legal_act_va
         ("user", user_prompt),
 
     ])
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    
+    # Load LLM using abstraction layer
+    from llm_provider import get_llm_instance
+    llm = get_llm_instance()
 
     chain = prompt | llm | output_parser
 

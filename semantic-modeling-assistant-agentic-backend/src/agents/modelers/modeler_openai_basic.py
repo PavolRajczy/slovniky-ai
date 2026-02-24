@@ -258,6 +258,47 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
 
         return operations
 
+    def get_operations_from_instruction(self, design_project: DesignProject, current_ontology: Ontology, user_instruction: str) -> List[OntologyEditOperation]:
+        """
+        Generates ontology edit operations from a free-form user instruction (human in the loop).
+        No knowledge snippets are used; the model works only with the current ontology and the instruction.
+        """
+        system_prompt = f"""<ROLE>You are an expert ontology modeler.</ROLE>
+
+<GOAL>Given the current ontology and a free-form user instruction, output the minimal set of ontology edit operations (create, update, or delete for classes, attributes, and relationships) that fulfill the user's request.</GOAL>
+
+<INSTRUCTIONS>
+- The user speaks {self.language} language; output labels, definitions, and descriptions in {self.language}.
+- Use prefixed names (e.g. :LocalName) for ontology elements; they will be expanded using the ontology base URI.
+- Only reference classes, attributes, and relationships that exist in the current ontology (for updates/deletes or for owning class, source/target class).
+- If the instruction is already satisfied by the current ontology, return empty lists.
+- For create operations, provide label, prefixed_name, definition, description, and kind (for classes); owning_class_prefixed_name (for attributes); source_class_prefixed_name and target_class_prefixed_name (for relationships).
+- Leave definition_references, specification_references, and references empty (no knowledge base context in this flow).
+</INSTRUCTIONS>
+
+{self._get_ontology_metamodel_description()}"""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "assistant", "content": "I need the current ontology and your instruction to generate edit operations."},
+            {"role": "user", "content": self._ontology_to_prompt(current_ontology) + "\n\n<USER_INSTRUCTION>\n" + (user_instruction or "").strip() + "\n</USER_INSTRUCTION>"},
+        ]
+
+        try:
+            response = self.client.responses.parse(
+                model=self.model_name,
+                input=messages,
+                text={"verbosity": "low"},
+                reasoning={"effort": "minimal"},
+                text_format=EditOperationsOutput,
+            )
+            operations_output = response.output_parsed
+        except Exception as e:
+            print(f"Error generating operations from instruction: {e}")
+            return []
+
+        return self._convert_operations_output_to_edit_operations(design_project.designedOntology.uri, operations_output)
+
     def _find_relevant_knowledge_document_elements(self, design_project: DesignProject, iteration: DesignIteration, task: DesignTask) -> List[KnowledgeDocumentElement]:
 
         query = task.specification.strip()
@@ -394,8 +435,16 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 </GOAL_CONTEXT>"""
     
     def _get_tasks_context(self, iteration: DesignIteration, task: DesignTask) -> str:
+        finished_tasks_str = (
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.finishedTasks)
+            if iteration.finishedTasks else "- None"
+        )
+        planned_tasks_str = (
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.plannedTasks)
+            if iteration.plannedTasks else "- None"
+        )
         return f"""<FINISHED_DESIGN_TASKS>
-{''.join([f"- {dt.name}: {dt.specification}\n" for dt in iteration.finishedTasks]) if iteration.finishedTasks else "- None"}
+{finished_tasks_str}
 </FINISHED_DESIGN_TASKS>
 
 <CURRENT_DESIGN_TASK>
@@ -403,7 +452,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 </CURRENT_DESIGN_TASK>
 
 <PLANNED_DESIGN_TASKS>
-{''.join([f"- {dt.name}: {dt.specification}\n" for dt in iteration.plannedTasks]) if iteration.plannedTasks else "- None"}
+{planned_tasks_str}
 </PLANNED_DESIGN_TASKS>"""
     
     def _get_domain_knowledge_context(self) -> str:
@@ -547,6 +596,9 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             return None
         
         local_name = prefixed_name[1:]  # Remove the ':' prefix
+        # If LLM returned e.g. ":turistické-cíle#SilnicniVozidlo", use only the fragment after last '#'
+        if '#' in local_name:
+            local_name = local_name.split('#')[-1]
         
         # If local name is empty after removing ':', return None
         if not local_name.strip():
@@ -685,20 +737,27 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             print(f"Error generating edit operations: {e}")
             return []
 
-        # Step 4: Convert Pydantic models to actual edit operation objects
+        # Convert Pydantic models to actual edit operation objects
+        return self._convert_operations_output_to_edit_operations(design_project.designedOntology.uri, operations_output)
+
+    def _convert_operations_output_to_edit_operations(self, ontology_uri: str, operations_output: EditOperationsOutput) -> List[OntologyEditOperation]:
+        """
+        Converts EditOperationsOutput (Pydantic) to a list of OntologyEditOperation instances.
+        Uses the given ontology_uri for expanding prefixed names to full URIs.
+        """
         edit_operations = []
         
         # Process class operations
         for class_op in operations_output.class_operations:
             try:
-                uri = self._local_name_to_full_uri(class_op.prefixed_name, design_project.designedOntology.uri)
+                uri = self._local_name_to_full_uri(class_op.prefixed_name, ontology_uri)
                 if uri is None:
                     print(f"Skipping class operation with invalid prefixed_name: {class_op.prefixed_name}")
                     continue
                     
                 generalization_uris = None
                 if class_op.generalizations_prefixed_names:
-                    generalization_uris = self._local_names_to_full_uris(class_op.generalizations_prefixed_names, design_project.designedOntology.uri)
+                    generalization_uris = self._local_names_to_full_uris(class_op.generalizations_prefixed_names, ontology_uri)
                 
                 if class_op.operation_type == "create":
                     edit_operations.append(CreateClassOperation(
@@ -733,14 +792,14 @@ As a source of the domain knowledge to guide your decisions, use the domain know
         # Process attribute operations
         for attr_op in operations_output.attribute_operations:
             try:
-                uri = self._local_name_to_full_uri(attr_op.prefixed_name, design_project.designedOntology.uri)
+                uri = self._local_name_to_full_uri(attr_op.prefixed_name, ontology_uri)
                 if uri is None:
                     print(f"Skipping attribute operation with invalid prefixed_name: {attr_op.prefixed_name}")
                     continue
                     
                 owning_class_uri = None
                 if attr_op.owning_class_prefixed_name:
-                    owning_class_uri = self._local_name_to_full_uri(attr_op.owning_class_prefixed_name, design_project.designedOntology.uri)
+                    owning_class_uri = self._local_name_to_full_uri(attr_op.owning_class_prefixed_name, ontology_uri)
                     if owning_class_uri is None:
                         print(f"Skipping attribute operation with invalid owning_class_prefixed_name: {attr_op.owning_class_prefixed_name}")
                         continue
@@ -776,7 +835,7 @@ As a source of the domain knowledge to guide your decisions, use the domain know
         # Process relationship operations
         for rel_op in operations_output.relationship_operations:
             try:
-                uri = self._local_name_to_full_uri(rel_op.prefixed_name, design_project.designedOntology.uri)
+                uri = self._local_name_to_full_uri(rel_op.prefixed_name, ontology_uri)
                 if uri is None:
                     print(f"Skipping relationship operation with invalid prefixed_name: {rel_op.prefixed_name}")
                     continue
@@ -784,12 +843,12 @@ As a source of the domain knowledge to guide your decisions, use the domain know
                 source_class_uri = None
                 target_class_uri = None
                 if rel_op.source_class_prefixed_name:
-                    source_class_uri = self._local_name_to_full_uri(rel_op.source_class_prefixed_name, design_project.designedOntology.uri)
+                    source_class_uri = self._local_name_to_full_uri(rel_op.source_class_prefixed_name, ontology_uri)
                     if source_class_uri is None:
                         print(f"Skipping relationship operation with invalid source_class_prefixed_name: {rel_op.source_class_prefixed_name}")
                         continue
                 if rel_op.target_class_prefixed_name:
-                    target_class_uri = self._local_name_to_full_uri(rel_op.target_class_prefixed_name, design_project.designedOntology.uri)
+                    target_class_uri = self._local_name_to_full_uri(rel_op.target_class_prefixed_name, ontology_uri)
                     if target_class_uri is None:
                         print(f"Skipping relationship operation with invalid target_class_prefixed_name: {rel_op.target_class_prefixed_name}")
                         continue
