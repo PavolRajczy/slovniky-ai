@@ -49,7 +49,9 @@ if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
 
 # Imports from project
-from design_project.domain import DesignProject, DesignIterationStatus
+from design_project.domain import DesignProject, DesignIterationStatus, ProjectGuidanceItemType
+from design_project.project_guidance_service import ProjectGuidanceService
+from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from ontology.service import OntologyService
@@ -114,6 +116,8 @@ def build_services():
     modeler_agent = ModelerAgent_Simple_OpenAI(knowledge_base_service=kb_service, knowledge_base_index_service=kb_index_service)
 
     design_project_store = FileSystemDesignProjectStore(ontology_service=ontology_service, base_dir=PROJECTS_BASE_DIR)
+    guidance_store = FileSystemProjectGuidanceStore(base_dir=PROJECTS_BASE_DIR)
+    guidance_service = ProjectGuidanceService(store=guidance_store)
 
     # Design project service
     design_service = DesignProjectService(
@@ -123,7 +127,8 @@ def build_services():
         knowledge_domain_area_analyzer_agent=area_agent,
         iteration_suggester_agent=iteration_agent,
         task_planner_agent=task_planner_agent,
-        modeler_agent=modeler_agent
+        modeler_agent=modeler_agent,
+        guidance_service=guidance_service,
     )
 
     return design_service, kb_index_service, kb_service
@@ -494,6 +499,119 @@ def edit_ontology_from_instruction(design_service: DesignProjectService, project
         print(f"Failed: {e}")
 
 
+def list_guidance(design_service: DesignProjectService, project_id: str):
+    """List all project guidance items (human-in-the-loop instructions)."""
+    guidance_service = design_service.guidance_service
+    if not guidance_service:
+        print("Guidance service not available.")
+        return
+    try:
+        items = guidance_service.list_items(project_id)
+        if not items:
+            print("\nNo project guidance items. Add some via option 16.")
+            return
+        print(f"\n=== Project guidance ({len(items)} item(s)) ===")
+        for i, item in enumerate(items, 1):
+            print(f"  {i}. [{item.type.value}] {item.content[:80]}{'...' if len(item.content) > 80 else ''}")
+            print(f"      id: {item.id}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+
+def add_guidance(design_service: DesignProjectService, project_id: str):
+    """Add a new project guidance item."""
+    guidance_service = design_service.guidance_service
+    if not guidance_service:
+        print("Guidance service not available.")
+        return
+    print("\n=== Add project guidance item ===")
+    print("Types: instruction, correction, preference, constraint")
+    type_str = input("Type [instruction]: ").strip() or "instruction"
+    if type_str not in ("instruction", "correction", "preference", "constraint"):
+        print("Invalid type. Using 'instruction'.")
+        type_str = "instruction"
+    content = input("Content (text the agent should follow): ").strip()
+    if not content:
+        print("Content is required.")
+        return
+    try:
+        item_type = ProjectGuidanceItemType(type_str)
+        item = guidance_service.add_item(project_id=project_id, content=content, type=item_type)
+        print(f"Added. id: {item.id}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+
+def update_guidance(design_service: DesignProjectService, project_id: str):
+    """Update an existing project guidance item."""
+    guidance_service = design_service.guidance_service
+    if not guidance_service:
+        print("Guidance service not available.")
+        return
+    items = guidance_service.list_items(project_id)
+    if not items:
+        print("No guidance items. Add some via option 16 first.")
+        return
+    print("\n=== Update project guidance item ===")
+    for i, item in enumerate(items, 1):
+        print(f"  {i}. [{item.type.value}] {item.content[:60]}... id={item.id}")
+    idx_str = input("Item number to update: ").strip()
+    try:
+        idx = int(idx_str)
+        if idx < 1 or idx > len(items):
+            print("Invalid number.")
+            return
+        item = items[idx - 1]
+    except ValueError:
+        print("Enter a number.")
+        return
+    new_content = input(f"New content [current: {item.content[:50]}...]: ").strip()
+    if not new_content:
+        new_content = item.content
+    type_str = input(f"New type (instruction/correction/preference/constraint) [{item.type.value}]: ").strip() or item.type.value
+    if type_str not in ("instruction", "correction", "preference", "constraint"):
+        type_str = item.type.value
+    try:
+        guidance_service.update_item(project_id, item.id, new_content, ProjectGuidanceItemType(type_str))
+        print("Updated.")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+
+def delete_guidance(design_service: DesignProjectService, project_id: str):
+    """Delete a project guidance item."""
+    guidance_service = design_service.guidance_service
+    if not guidance_service:
+        print("Guidance service not available.")
+        return
+    items = guidance_service.list_items(project_id)
+    if not items:
+        print("No guidance items.")
+        return
+    print("\n=== Delete project guidance item ===")
+    for i, item in enumerate(items, 1):
+        print(f"  {i}. [{item.type.value}] {item.content[:60]}... id={item.id}")
+    idx_str = input("Item number to delete: ").strip()
+    try:
+        idx = int(idx_str)
+        if idx < 1 or idx > len(items):
+            print("Invalid number.")
+            return
+        item = items[idx - 1]
+    except ValueError:
+        print("Enter a number.")
+        return
+    confirm = input(f"Delete this item? (y/N): ").strip().lower()
+    if confirm != "y":
+        print("Cancelled.")
+        return
+    try:
+        guidance_service.delete_item(project_id, item.id)
+        print("Deleted.")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+
 def apply_prepared_operations(design_service: DesignProjectService, project_id: str, operations):
     """Apply the prepared operations to complete the iteration."""
     if not operations:
@@ -556,6 +674,10 @@ def main():
         "12. Export ontology to DataSpecer (PUT simplified-semantic-model)\n"
         "13. Import ontology from DataSpecer simplified-semantic-model URL\n"
         "14. Edit ontology from instruction\n"
+        "15. List project guidance (HITL instructions)\n"
+        "16. Add project guidance item\n"
+        "17. Update project guidance item\n"
+        "18. Delete project guidance item\n"
         "0. Exit\n"
         "Choice: "
     )
@@ -631,6 +753,26 @@ def main():
                 print("Create or load a project first.")
             else:
                 edit_ontology_from_instruction(design_service, project_id)
+        elif choice == '15':
+            if not project_id:
+                print("Create or load a project first.")
+            else:
+                list_guidance(design_service, project_id)
+        elif choice == '16':
+            if not project_id:
+                print("Create or load a project first.")
+            else:
+                add_guidance(design_service, project_id)
+        elif choice == '17':
+            if not project_id:
+                print("Create or load a project first.")
+            else:
+                update_guidance(design_service, project_id)
+        elif choice == '18':
+            if not project_id:
+                print("Create or load a project first.")
+            else:
+                delete_guidance(design_service, project_id)
         elif choice == '0':
             print("Goodbye!")
             break

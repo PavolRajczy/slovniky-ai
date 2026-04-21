@@ -231,7 +231,7 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
 
     #TODO - The current implementation pressumes that the ontology edit operations are directly applied to the ontology and that this edited ontology is then used in the next task.
 
-    def get_operations_for_design_task(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask) -> List[OntologyEditOperation]:
+    def get_operations_for_design_task(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         """
         Gets the ontology edit operations for the given design task.
 
@@ -240,6 +240,7 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
             current_ontology (Ontology): The current ontology being modified. This ontology should reflect all changes made by previously executed tasks in the same iteration. We cannot work with the original ontology from the design_project as this needs to remain unchanged until the final list of operations for all tasks in the iteration is ready and approved.
             iteration (DesignIteration): The iteration in which the task is to be performed.
             task (DesignTask): The design task to be executed.
+            project_guidance_text (str, optional): Project-scoped human-in-the-loop guidance to inject into the prompt.
 
         Returns:
             List[OntologyEditOperation]: A list of ontology edit operations resulting from the task.
@@ -248,11 +249,11 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
         relevant_knowledge_document_elements = self._find_relevant_knowledge_document_elements(design_project, iteration, task)
 
         if task.followedPattern.category == DesignTaskCategory.CLASS:
-            operations = self._generate_class_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements)
+            operations = self._generate_class_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements, project_guidance_text)
         elif task.followedPattern.category == DesignTaskCategory.ATTRIBUTE:
-            operations = self._generate_attribute_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements)
+            operations = self._generate_attribute_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements, project_guidance_text)
         elif task.followedPattern.category == DesignTaskCategory.RELATIONSHIP:
-            operations = self._generate_relationship_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements)
+            operations = self._generate_relationship_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements, project_guidance_text)
         else:
             raise ValueError(f"Unsupported ontology element category: {task.followedPattern.category}")
 
@@ -460,12 +461,15 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 As a source of the domain knowledge to guide your decisions, use the domain knowledge provided by the user as a list of relevant domain knowledge snippets selected from the detailed domain knowledge specification.
 </DOMAIN_KNOWLEDGE_BASE>"""
     
-    def _get_context(self, design_project: DesignProject, iteration: DesignIteration, task: DesignTask) -> str:
-        return f"""{self._get_goal_context(design_project, iteration, task)}
+    def _get_context(self, design_project: DesignProject, iteration: DesignIteration, task: DesignTask, project_guidance_text: Optional[str] = None) -> str:
+        base = f"""{self._get_goal_context(design_project, iteration, task)}
 
 {self._get_tasks_context(iteration, task)}
 
 {self._get_domain_knowledge_context()}"""
+        if project_guidance_text and project_guidance_text.strip():
+            return project_guidance_text.strip() + "\n\n" + base
+        return base
     
     def _get_generic_instructions(self) -> str:
         return f"""<INSTRUCTIONS>
@@ -502,12 +506,12 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 - No primitive datatypes.
 </ONTOLOGY_METAMODEL>"""
 
-    def _generate_class_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], ) -> List[OntologyEditOperation]:
+    def _generate_class_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         system_prompt_generate_operations = f""""<ROLE>You are an expert ontology modeler specializing in modeling ontology classes.</ROLE>
 
 <GOAL>Based on the provided domain knowledge and current ontology state, determine what classes need to be created, updated, or deleted to accomplish the current ontology design task.</GOAL>
 
-{self._get_context(design_project, iteration, task)}
+{self._get_context(design_project, iteration, task, project_guidance_text)}
 
 {self._get_generic_instructions()}
 
@@ -528,12 +532,12 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 """
         return self._generate_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements, system_prompt_generate_operations)
     
-    def _generate_attribute_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], ) -> List[OntologyEditOperation]:
+    def _generate_attribute_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         system_prompt_generate_operations = f""""<ROLE>You are an expert ontology modeler specializing in modeling ontology attributes (datatype properties).</ROLE>
 
 <GOAL>Based on the provided domain knowledge and current ontology state, determine what attributes need to be created, updated, or deleted to accomplish the given design task.</GOAL>
 
-{self._get_context(design_project, iteration, task)}
+{self._get_context(design_project, iteration, task, project_guidance_text)}
 
 {self._get_generic_instructions()}
 
@@ -554,12 +558,12 @@ As a source of the domain knowledge to guide your decisions, use the domain know
         
         return self._generate_operations(design_project, current_ontology, iteration, task, relevant_knowledge_document_elements, system_prompt_generate_operations)
     
-    def _generate_relationship_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], ) -> List[OntologyEditOperation]:
+    def _generate_relationship_operations(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, relevant_knowledge_document_elements: List[KnowledgeDocumentElement], project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         system_prompt_generate_operations = f""""<ROLE>You are an expert ontology modeler specializing in modeling ontology relationships (object properties).</ROLE>
 
 <GOAL>Based on the provided domain knowledge and current ontology state, determine what relationships need to be created, updated, or deleted to accomplish the given design task.</GOAL>
 
-{self._get_context(design_project, iteration, task)}
+{self._get_context(design_project, iteration, task, project_guidance_text)}
 
 {self._get_generic_instructions()}
 

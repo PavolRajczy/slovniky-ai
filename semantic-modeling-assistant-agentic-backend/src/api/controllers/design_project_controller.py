@@ -9,11 +9,14 @@ from urllib.parse import unquote
 import logging
 import uuid
 
+from design_project.domain import ProjectGuidanceItemType
+from design_project.project_guidance_service import ProjectGuidanceService
+from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
-    DesignIterationStatus, DesignTaskStatus
+    DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
 )
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
@@ -39,7 +42,10 @@ from api.models import (
     ApplyOperationsRequest, AddKnowledgeDocumentsRequest, DeleteResponse,
     SuccessResponse, IterationPreparedResponse, IterationAppliedResponse,
     IterationsListResponse, TasksListResponse, TaskPatternsListResponse, KnowledgeBaseResponse,
-    KnowledgeDocumentSummary, OntologyModel
+    KnowledgeDocumentSummary, OntologyModel,
+    ProjectGuidanceItemModel, CreateProjectGuidanceItemRequest, UpdateProjectGuidanceItemRequest,
+    ProjectGuidanceListResponse,
+    GenerateOperationsRequest, ApplyProjectOperationsRequest,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -60,6 +66,9 @@ knowledge_base_index_service = KnowledgeBaseIndexService(
     indexer=FAISSSummaryOpenAIKnowledgeDocumentIndexer()
 )
 
+guidance_store = FileSystemProjectGuidanceStore(base_dir="data/projects")
+guidance_service = ProjectGuidanceService(store=guidance_store)
+
 design_project_service = DesignProjectService(
     store=FileSystemDesignProjectStore(ontology_service=ontology_service),
     knowledge_base_service=knowledge_base_service,
@@ -78,7 +87,8 @@ design_project_service = DesignProjectService(
     modeler_agent=ModelerAgent_Simple_OpenAI(
         knowledge_base_service=knowledge_base_service,
         knowledge_base_index_service=knowledge_base_index_service
-    )
+    ),
+    guidance_service=guidance_service,
 )
 
 
@@ -684,9 +694,7 @@ async def delete_project(project_id: str):
             success=True,
             message=f"Project '{project_id}' deleted successfully"
         )
-    
     except FileNotFoundError:
-        logger.warning(f"Project not found: {project_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
@@ -696,6 +704,124 @@ async def delete_project(project_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete project: {str(e)}"
+        )
+
+
+# ============================================================================
+# Project Guidance (Human-in-the-Loop)
+# ============================================================================
+
+def _guidance_item_to_model(item) -> ProjectGuidanceItemModel:
+    """Convert domain ProjectGuidanceItem to API model."""
+    return ProjectGuidanceItemModel(
+        id=item.id,
+        project_id=item.project_id,
+        type=item.type.value,
+        content=item.content,
+        created_at=item.created_at,
+        source=item.source.value if item.source else None,
+    )
+
+
+@router.get("/projects/{project_id}/guidance", response_model=ProjectGuidanceListResponse)
+async def list_project_guidance(project_id: str):
+    """List all guidance items for a project. Used for display and to control what the agent follows."""
+    try:
+        design_project_service.load_project(project_id)
+        items = guidance_service.list_items(project_id)
+        return ProjectGuidanceListResponse(items=[_guidance_item_to_model(i) for i in items])
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except Exception as e:
+        logger.error(f"Error listing project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post("/projects/{project_id}/guidance", response_model=ProjectGuidanceItemModel, status_code=status.HTTP_201_CREATED)
+async def add_project_guidance(project_id: str, request: CreateProjectGuidanceItemRequest):
+    """Add a guidance item. The agent will use it in subsequent calls until removed."""
+    try:
+        design_project_service.load_project(project_id)
+        item_type = ProjectGuidanceItemType(request.type)
+        item = guidance_service.add_item(
+            project_id=project_id,
+            content=request.content,
+            type=item_type,
+        )
+        return _guidance_item_to_model(item)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except Exception as e:
+        logger.error(f"Error adding project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.patch("/projects/{project_id}/guidance/{item_id}", response_model=ProjectGuidanceItemModel)
+async def update_project_guidance(project_id: str, item_id: str, request: UpdateProjectGuidanceItemRequest):
+    """Update a guidance item. The agent will use the updated content from the next call."""
+    try:
+        design_project_service.load_project(project_id)
+        existing = guidance_service.get_item(project_id, item_id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Guidance item '{item_id}' not found"
+            )
+        content = request.content if request.content is not None else existing.content
+        item_type = ProjectGuidanceItemType(request.type) if request.type is not None else existing.type
+        item = guidance_service.update_item(project_id, item_id, content, item_type)
+        return _guidance_item_to_model(item)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.delete("/projects/{project_id}/guidance/{item_id}", response_model=DeleteResponse, status_code=status.HTTP_200_OK)
+async def delete_project_guidance(project_id: str, item_id: str):
+    """Remove a guidance item. The agent will no longer follow it."""
+    try:
+        design_project_service.load_project(project_id)
+        removed = guidance_service.delete_item(project_id, item_id)
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Guidance item '{item_id}' not found"
+            )
+        return DeleteResponse(success=True, message="Guidance item deleted")
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
         )
 
 
@@ -2519,5 +2645,69 @@ async def get_project_ontology(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get project ontology: {str(e)}"
+        )
+
+
+# ============================================================================
+# Ontology Edit from Instruction (no iteration)
+# ============================================================================
+
+@router.post("/projects/{project_id}/ontology/generate-operations", response_model=List[OntologyOperationModel])
+async def generate_operations_from_instruction(project_id: str, request: GenerateOperationsRequest):
+    """
+    Generate ontology edit operations from a free-form user instruction.
+    Returns proposed operations for review; use apply-operations to apply them.
+    """
+    try:
+        operations = design_project_service.generate_operations_from_instruction(
+            project_id, request.user_instruction
+        )
+        # Wrap each raw OntologyEditOperation in IdentifiedOperation for conversion to API model
+        identified = [
+            IdentifiedOperation(id=str(uuid.uuid4()), operation=op, created_from_task_id=None)
+            for op in operations
+        ]
+        return [_convert_operation_to_model(io) for io in identified]
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except Exception as e:
+        logger.error(f"Generate operations failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Generate operations failed: {str(e)}",
+        )
+
+
+@router.post("/projects/{project_id}/ontology/apply-operations", response_model=OntologyModel)
+async def apply_operations_to_project_ontology_endpoint(project_id: str, request: ApplyProjectOperationsRequest):
+    """
+    Apply the given operations directly to the project's designed ontology (no iteration).
+    Saves the project and persists the ontology.
+    """
+    try:
+        domain_operations = [_convert_model_to_operation(m) for m in request.operations]
+        updated_ontology = design_project_service.apply_operations_to_project_ontology(
+            project_id, domain_operations
+        )
+        return _convert_ontology_to_model(updated_ontology)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except ValueError as e:
+        logger.warning(f"Invalid operations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Apply operations failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Apply operations failed: {str(e)}",
         )
 

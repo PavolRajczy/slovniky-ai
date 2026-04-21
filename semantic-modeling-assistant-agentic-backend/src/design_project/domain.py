@@ -47,6 +47,32 @@ class DesignTaskStatus(str, Enum):
     # When in finishedTasks:
     COMPLETED = "completed"                         # Task successfully completed
 
+class ProjectGuidanceItemType(str, Enum):
+    """Type of a human-in-the-loop guidance item for a project."""
+    INSTRUCTION = "instruction"
+    CORRECTION = "correction"
+    PREFERENCE = "preference"
+    CONSTRAINT = "constraint"
+
+class ProjectGuidanceItemSource(str, Enum):
+    """Source of a guidance item."""
+    MANUAL = "manual"
+    CORRECTION = "correction"
+    SAVED_FROM_REQUEST = "saved_from_request"
+
+@dataclass
+class ProjectGuidanceItem:
+    """
+    A single human-in-the-loop guidance item bound to a design project.
+    Stored in data/projects/{project_id}/guidance.json and injected into agent prompts.
+    """
+    id: str
+    project_id: str
+    type: ProjectGuidanceItemType
+    content: str
+    created_at: Optional[str] = None
+    source: Optional[ProjectGuidanceItemSource] = None
+
 @dataclass
 class IdentifiedOperation:
     """

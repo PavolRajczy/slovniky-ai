@@ -8,9 +8,12 @@ from urllib.parse import unquote
 from fastapi import APIRouter, HTTPException, status
 from rdflib import URIRef
 import logging
+import requests
 
 from ontology.service import OntologyService
 from ontology.domain import Ontology, OntologyClass, OntologyAttribute, OntologyRelationship
+from ontology.owl_loader import load_ontology_from_url
+from ontology.dataspecer_simplified import ontology_to_simplified, simplified_to_ontology
 from api.models import (
     OntologyModel,
     OntologyMetadata,
@@ -18,7 +21,11 @@ from api.models import (
     OntologyAttributeModel,
     OntologyRelationshipModel,
     CreateOntologyRequest,
-    UpdateOntologyRequest
+    UpdateOntologyRequest,
+    ImportOntologyFromUrlRequest,
+    ExportOntologyToDataSpecerRequest,
+    ImportOntologyFromDataSpecerRequest,
+    SuccessResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,4 +262,108 @@ async def update_ontology(ontology_uri: str, request: UpdateOntologyRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update ontology: {str(e)}"
+        )
+
+
+@router.post("/ontologies/import-from-url", response_model=OntologyMetadata, status_code=status.HTTP_201_CREATED)
+async def import_ontology_from_url_endpoint(request: ImportOntologyFromUrlRequest):
+    """
+    Import ontology from URL (OWL/Turtle). Fetches via GET, parses, and stores in data/ontologies.
+    """
+    try:
+        logger.info(f"Importing ontology from URL: {request.url}")
+        ontology = load_ontology_from_url(
+            request.url,
+            external_vocabulary_urls=request.external_vocabulary_urls,
+        )
+        ontology_service.store_ontology(ontology)
+        return OntologyMetadata(
+            uri=str(ontology.uri),
+            label=ontology.label,
+            description=ontology.description or "",
+        )
+    except requests.RequestException as e:
+        logger.warning(f"Fetch failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch URL: {str(e)}",
+        )
+    except ValueError as e:
+        logger.error(f"Invalid ontology: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Import failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Import failed: {str(e)}",
+        )
+
+
+@router.post("/ontologies/export-to-dataspecer", response_model=SuccessResponse)
+async def export_ontology_to_dataspecer(request: ExportOntologyToDataSpecerRequest):
+    """
+    Export ontology to DataSpecer by PUTting simplified-semantic-model JSON to the given URL.
+    """
+    try:
+        ontology = ontology_service.load_ontology(request.ontology_uri)
+        payload = ontology_to_simplified(ontology)
+        response = requests.put(request.put_url, json=payload, timeout=30)
+        response.raise_for_status()
+        return SuccessResponse(success=True, message="Exported to DataSpecer successfully")
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ontology with URI '{request.ontology_uri}' not found",
+        )
+    except requests.RequestException as e:
+        logger.warning(f"PUT failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to export to DataSpecer: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"Export failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Export failed: {str(e)}",
+        )
+
+
+@router.post("/ontologies/import-from-dataspecer", response_model=OntologyMetadata, status_code=status.HTTP_201_CREATED)
+async def import_ontology_from_dataspecer(request: ImportOntologyFromDataSpecerRequest):
+    """
+    Import ontology from DataSpecer simplified-semantic-model URL. GETs JSON, expands short IRIs with base_uri, stores.
+    """
+    try:
+        logger.info(f"Importing ontology from DataSpecer URL: {request.url}")
+        response = requests.get(request.url, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        ontology = simplified_to_ontology(data, request.base_uri)
+        ontology_service.store_ontology(ontology)
+        return OntologyMetadata(
+            uri=str(ontology.uri),
+            label=ontology.label,
+            description=ontology.description or "",
+        )
+    except requests.RequestException as e:
+        logger.warning(f"Fetch failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to fetch URL: {str(e)}",
+        )
+    except ValueError as e:
+        logger.error(f"Invalid data: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Import failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Import failed: {str(e)}",
         )

@@ -77,6 +77,34 @@ class UpdateOntologyRequest(BaseModel):
     ontology_description: Optional[str] = None
 
 
+class ImportOntologyFromUrlRequest(BaseModel):
+    """Request to import ontology from OWL/Turtle URL."""
+    url: str
+    external_vocabulary_urls: Optional[List[str]] = None
+
+
+class ExportOntologyToDataSpecerRequest(BaseModel):
+    """Request to export ontology to DataSpecer (PUT simplified-semantic-model)."""
+    ontology_uri: str
+    put_url: str
+
+
+class ImportOntologyFromDataSpecerRequest(BaseModel):
+    """Request to import ontology from DataSpecer simplified-semantic-model URL."""
+    url: str
+    base_uri: str
+
+
+class GenerateOperationsRequest(BaseModel):
+    """Request to generate ontology edit operations from a free-form instruction."""
+    user_instruction: str
+
+
+class ApplyProjectOperationsRequest(BaseModel):
+    """Request to apply operations directly to project ontology (no iteration)."""
+    operations: List["OntologyOperationModel"]
+
+
 # ============================================================================
 # Knowledge Base Models
 # ============================================================================
@@ -380,6 +408,37 @@ class ProjectModel(BaseModel):
 
 
 # ============================================================================
+# Project Guidance (Human-in-the-Loop)
+# ============================================================================
+
+class ProjectGuidanceItemModel(BaseModel):
+    """Project-scoped guidance item for human-in-the-loop."""
+    id: str
+    project_id: str
+    type: Literal["instruction", "correction", "preference", "constraint"]
+    content: str
+    created_at: Optional[str] = None
+    source: Optional[Literal["manual", "correction", "saved_from_request"]] = None
+
+
+class CreateProjectGuidanceItemRequest(BaseModel):
+    """Request to add a project guidance item."""
+    content: str
+    type: Literal["instruction", "correction", "preference", "constraint"] = "instruction"
+
+
+class UpdateProjectGuidanceItemRequest(BaseModel):
+    """Request to update a project guidance item."""
+    content: Optional[str] = None
+    type: Optional[Literal["instruction", "correction", "preference", "constraint"]] = None
+
+
+class ProjectGuidanceListResponse(BaseModel):
+    """Response with list of project guidance items."""
+    items: List[ProjectGuidanceItemModel]
+
+
+# ============================================================================
 # Response Models
 # ============================================================================
 
@@ -435,3 +494,7 @@ class KnowledgeBaseResponse(BaseModel):
     """Response with knowledge base documents."""
     legal_documents: List[KnowledgeDocumentSummary]
     expert_documents: List[KnowledgeDocumentSummary]
+
+
+# Resolve forward reference for ApplyProjectOperationsRequest
+ApplyProjectOperationsRequest.model_rebuild()
