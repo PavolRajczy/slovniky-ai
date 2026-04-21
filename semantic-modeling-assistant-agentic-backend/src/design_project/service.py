@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import uuid
 import copy
 
@@ -9,6 +9,7 @@ from agents.task_planners.task_planner import TaskPlannerAgent
 
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskPattern, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
+from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.store import DesignProjectStore
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
@@ -26,7 +27,7 @@ class DesignProjectService:
     """
     A service for managing design projects.
     """
-    def __init__(self, store: DesignProjectStore, knowledge_base_service: KnowledgeBaseService, ontology_service: OntologyService, knowledge_domain_area_analyzer_agent: KnowledgeDomainAreaAnalyzerAgent, iteration_suggester_agent: IterationSuggesterAgent, task_planner_agent: TaskPlannerAgent, modeler_agent: ModelerAgent):
+    def __init__(self, store: DesignProjectStore, knowledge_base_service: KnowledgeBaseService, ontology_service: OntologyService, knowledge_domain_area_analyzer_agent: KnowledgeDomainAreaAnalyzerAgent, iteration_suggester_agent: IterationSuggesterAgent, task_planner_agent: TaskPlannerAgent, modeler_agent: ModelerAgent, guidance_service: Optional[ProjectGuidanceService] = None):
         """
         Initializes a service for managing design projects.
 
@@ -38,10 +39,12 @@ class DesignProjectService:
             iteration_suggester_agent (IterationSuggesterAgent): The agent for suggesting design iterations.
             task_planner_agent (TaskPlannerAgent): The agent for planning design tasks.
             modeler_agent (ModelerAgent): The agent for modeling ontology elements.
+            guidance_service (ProjectGuidanceService, optional): Service for project-scoped human-in-the-loop guidance. If set, guidance items are injected into agent prompts.
         """
         self.store = store
         self.knowledge_base_service = knowledge_base_service
         self.ontology_service = ontology_service
+        self.guidance_service = guidance_service
 
         self.iteration_suggester_agent = iteration_suggester_agent
         self.knowledge_domain_area_analyzer_agent = knowledge_domain_area_analyzer_agent
@@ -50,6 +53,17 @@ class DesignProjectService:
 
         # Initialize the design task patterns factory to be used to get design task patterns.
         self.design_task_patterns_factory = DesignTaskPatternsFactory_Basic()
+
+    def _effective_user_instruction(self, project_id: str, user_instruction: str) -> str:
+        """Combine project guidance (if any) with the per-request user_instruction for agent prompts."""
+        if self.guidance_service is None:
+            return user_instruction or ""
+        guidance = self.guidance_service.get_guidance_text_for_prompt(project_id)
+        if not guidance:
+            return user_instruction or ""
+        if not (user_instruction or "").strip():
+            return guidance
+        return guidance + "\n\n" + (user_instruction or "").strip()
 
     def _rollback_iteration(self, project: DesignProject, iteration: DesignIteration, ontology_backup) -> None:
         """
@@ -215,10 +229,11 @@ class DesignProjectService:
             List[OntologyEditOperation]: The list of proposed edit operations.
         """
         project = self.load_project(project_id)
+        effective = self._effective_user_instruction(project_id, user_instruction)
         return self.modeler_agent.get_operations_from_instruction(
             design_project=project,
             current_ontology=project.designedOntology,
-            user_instruction=user_instruction,
+            user_instruction=effective,
         )
 
     def apply_operations_to_project_ontology(self, project_id: str, operations: List[OntologyEditOperation]) -> Ontology:
@@ -385,10 +400,12 @@ class DesignProjectService:
         
         print(f"Asking the agent to identify knowledge domain areas in the knowledge domain '{project.modeledKnowledgeDomain.label}' using the key knowledge document '{project.keyKnowledgeDocument.title}' ...")
         
+        effective = self._effective_user_instruction(project_id, user_instruction)
         # Call AI agent to identify domain areas
         areas = self.knowledge_domain_area_analyzer_agent.identify_domain_areas(
             knowledge_domain=project.modeledKnowledgeDomain,
-            knowledge_document=project.keyKnowledgeDocument
+            knowledge_document=project.keyKnowledgeDocument,
+            user_instruction=effective,
         )
         
         project.modeledKnowledgeDomain.areas = areas
@@ -424,12 +441,13 @@ class DesignProjectService:
         
         print(f"Asking the agent to reidentify knowledge domain areas in the knowledge domain '{project.modeledKnowledgeDomain.label}' using the key knowledge document '{project.keyKnowledgeDocument.title}' and considering existing areas ...")
         
+        effective = self._effective_user_instruction(project_id, user_instruction)
         # Call AI agent to reidentify domain areas, considering existing areas
         areas = self.knowledge_domain_area_analyzer_agent.identify_domain_areas(
             knowledge_domain=project.modeledKnowledgeDomain,
             knowledge_document=project.keyKnowledgeDocument,
             consider_existing_areas=True,
-            user_instruction=user_instruction
+            user_instruction=effective,
         )
         
         project.modeledKnowledgeDomain.areas = areas
@@ -460,7 +478,8 @@ class DesignProjectService:
 
         print(f"Suggesting {k} iterations for project {project.name} and knowledge domain area {focused_area.label} ...")
 
-        iterations = self.iteration_suggester_agent.suggest_iterations(project, focused_area, k, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iterations = self.iteration_suggester_agent.suggest_iterations(project, focused_area, k, effective)
         project.plannedIterations.extend(iterations)
         self.store.store_project(project)
         print(f"... suggested {len(iterations)} iterations.")
@@ -490,7 +509,8 @@ class DesignProjectService:
 
         print(f"Initializing tasks for iteration {iteration.id}...")
 
-        iteration.plannedTasks = self.task_planner_agent.build_iteration_plan(project, iteration, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iteration.plannedTasks = self.task_planner_agent.build_iteration_plan(project, iteration, effective)
 
         # Status transition: PLANNED -> TASKS_PLANNED
         # Location: remains in plannedIterations
@@ -523,7 +543,8 @@ class DesignProjectService:
         if not iteration:
             raise ValueError(f"Iteration not found: {iteration_id}")
 
-        iteration.plannedTasks = self.task_planner_agent.update_iteration_plan(project, iteration, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iteration.plannedTasks = self.task_planner_agent.update_iteration_plan(project, iteration, effective)
 
         self.store.store_project(project)
 
@@ -578,6 +599,7 @@ class DesignProjectService:
             
             plannedTasksToProcess = list(iteration.plannedTasks)  # Copy of the original planned tasks to process
             iteration.plannedTasks.clear()
+            project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
             while plannedTasksToProcess and len(plannedTasksToProcess) > 0:
                 task = plannedTasksToProcess.pop(0)
                 iteration.currentTask = task
@@ -589,7 +611,7 @@ class DesignProjectService:
 
                 try:
                     # Provide the current ontology state (with fake updates from previous tasks)
-                    edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task)
+                    edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task, project_guidance_text=project_guidance)
                     
                     # Wrap each operation with identity
                     for operation in edit_operations:
