@@ -24,11 +24,9 @@ Open the printed local URL (typically `http://localhost:5173`).
 | `/domain-areas` | Domain areas |
 | `/iterations` | Iterations (subarea + goal) |
 | `/operations` | Operations review + preview panel |
-| `/working-copy` | Working copy & diff, commit/discard |
+| `/tasks` | Task list and task detail flow |
 | `/guidance` | Project guidance (Type B HITL) |
-| `/dataspecer` | Dataspecer import / export |
-
-**Side-by-side with Dataspecer:** open Dataspecer in a second browser window and combine screenshots manually (see note on `/dataspecer`).
+| `/export-result` | Export result / output overview |
 
 ## Build
 
