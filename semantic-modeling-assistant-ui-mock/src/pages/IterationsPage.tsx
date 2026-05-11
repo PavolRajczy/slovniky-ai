@@ -24,8 +24,8 @@ const statusStyles = {
 const iterationsRouteApi = getRouteApi('/iterations')
 
 export function IterationsPage() {
-  const { domainId } = iterationsRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext({ domainId })
+  const { projectId, domainId } = iterationsRouteApi.useSearch()
+  const linkContext = resolveWorkflowContext({ projectId, domainId })
   const selectedDomain = domainId ? mockDomainAreas.find((area) => area.id === domainId) : undefined
   const filteredIterations = selectedDomain
     ? mockIterations.filter((iteration) => iteration.domainId === selectedDomain.id)
@@ -229,6 +229,7 @@ export function IterationsPage() {
                     <Link
                       to="/tasks"
                       search={{
+                        projectId,
                         domainId: it.domainId,
                         iterationId: it.id,
                         taskId: defaultTaskIdForIteration,

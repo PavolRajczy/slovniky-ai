@@ -1,5 +1,7 @@
-import { Link } from '@tanstack/react-router'
+import { Link, getRouteApi } from '@tanstack/react-router'
 import { mockActivityHistory, mockGuidanceItems, mockWorkflowContext } from '@/data/mockContent'
+
+const guidanceRouteApi = getRouteApi('/guidance')
 
 const typeStyles = {
   instruction: 'bg-sky-50 text-sky-900',
@@ -9,6 +11,8 @@ const typeStyles = {
 } as const
 
 export function GuidancePage() {
+  const { projectId } = guidanceRouteApi.useSearch()
+
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
@@ -103,6 +107,7 @@ export function GuidancePage() {
         <Link
           to="/operations"
           search={{
+            projectId,
             domainId: mockWorkflowContext.domainId,
             iterationId: mockWorkflowContext.iterationId,
             taskId: mockWorkflowContext.taskId,

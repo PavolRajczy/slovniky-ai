@@ -1,10 +1,13 @@
-import { Link } from '@tanstack/react-router'
+import { Link, getRouteApi } from '@tanstack/react-router'
 import { WorkflowStepper } from '@/components/workflow'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { mockDomainAreas } from '@/data/mockContent'
 
+const domainAreasRouteApi = getRouteApi('/domain-areas')
+
 export function DomainAreasPage() {
-  const linkContext = resolveWorkflowContext({})
+  const { projectId } = domainAreasRouteApi.useSearch()
+  const linkContext = resolveWorkflowContext({ projectId })
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -100,7 +103,7 @@ export function DomainAreasPage() {
                     </button>
                     <Link
                       to="/iterations"
-                      search={{ domainId: area.id }}
+                      search={{ projectId, domainId: area.id }}
                       className="inline-flex whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
                     >
                       Open in iterations

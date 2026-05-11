@@ -6,7 +6,10 @@ const exportRouteApi = getRouteApi('/export-result')
 
 export function ExportResultPage() {
   const search = exportRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext({ taskId: search.taskId })
+  const linkContext = resolveWorkflowContext({
+    projectId: search.projectId,
+    taskId: search.taskId,
+  })
 
   const recap = {
     approved: search.approved ?? mockExportRecapDefaults.approved,
@@ -20,6 +23,7 @@ export function ExportResultPage() {
   const taskTitle = mockTasks.find((t) => t.id === recap.taskId)?.title ?? recap.taskId
 
   const exportSearch = {
+    projectId: linkContext.projectId,
     approved: recap.approved,
     pending: recap.pending,
     rejected: recap.rejected,
@@ -29,6 +33,7 @@ export function ExportResultPage() {
   }
 
   const operationsSearch = {
+    projectId: linkContext.projectId,
     domainId: mockWorkflowContext.domainId,
     iterationId: mockWorkflowContext.iterationId,
     taskId: recap.taskId,
@@ -102,13 +107,14 @@ export function ExportResultPage() {
           </Link>
           <Link
             to="/iterations"
-            search={{ domainId: mockWorkflowContext.domainId }}
+            search={{ projectId: linkContext.projectId, domainId: mockWorkflowContext.domainId }}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Start next iteration
           </Link>
           <Link
             to="/guidance"
+            search={{ projectId: linkContext.projectId }}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Open guidance

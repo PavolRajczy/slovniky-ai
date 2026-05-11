@@ -34,7 +34,12 @@ function mockNowStamp(): string {
 
 export function OperationsReviewPage() {
   const search = operationsRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext(search)
+  const linkContext = resolveWorkflowContext({
+    projectId: search.projectId,
+    domainId: search.domainId,
+    iterationId: search.iterationId,
+    taskId: search.taskId,
+  })
   const taskId = linkContext.taskId
 
   const operationsForTask = useMemo(() => getOperationsForTask(taskId), [taskId])
@@ -110,6 +115,7 @@ export function OperationsReviewPage() {
   }, [reviewById, regenCountById, operationsForTask])
 
   const exportSearch = {
+    projectId: linkContext.projectId,
     approved: counts.approved,
     pending: counts.pending,
     rejected: counts.rejected,
@@ -139,6 +145,7 @@ export function OperationsReviewPage() {
   }
 
   const tasksSearch = {
+    projectId: linkContext.projectId,
     domainId: linkContext.domainId,
     iterationId: linkContext.iterationId,
     taskId: linkContext.taskId,

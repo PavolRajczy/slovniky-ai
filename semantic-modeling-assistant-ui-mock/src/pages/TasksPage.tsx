@@ -19,7 +19,12 @@ const tasksRouteApi = getRouteApi('/tasks')
 
 export function TasksPage() {
   const search = tasksRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext(search)
+  const linkContext = resolveWorkflowContext({
+    projectId: search.projectId,
+    domainId: search.domainId,
+    iterationId: search.iterationId,
+    taskId: search.taskId,
+  })
 
   const defaultTaskForOperations = useMemo(() => {
     const scoped = mockTasks.filter(
@@ -31,6 +36,7 @@ export function TasksPage() {
   }, [linkContext.domainId, linkContext.iterationId, linkContext.taskId])
 
   const opsSearchBase = {
+    projectId: linkContext.projectId,
     domainId: linkContext.domainId,
     iterationId: linkContext.iterationId,
   }
@@ -58,7 +64,7 @@ export function TasksPage() {
           </button>
           <Link
             to="/iterations"
-            search={{ domainId: linkContext.domainId }}
+            search={{ projectId: linkContext.projectId, domainId: linkContext.domainId }}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Back to iterations
@@ -125,6 +131,7 @@ export function TasksPage() {
                   const domain = mockDomainAreas.find((item) => item.id === task.domainId)
                   const iteration = mockIterations.find((item) => item.id === task.iterationId)
                   const opsSearch = {
+                    projectId: linkContext.projectId,
                     domainId: task.domainId ?? linkContext.domainId,
                     iterationId: task.iterationId ?? linkContext.iterationId,
                     taskId: task.id,
