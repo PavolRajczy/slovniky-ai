@@ -20,12 +20,15 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <Navigate to="/project" replace />,
+  component: () => <Navigate to="/project" replace search={{ projectId: undefined }} />,
 })
 
 const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/project',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: typeof search.projectId === 'string' ? search.projectId : undefined,
+  }),
   component: ProjectSetupPage,
 })
 
