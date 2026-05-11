@@ -1,4 +1,5 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router'
+import { BackendStatusPill } from '@/components/BackendStatusPill'
 
 const navItems = [
   { to: '/project', label: 'Project & KB' },
@@ -57,7 +58,8 @@ export function AppShell() {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <BackendStatusPill />
             <label className="sr-only" htmlFor="project-select">
               Project
             </label>
