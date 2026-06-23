@@ -111,12 +111,14 @@ const exportResultRoute = createRoute({
   path: '/export-result',
   validateSearch: (search: Record<string, unknown>) => ({
     projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+    iterationId: readString(search.iterationId),
+    taskId: readString(search.taskId),
     approved: parseOptionalNumber(search.approved),
     pending: parseOptionalNumber(search.pending),
     rejected: parseOptionalNumber(search.rejected),
     regenerated: parseOptionalNumber(search.regenerated),
     guidanceUpdated: parseOptionalBool(search.guidanceUpdated),
-    taskId: readString(search.taskId),
   }),
   component: ExportResultPage,
 })
