@@ -10,6 +10,13 @@ const typeStyles = {
   constraint: 'bg-amber-50 text-amber-950',
 } as const
 
+const typeLabels = {
+  instruction: 'Instruction',
+  correction: 'Correction',
+  preference: 'Preference',
+  constraint: 'Constraint',
+} as const
+
 export function GuidancePage() {
   const { projectId } = guidanceRouteApi.useSearch()
 
@@ -28,22 +35,22 @@ export function GuidancePage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="g-type">
-              Type
+              Guidance type
             </label>
             <select
               id="g-type"
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
               defaultValue="instruction"
             >
-              <option value="instruction">instruction</option>
-              <option value="correction">correction</option>
-              <option value="preference">preference</option>
-              <option value="constraint">constraint</option>
+              <option value="instruction">Instruction</option>
+              <option value="correction">Correction</option>
+              <option value="preference">Preference</option>
+              <option value="constraint">Constraint</option>
             </select>
           </div>
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-slate-700" htmlFor="g-text">
-              Text
+              Guidance text
             </label>
             <textarea
               id="g-text"
@@ -71,12 +78,12 @@ export function GuidancePage() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${typeStyles[g.type]}`}
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${typeStyles[g.type]}`}
                 >
-                  {g.type}
+                  {typeLabels[g.type]}
                 </span>
                 <span className="text-xs text-slate-400">{g.id}</span>
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">source: {g.source}</span>
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Source: {g.source}</span>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-slate-800">{g.text}</p>
               <div className="mt-3 flex gap-3 text-xs font-medium">
@@ -114,7 +121,7 @@ export function GuidancePage() {
           }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
-          Continue to operations review
+          Continue to review changes
         </Link>
       </div>
     </div>

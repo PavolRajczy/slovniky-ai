@@ -30,6 +30,13 @@ const statusStyles: Record<DesignIterationStatus, string> = {
   completed: 'bg-emerald-50 text-emerald-800',
 }
 
+const statusLabels: Record<DesignIterationStatus, string> = {
+  suggested: 'Suggested',
+  planned: 'Planned',
+  prepared: 'Ready for tasks',
+  completed: 'Completed',
+}
+
 type SuggestFormState = {
   focusedAreaId: string
   goal: string
@@ -225,16 +232,37 @@ export function IterationsPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Iterations</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Modeling iterations</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Suggest modeling iterations for a domain area (optionally with a goal and subarea hints), or
-            create them manually. Open an iteration's tasks to plan and prepare it.
+            Suggest the next useful pieces of work for a domain area. You do not need to know the whole
+            plan upfront - after reviewing changes, you can come back and ask for more iterations.
           </p>
         </div>
         <div className="text-right text-xs text-slate-500">
           {iterationsQuery.isFetching ? 'refreshing…' : null}
         </div>
       </div>
+
+      <section className="grid gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4 shadow-sm md:grid-cols-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">1. Suggest next work</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            Pick a domain area and describe what you want to improve next.
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">2. Review the result</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            Plan tasks, prepare changes, then approve or reject what the AI proposes.
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">3. Continue if needed</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            If the model still needs work, return here and suggest another set of iterations.
+          </p>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Domain summary</h3>
@@ -267,7 +295,12 @@ export function IterationsPage() {
       <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <details className="group [&_summary::-webkit-details-marker]:hidden" open>
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left sm:px-6">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Suggest iterations</h3>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Suggest next iterations</h3>
+              <p className="mt-1 text-xs normal-case tracking-normal text-slate-600">
+                Ask for the next few useful iterations now. You can repeat this later after the current work is reviewed.
+              </p>
+            </div>
             <span
               className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
               aria-hidden
@@ -276,10 +309,10 @@ export function IterationsPage() {
             </span>
           </summary>
           <form onSubmit={handleSuggest} className="border-t border-slate-100 px-5 pb-6 pt-2 sm:px-6">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-area">
-                  Focused domain area
+                  Selected domain area
                 </label>
                 <select
                   id="suggest-area"
@@ -298,22 +331,6 @@ export function IterationsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-count">
-                  Count
-                </label>
-                <input
-                  id="suggest-count"
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={suggestForm.count}
-                  onChange={(event) =>
-                    setSuggestForm((s) => ({ ...s, count: Number(event.target.value) || 1 }))
-                  }
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-              <div className="md:col-span-2">
                 <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-goal">
                   Goal (optional)
                 </label>
@@ -326,25 +343,55 @@ export function IterationsPage() {
                   className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-subarea">
-                  Subarea — class URIs (optional, one per line)
-                </label>
-                <textarea
-                  id="suggest-subarea"
-                  rows={3}
-                  value={suggestForm.subareaUris}
-                  onChange={(event) =>
-                    setSuggestForm((s) => ({ ...s, subareaUris: event.target.value }))
-                  }
-                  placeholder={'https://example.org/ontology#RoadSign\nhttps://example.org/ontology#Crossroad'}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Goal and subarea hints are folded into the AI instruction sent to the backend.
-                </p>
-              </div>
             </div>
+
+            <details className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 [&::-webkit-details-marker]:hidden">
+                Suggest iteration configuration
+                <span className="text-slate-400" aria-hidden>
+                  optional
+                </span>
+              </summary>
+              <div className="border-t border-slate-200 px-4 pb-4 pt-3">
+                <p className="text-xs text-slate-600">
+                  Most users can leave this closed. Open it only when you want to control the number of
+                  suggestions or restrict the AI to specific ontology classes.
+                </p>
+                <div className="mt-3 grid gap-4 md:grid-cols-[12rem_1fr]">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-count">
+                      Number of suggestions
+                    </label>
+                    <input
+                      id="suggest-count"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={suggestForm.count}
+                      onChange={(event) =>
+                        setSuggestForm((s) => ({ ...s, count: Number(event.target.value) || 1 }))
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700" htmlFor="suggest-subarea">
+                      Limit to class URIs (optional, one per line)
+                    </label>
+                    <textarea
+                      id="suggest-subarea"
+                      rows={3}
+                      value={suggestForm.subareaUris}
+                      onChange={(event) =>
+                        setSuggestForm((s) => ({ ...s, subareaUris: event.target.value }))
+                      }
+                      placeholder={'https://example.org/ontology#RoadSign\nhttps://example.org/ontology#Crossroad'}
+                      className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </details>
             {suggestError ? (
               <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
                 {suggestError}
@@ -356,12 +403,12 @@ export function IterationsPage() {
                 disabled={suggestMutation.isPending || areas.length === 0}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {suggestMutation.isPending ? 'Generating…' : 'Suggest iterations'}
+                {suggestMutation.isPending ? 'Suggesting…' : 'Suggest next iterations'}
               </button>
               {suggestMutation.isSuccess && suggestMutation.data ? (
                 <span className="text-xs text-emerald-700">
                   Added {suggestMutation.data.length} suggestion
-                  {suggestMutation.data.length === 1 ? '' : 's'} to the planned list.
+                  {suggestMutation.data.length === 1 ? '' : 's'} to the planned list. You can ask for more later.
                 </span>
               ) : null}
             </div>
@@ -372,7 +419,7 @@ export function IterationsPage() {
       <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <details className="group [&_summary::-webkit-details-marker]:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left sm:px-6">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Create custom iteration</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Create iteration manually</h3>
             <span
               className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
               aria-hidden
@@ -423,7 +470,7 @@ export function IterationsPage() {
                 disabled={createMutation.isPending}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
               >
-                {createMutation.isPending ? 'Saving…' : 'Save custom iteration'}
+                {createMutation.isPending ? 'Saving…' : 'Save manual iteration'}
               </button>
             </div>
           </form>
@@ -454,14 +501,14 @@ export function IterationsPage() {
         }}
         onSaveEdit={handleSaveEdit}
         onDelete={handleDelete}
-        emptyMessage="No planned iterations yet — use the panel above to suggest some or create one manually."
+        emptyMessage="No planned iterations yet - suggest the next set above. After reviewing changes, you can come back and suggest more."
         editable
         deletable
       />
 
       {current ? (
         <IterationGroup
-          title="Current (in progress)"
+          title="Ready for tasks"
           items={[current]}
           areas={areas}
           editingId={null}
@@ -483,7 +530,7 @@ export function IterationsPage() {
 
       {finished.length > 0 ? (
         <IterationGroup
-          title="Finished"
+          title="Completed"
           items={finished}
           areas={areas}
           editingId={null}
@@ -626,9 +673,9 @@ function IterationGroup(props: IterationGroupProps) {
                 <div className="flex items-start justify-between gap-2">
                   <h4 className="font-semibold text-slate-900">{iteration.name}</h4>
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize ${statusStyles[iteration.status]}`}
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[iteration.status]}`}
                   >
-                    {iteration.status}
+                    {statusLabels[iteration.status]}
                   </span>
                 </div>
                 {area ? (
@@ -656,7 +703,7 @@ function IterationGroup(props: IterationGroupProps) {
                       }}
                       className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
                     >
-                      Open tasks
+                      Plan tasks
                     </Link>
                     {editable ? (
                       <button

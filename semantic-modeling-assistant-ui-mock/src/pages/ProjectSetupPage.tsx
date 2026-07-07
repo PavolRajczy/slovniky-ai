@@ -74,7 +74,7 @@ export function ProjectSetupPage() {
   const handleImportSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!importForm.name.trim() || !importForm.url.trim() || !importForm.baseUri.trim()) {
-      setImportError('Project name, Dataspecer URL and base IRI are all required.')
+      setImportError('Project name, Dataspecer model URL and base IRI are all required.')
       return
     }
     importMutation.mutate(importForm)
@@ -103,7 +103,7 @@ export function ProjectSetupPage() {
         </p>
       </div>
 
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+      {/* <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Step 1 · Pick an existing project
@@ -167,7 +167,7 @@ export function ProjectSetupPage() {
           Step 2 · Import a vocabulary from Dataspecer
         </h3>
         <p className="mt-1 text-sm text-slate-600">
-          Provide the public simplified-semantic-model URL of an existing Dataspecer specification and the
+          Provide the public Dataspecer model URL of an existing Dataspecer specification and the
           base IRI it uses. The assistant fetches and persists the vocabulary, then creates a new design
           project bound to it.
         </p>
@@ -190,7 +190,7 @@ export function ProjectSetupPage() {
 
           <div>
             <label className="block text-sm font-medium text-slate-700" htmlFor="import-domain-name">
-              Knowledge domain name (optional)
+              Domain name (optional)
             </label>
             <input
               id="import-domain-name"
@@ -205,7 +205,7 @@ export function ProjectSetupPage() {
 
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-700" htmlFor="import-url">
-              Dataspecer simplified-semantic-model URL
+              Dataspecer model URL
             </label>
             <input
               id="import-url"
@@ -235,7 +235,7 @@ export function ProjectSetupPage() {
 
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-slate-700" htmlFor="import-domain-desc">
-              Knowledge domain description (optional)
+              Domain description (optional)
             </label>
             <textarea
               id="import-domain-desc"
@@ -328,14 +328,14 @@ export function ProjectSetupPage() {
             </div>
           ) : null}
         </section>
-      ) : null}
+      ) : null} */}
 
       {projectId ? (
         <KnowledgeBaseSection projectId={projectId} />
       ) : (
         <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Step 4 · Knowledge base
+            Knowledge base
           </h3>
           <p className="mt-2 text-sm text-slate-600">
             Pick or create a project above to manage its legal and expert documents.
@@ -349,7 +349,7 @@ export function ProjectSetupPage() {
           search={{ projectId }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
-          Continue to domain areas
+          Continue to domain map
         </Link>
       </div>
     </div>

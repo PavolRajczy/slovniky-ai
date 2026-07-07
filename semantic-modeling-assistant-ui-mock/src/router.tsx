@@ -8,6 +8,7 @@ import { AppShell } from '@/shell/AppShell'
 import { ProjectSetupPage } from '@/pages/ProjectSetupPage'
 import { DomainAreasPage } from '@/pages/DomainAreasPage'
 import { IterationsPage } from '@/pages/IterationsPage'
+import { IterationsV2Page } from '@/pages/IterationsV2Page'
 import { TasksPage } from '@/pages/TasksPage'
 import { OperationsReviewPage } from '@/pages/OperationsReviewPage'
 import { GuidancePage } from '@/pages/GuidancePage'
@@ -53,6 +54,16 @@ const iterationsRoute = createRoute({
     domainId: readString(search.domainId),
   }),
   component: IterationsPage,
+})
+
+const iterationsV2Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/iterations-v2',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+  }),
+  component: IterationsV2Page,
 })
 
 const tasksRoute = createRoute({
@@ -128,6 +139,7 @@ const routeTree = rootRoute.addChildren([
   projectRoute,
   domainAreasRoute,
   iterationsRoute,
+  iterationsV2Route,
   tasksRoute,
   operationsRoute,
   guidanceRoute,

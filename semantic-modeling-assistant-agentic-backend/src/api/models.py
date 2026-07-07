@@ -327,6 +327,7 @@ class OntologyOperationModel(BaseModel):
     id: str  # Unique identifier for this operation instance
     operation_type: Literal["create", "update", "delete"]
     target_type: Literal["class", "attribute", "relationship"]
+    created_from_task_id: Optional[str] = None
     
     # Required for all operations
     uri: str

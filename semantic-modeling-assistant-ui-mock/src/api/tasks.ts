@@ -74,3 +74,14 @@ export function prepareIteration(
     { method: 'POST' },
   )
 }
+
+export function prepareTask(
+  projectId: string,
+  iterationId: string,
+  taskId: string,
+): Promise<IterationPreparedResponse> {
+  return apiFetch<IterationPreparedResponse>(
+    `/projects/${projectId}/iterations/${iterationId}/tasks/${taskId}/prepare`,
+    { method: 'POST' },
+  )
+}

@@ -4,10 +4,10 @@ import { getWorkflowStepIndex } from '@/components/workflow/workflowTypes'
 import type { WorkflowLinkContext } from '@/components/workflow/WorkflowSearchContext'
 
 const STEP_META: { id: WorkflowStepId; label: string }[] = [
-  { id: 'domain-areas', label: 'Domain areas' },
+  { id: 'domain-areas', label: 'Domain map' },
   { id: 'iterations', label: 'Iterations' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'operations', label: 'Operations' },
+  { id: 'tasks', label: 'Prepare changes' },
+  { id: 'operations', label: 'Review changes' },
   { id: 'export', label: 'Export' },
 ]
 

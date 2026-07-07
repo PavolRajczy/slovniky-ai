@@ -215,8 +215,11 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
         CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation,
         CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation
     )
+    import uuid
     
-    operation = identified_op.operation
+    operation = getattr(identified_op, "operation", identified_op)
+    operation_id = getattr(identified_op, "id", str(uuid.uuid4()))
+    created_from_task_id = getattr(identified_op, "created_from_task_id", None)
     
     # Determine operation type
     op_type = operation.operation_type.value
@@ -224,9 +227,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Class Operations
     if isinstance(operation, (CreateClassOperation, UpdateClassOperation, DeleteClassOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="class",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             kind=operation.kind.value if hasattr(operation, 'kind') and operation.kind else None,
@@ -241,9 +245,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Attribute Operations
     elif isinstance(operation, (CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="attribute",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             definition=getattr(operation, 'definition', None),
@@ -257,9 +262,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Relationship Operations
     elif isinstance(operation, (CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="relationship",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             definition=getattr(operation, 'definition', None),
@@ -395,7 +401,7 @@ def _convert_model_to_identified_operation(model: OntologyOperationModel):
     return IdentifiedOperation(
         id=model.id,
         operation=operation,
-        created_from_task_id=None  # Not tracked when coming from API
+        created_from_task_id=model.created_from_task_id
     )
 
 
@@ -2210,6 +2216,47 @@ async def prepare_iteration(project_id: str, iteration_id: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to prepare iteration: {str(e)}"
+        )
+
+
+@router.post("/projects/{project_id}/iterations/{iteration_id}/tasks/{task_id}/prepare", response_model=IterationPreparedResponse)
+async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
+    """
+    Prepare one task by materializing only that task into ontology edit operations.
+    """
+    try:
+        logger.info(f"Preparing task: {task_id} in iteration: {iteration_id} for project: {project_id}")
+
+        project = design_project_service.load_project(project_id)
+        _ensure_project_documents_indexed(project)
+
+        operations = design_project_service.prepare_planned_iteration_task(
+            project_id=project_id,
+            iteration_id=iteration_id,
+            task_id=task_id
+        )
+
+        return IterationPreparedResponse(
+            iteration_id=iteration_id,
+            status="prepared",
+            operations=[_convert_operation_to_model(op) for op in operations]
+        )
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project or iteration not found"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error preparing task: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to prepare task: {str(e)}"
         )
 
 

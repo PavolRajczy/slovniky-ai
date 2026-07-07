@@ -157,7 +157,7 @@ export function DomainAreasPage() {
   }
 
   const handleDelete = (area: KnowledgeDomainAreaModel) => {
-    const ok = window.confirm(`Delete domain area "${area.label}"? This cannot be undone.`)
+    const ok = window.confirm(`Delete section "${area.label}"? This cannot be undone.`)
     if (!ok) return
     deleteMutation.mutate(area.id)
   }
@@ -168,10 +168,10 @@ export function DomainAreasPage() {
 
   const lastMutationMessage = useMemo(() => {
     if (generateMutation.isSuccess && generateMutation.data) {
-      return `Generated ${generateMutation.data.length} area${generateMutation.data.length === 1 ? '' : 's'}.`
+      return `Suggested ${generateMutation.data.length} section${generateMutation.data.length === 1 ? '' : 's'}.`
     }
     if (reidentifyMutation.isSuccess && reidentifyMutation.data) {
-      return `Re-identified — now ${reidentifyMutation.data.length} area${reidentifyMutation.data.length === 1 ? '' : 's'}.`
+      return `Refined the map - now ${reidentifyMutation.data.length} section${reidentifyMutation.data.length === 1 ? '' : 's'}.`
     }
     return null
   }, [generateMutation.isSuccess, generateMutation.data, reidentifyMutation.isSuccess, reidentifyMutation.data])
@@ -197,22 +197,43 @@ export function DomainAreasPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Domain areas</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Domain map</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Thematic sections derived from the project's key document. Edit, delete, generate from scratch,
-            or re-identify to refine the AI's interpretation.
+            A simple map of the main topics in this domain. Use it to choose where the assistant should
+            explore next, without committing to a fixed modeling plan upfront.
           </p>
         </div>
         <div className="text-right text-xs text-slate-500">
-          {areasQuery.isFetching ? 'refreshing…' : `${areas.length} area${areas.length === 1 ? '' : 's'}`}
+          {areasQuery.isFetching ? 'refreshing…' : `${areas.length} section${areas.length === 1 ? '' : 's'}`}
         </div>
       </div>
 
+      <section className="grid gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4 shadow-sm md:grid-cols-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">1. Map the domain</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            Let the assistant split the legal material into understandable topic sections.
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">2. Choose a section</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            Pick the part of the domain that looks most useful to work on next.
+          </p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">3. Ask where to go next</p>
+          <p className="mt-1 text-sm text-emerald-950">
+            Continue to next-direction suggestions for the selected section.
+          </p>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">AI assistance</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">AI suggestions</h3>
         {!hasKeyDoc ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            No key document is set on this project. Generation and re-identification require a key document —
+            No key document is set on this project. The domain map needs a key document -
             set one on the{' '}
             <Link to="/project" search={{ projectId }} className="font-medium underline">
               project page
@@ -224,10 +245,11 @@ export function DomainAreasPage() {
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
             <h4 className="text-sm font-semibold text-slate-900">
-              {areas.length === 0 ? 'Generate domain areas' : 'Re-generate from scratch'}
+              {areas.length === 0 ? 'Suggest domain map' : 'Regenerate domain map'}
             </h4>
             <p className="mt-1 text-xs text-slate-600">
-              AI analyzes the key document and proposes thematic areas. Optional steering instruction below.
+              AI analyzes the key document and proposes understandable topic sections. Optional steering
+              instruction below.
             </p>
             <textarea
               rows={2}
@@ -242,14 +264,15 @@ export function DomainAreasPage() {
               disabled={!hasKeyDoc || analyzeBusy}
               className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
             >
-              {generatePending ? 'Generating…' : 'Analyze knowledge base'}
+              {generatePending ? 'Suggesting…' : 'Suggest domain map'}
             </button>
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-            <h4 className="text-sm font-semibold text-slate-900">Re-identify existing areas</h4>
+            <h4 className="text-sm font-semibold text-slate-900">Refine the map</h4>
             <p className="mt-1 text-xs text-slate-600">
-              Apply a focused instruction to revise current areas. Requires at least one area to exist.
+              Adjust the current sections with a focused instruction. Use this when the map feels too broad,
+              too detailed, or misses an important theme.
             </p>
             <textarea
               rows={2}
@@ -266,7 +289,7 @@ export function DomainAreasPage() {
               }
               className="mt-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
             >
-              {reidentifyPending ? 'Re-identifying…' : 'Re-identify areas'}
+              {reidentifyPending ? 'Refining…' : 'Refine map'}
             </button>
           </div>
         </div>
@@ -284,12 +307,12 @@ export function DomainAreasPage() {
       </section>
 
       <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Create custom domain area</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Create section manually</h3>
         <form onSubmit={handleCreate} className="mt-4 grid gap-3 md:grid-cols-2">
           <input
             value={createForm.label}
             onChange={(event) => setCreateForm((s) => ({ ...s, label: event.target.value }))}
-            placeholder="Area label"
+            placeholder="Section name"
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           <input
@@ -302,7 +325,7 @@ export function DomainAreasPage() {
             value={createForm.description}
             onChange={(event) => setCreateForm((s) => ({ ...s, description: event.target.value }))}
             rows={2}
-            placeholder="What this area is about and which legal chapters it covers."
+            placeholder="What this section is about and which legal chapters it covers."
             className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
           />
           {createError ? (
@@ -316,7 +339,7 @@ export function DomainAreasPage() {
               disabled={createMutation.isPending}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
             >
-              {createMutation.isPending ? 'Saving…' : 'Save custom area'}
+              {createMutation.isPending ? 'Saving…' : 'Save manual section'}
             </button>
           </div>
         </form>
@@ -326,17 +349,17 @@ export function DomainAreasPage() {
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-3">Area</th>
+              <th className="px-4 py-3">Section</th>
               <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3">Key concepts</th>
-              <th className="px-4 py-3 text-right">Action</th>
+              <th className="px-4 py-3 text-right">Next step</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {areasQuery.isLoading ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
-                  Loading domain areas…
+                  Loading domain map…
                 </td>
               </tr>
             ) : areasQuery.isError ? (
@@ -348,7 +371,7 @@ export function DomainAreasPage() {
             ) : areas.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No domain areas yet. Generate them with AI above, or create one manually.
+                  No domain map yet. Suggest one with AI above, or create a section manually.
                 </td>
               </tr>
             ) : (
@@ -442,11 +465,11 @@ export function DomainAreasPage() {
                           Delete
                         </button>
                         <Link
-                          to="/iterations"
+                          to="/iterations-v2"
                           search={{ projectId, domainId: area.id }}
                           className="inline-flex whitespace-nowrap rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
                         >
-                          Open in iterations
+                          Explore next directions
                         </Link>
                       </div>
                     </td>

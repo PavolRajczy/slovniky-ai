@@ -4,11 +4,12 @@ import { BackendStatusPill } from '@/components/BackendStatusPill'
 import { CurrentProjectProvider, useCurrentProjectContext } from '@/shell/CurrentProjectProvider'
 
 const navItems = [
-  { to: '/project', label: 'Project & KB' },
-  { to: '/domain-areas', label: 'Domain areas' },
+  { to: '/project', label: 'Project setup' },
+  { to: '/domain-areas', label: 'Domain map' },
   { to: '/iterations', label: 'Iterations' },
-  { to: '/tasks', label: 'Tasks' },
-  { to: '/operations', label: 'Operations review' },
+  { to: '/iterations-v2', label: 'Iterations (v2)' },
+  { to: '/tasks', label: 'Prepare changes' },
+  { to: '/operations', label: 'Review changes' },
   { to: '/guidance', label: 'Guidance' },
 ] as const
 
@@ -110,7 +111,7 @@ function Sidebar() {
   const search = { projectId }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col bg-[var(--color-app-sidebar)] text-slate-100">
+    <aside className="flex w-64 shrink-0 flex-col bg-app-sidebar text-slate-100">
       <div className="border-b border-white/10 px-4 py-5">
         <div className="text-xs font-medium uppercase tracking-wider text-emerald-300/90">
           Ontology assistant
@@ -151,7 +152,7 @@ function ShellChrome() {
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200/80 bg-[var(--color-app-surface)] px-6 py-3 shadow-sm">
+        <header className="flex items-center justify-between gap-4 border-b border-slate-200/80 bg-app-surface px-6 py-3 shadow-sm">
           <div className="min-w-0">
             <HeaderProjectSummary />
           </div>

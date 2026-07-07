@@ -139,6 +139,7 @@ export type OntologyOperationModel = {
   id: string
   operation_type: OntologyOperationType
   target_type: OntologyOperationTarget
+  created_from_task_id?: string | null
   uri: string
   label?: string | null
   definition?: string | null

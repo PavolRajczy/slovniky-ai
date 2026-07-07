@@ -2,7 +2,6 @@ import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  WorkflowContextCapsule,
   WorkflowStepper,
   resolveWorkflowContext,
 } from '@/components/workflow'
@@ -16,10 +15,12 @@ import {
   listTasks,
   planTasks,
   prepareIteration,
+  prepareTask,
   updateTask,
 } from '@/api/tasks'
 import type {
   DesignIterationModel,
+  DesignIterationStatus,
   DesignTaskModel,
   DesignTaskStatus,
 } from '@/api/types'
@@ -27,16 +28,16 @@ import type {
 const tasksRouteApi = getRouteApi('/tasks')
 
 const COLUMNS: Array<{ id: DesignTaskStatus; label: string; description: string }> = [
-  { id: 'planned', label: 'Planned', description: 'Tasks queued before iteration is prepared.' },
+  { id: 'planned', label: 'To prepare', description: 'Work items waiting before changes are prepared.' },
   {
     id: 'generating',
-    label: 'Generating / ready',
-    description: 'AI is generating operations, or operations are prepared and waiting for review.',
+    label: 'Ready to review',
+    description: 'AI is generating changes, or changes are prepared and waiting for review.',
   },
   {
     id: 'completed',
-    label: 'Completed',
-    description: 'Tasks whose iteration was applied on the operations page.',
+    label: 'Applied',
+    description: 'Work items whose approved changes were applied.',
   },
 ]
 
@@ -44,6 +45,13 @@ const columnStyles: Record<DesignTaskStatus, string> = {
   planned: 'bg-slate-50 text-slate-700',
   generating: 'bg-amber-50 text-amber-800',
   completed: 'bg-emerald-50 text-emerald-800',
+}
+
+const iterationStatusLabels: Record<DesignIterationStatus, string> = {
+  suggested: 'Suggested',
+  planned: 'Planned',
+  prepared: 'Ready to review',
+  completed: 'Applied',
 }
 
 type TaskFormState = {
@@ -171,19 +179,25 @@ export function TasksPage() {
   })
 
   const prepareMutation = useMutation({
-    mutationFn: () => prepareIteration(projectId!, activeIterationId!),
-    onSuccess: async (data) => {
+    mutationFn: ({ targetTaskId, openReview }: { targetTaskId?: string; openReview: boolean }) =>
+      (targetTaskId
+        ? prepareTask(projectId!, activeIterationId!, targetTaskId)
+        : prepareIteration(projectId!, activeIterationId!)
+      ).then((data) => ({ data, targetTaskId, openReview })),
+    onSuccess: async ({ data, targetTaskId, openReview }) => {
       setPrepareError(null)
       await invalidateTasks()
-      await navigate({
-        to: '/operations',
-        search: {
-          projectId,
-          domainId: activeIteration?.focused_area_id ?? domainId,
-          iterationId: data.iteration_id,
-          taskId: undefined,
-        },
-      })
+      if (openReview) {
+        await navigate({
+          to: '/operations',
+          search: {
+            projectId,
+            domainId: activeIteration?.focused_area_id ?? domainId,
+            iterationId: data.iteration_id,
+            taskId: targetTaskId,
+          },
+        })
+      }
     },
     onError: (error: unknown) => setPrepareError(toErrorMessage(error)),
   })
@@ -208,9 +222,9 @@ export function TasksPage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <WorkflowStepper activeStep="tasks" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          This project has no iterations yet. Create or suggest one in the{' '}
-          <Link to="/iterations" search={{ projectId, domainId: undefined }} className="font-medium underline">
-            iterations page
+          This project has no next directions yet. Ask for one in{' '}
+          <Link to="/iterations-v2" search={{ projectId, domainId: undefined }} className="font-medium underline">
+            next directions
           </Link>
           .
         </div>
@@ -221,12 +235,13 @@ export function TasksPage() {
   const tasks = collectTasks(tasksQuery.data ?? null)
   const tasksByStatus = groupByStatus(tasks)
   const isIterationPlanned = activeIteration?.status === 'planned' || activeIteration?.status === 'suggested'
-  const canMutateTasks = isIterationPlanned
+  const canPlanWorkItems = isIterationPlanned
+  const canMovePlannedWorkItems = activeIteration?.status !== 'completed'
 
   const handleCreateTask = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!taskForm.name.trim() || !taskForm.specification.trim() || !taskForm.patternId) {
-      setTaskFormError('Name, specification and pattern are required.')
+      setTaskFormError('Name, description and modeling pattern are required.')
       return
     }
     createMutation.mutate(taskForm)
@@ -246,122 +261,111 @@ export function TasksPage() {
     event.preventDefault()
     if (!editingId) return
     if (!editForm.name.trim() || !editForm.specification.trim() || !editForm.patternId) {
-      setEditError('Name, specification and pattern are required.')
+      setEditError('Name, description and modeling pattern are required.')
       return
     }
     updateMutation.mutate({ taskId: editingId, form: editForm })
   }
 
   const handleDelete = (task: DesignTaskModel) => {
-    const ok = window.confirm(`Delete task "${task.name}"?`)
+    const ok = window.confirm(`Delete work item "${task.name}"?`)
     if (!ok) return
     deleteMutation.mutate(task.id)
   }
 
-  const handlePrepare = () => {
+  const handlePrepare = (targetTaskId?: string, openReview = true) => {
     const ok = window.confirm(
-      `Prepare iteration "${activeIteration?.name ?? ''}"? AI will generate operations for each task. This may take a few minutes.`,
+      targetTaskId
+        ? `Prepare changes for this work item? AI will prepare changes for the selected direction, then this item should move to Ready to review.`
+        : `Prepare changes for "${activeIteration?.name ?? ''}"? AI will generate proposed ontology changes for each work item. This may take a few minutes.`,
     )
     if (!ok) return
-    prepareMutation.mutate()
+    prepareMutation.mutate({ targetTaskId, openReview })
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <WorkflowStepper activeStep="tasks" linkContext={linkContext} />
-      <WorkflowContextCapsule linkContext={linkContext} />
+      <DirectionWorkPanel
+        activeIteration={activeIteration}
+        allIterations={allIterations}
+        activeIterationId={activeIterationId}
+        domainId={domainId}
+        projectId={projectId}
+        tasks={tasks}
+        tasksByStatus={tasksByStatus}
+        onSelectIteration={(next) => {
+          const target = allIterations.find((it) => it.id === next)
+          navigate({
+            to: '/tasks',
+            search: {
+              projectId,
+              domainId: target?.focused_area_id ?? domainId,
+              iterationId: next,
+              taskId: undefined,
+            },
+          })
+        }}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Tasks</h2>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Prepare changes</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Plan the iteration's tasks (or add them manually), then prepare the iteration to generate
-            ontology operations.
+            Break the selected direction into concrete work items, then let the assistant prepare proposed
+            ontology changes for review.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            For a lighter review, use the arrow on a work item card to move it into Ready to review, then
+            review only that item.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
-            to="/iterations"
+            to="/iterations-v2"
             search={{ projectId, domainId }}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            Back to iterations
+            Back to next directions
           </Link>
         </div>
       </div>
 
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Iteration</h3>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <label htmlFor="iteration-picker" className="text-xs text-slate-600">
-                Selected:
-              </label>
-              <select
-                id="iteration-picker"
-                value={activeIterationId ?? ''}
-                onChange={(event) => {
-                  const next = event.target.value
-                  const target = allIterations.find((it) => it.id === next)
-                  navigate({
-                    to: '/tasks',
-                    search: {
-                      projectId,
-                      domainId: target?.focused_area_id ?? domainId,
-                      iterationId: next,
-                      taskId: undefined,
-                    },
-                  })
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              >
-                {allIterations.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name} — {it.status}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {activeIteration ? (
-              <p className="mt-2 text-sm text-slate-700">{activeIteration.specification}</p>
-            ) : null}
-          </div>
-          {activeIteration ? (
-            <button
-              type="button"
-              onClick={handlePrepare}
-              disabled={
-                !canMutateTasks ||
-                tasks.length === 0 ||
-                prepareMutation.isPending ||
-                projectQuery.isLoading
-              }
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-              title={
-                !canMutateTasks
-                  ? 'Iteration is already prepared or finished.'
-                  : tasks.length === 0
-                  ? 'Add at least one task before preparing.'
-                  : 'Generate operations and open operations review.'
-              }
-            >
-              {prepareMutation.isPending ? 'Preparing…' : 'Run iteration → operations'}
-            </button>
-          ) : null}
+      {activeIteration ? (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => handlePrepare()}
+            disabled={
+              !canMovePlannedWorkItems ||
+              tasks.length === 0 ||
+              prepareMutation.isPending ||
+              projectQuery.isLoading
+            }
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+            title={
+              !canMovePlannedWorkItems
+                ? 'This direction is already ready for review or applied.'
+                : tasks.length === 0
+                ? 'Add at least one work item before preparing changes.'
+                : 'Generate proposed changes and open review.'
+            }
+          >
+            {prepareMutation.isPending ? 'Preparing…' : 'Prepare all work items'}
+          </button>
         </div>
-        {prepareError ? (
-          <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-            {prepareError}
-          </p>
-        ) : null}
-      </section>
+      ) : null}
+      {prepareError ? (
+        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+          {prepareError}
+        </p>
+      ) : null}
 
       {activeIteration?.status === 'prepared' ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-medium">Iteration is prepared — tasks stay in "Generating / ready" until applied.</p>
+          <p className="font-medium">Changes are ready for review.</p>
           <p className="mt-1 text-amber-900/90">
-            Review and apply the generated operations on the{' '}
+            Open a work item below to review a smaller set of changes. Use the{' '}
             <Link
               to="/operations"
               search={{
@@ -372,19 +376,19 @@ export function TasksPage() {
               }}
               className="font-medium underline"
             >
-              operations page
+              full review page
             </Link>
-            . After Apply, tasks move to the Completed column.
+            {' '}only when you want to inspect everything at once.
           </p>
         </div>
       ) : null}
 
-      {canMutateTasks ? (
+      {canPlanWorkItems ? (
         <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <details className="group [&_summary::-webkit-details-marker]:hidden" open={tasks.length === 0}>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left sm:px-6">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Plan tasks with AI
+                Break direction into work items
               </h3>
               <span
                 className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
@@ -395,14 +399,14 @@ export function TasksPage() {
             </summary>
             <div className="border-t border-slate-100 px-5 pb-6 pt-2 sm:px-6">
               <p className="text-xs text-slate-600">
-                The AI reviews the iteration specification and produces a task plan. Optional steering
-                instruction below.
+                The AI reads the selected direction and suggests concrete pieces of work that can become
+                ontology changes.
               </p>
               <textarea
                 rows={2}
                 value={planInstruction}
                 onChange={(event) => setPlanInstruction(event.target.value)}
-                placeholder="Prefer 3–5 tasks; cover classes, attributes and relationships separately."
+                placeholder="For example: focus first on missing classes, then check attributes and relationships."
                 className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               {planError ? (
@@ -417,11 +421,15 @@ export function TasksPage() {
                   disabled={planMutation.isPending || !activeIterationId}
                   className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
                 >
-                  {planMutation.isPending ? 'Planning…' : tasks.length === 0 ? 'Plan tasks' : 'Re-plan tasks'}
+                  {planMutation.isPending
+                    ? 'Planning…'
+                    : tasks.length === 0
+                    ? 'Suggest work items'
+                    : 'Suggest work items again'}
                 </button>
                 {planMutation.isSuccess && planMutation.data ? (
                   <span className="text-xs text-emerald-700">
-                    Planned {planMutation.data.length} task
+                    Added {planMutation.data.length} work item
                     {planMutation.data.length === 1 ? '' : 's'}.
                   </span>
                 ) : null}
@@ -431,12 +439,12 @@ export function TasksPage() {
         </section>
       ) : null}
 
-      {canMutateTasks ? (
+      {canPlanWorkItems ? (
         <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
           <details className="group [&_summary::-webkit-details-marker]:hidden">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-left sm:px-6">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Create custom task
+                Advanced: create work item manually
               </h3>
               <span
                 className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
@@ -450,7 +458,7 @@ export function TasksPage() {
                 <input
                   value={taskForm.name}
                   onChange={(event) => setTaskForm((s) => ({ ...s, name: event.target.value }))}
-                  placeholder="Task name"
+                  placeholder="Work item name"
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <select
@@ -458,7 +466,7 @@ export function TasksPage() {
                   onChange={(event) => setTaskForm((s) => ({ ...s, patternId: event.target.value }))}
                   className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 >
-                  <option value="">— pick task pattern —</option>
+                  <option value="">Pick a modeling pattern</option>
                   {patterns.map((pattern) => (
                     <option key={pattern.id} value={pattern.id}>
                       {pattern.name} ({pattern.category})
@@ -469,7 +477,7 @@ export function TasksPage() {
                   value={taskForm.specification}
                   onChange={(event) => setTaskForm((s) => ({ ...s, specification: event.target.value }))}
                   rows={2}
-                  placeholder="What should be modeled, validated, or refined in this task."
+                  placeholder="What should be modeled, validated, or refined in this work item."
                   className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 {taskFormError ? (
@@ -484,7 +492,7 @@ export function TasksPage() {
                   disabled={createMutation.isPending}
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
                 >
-                  {createMutation.isPending ? 'Saving…' : 'Save custom task'}
+                  {createMutation.isPending ? 'Saving…' : 'Save manual work item'}
                 </button>
               </div>
             </form>
@@ -508,14 +516,14 @@ export function TasksPage() {
             <p className="mt-1 text-[11px] text-slate-500">{column.description}</p>
             <div className="mt-4 space-y-3">
               {tasksQuery.isLoading ? (
-                <p className="text-xs text-slate-500">Loading tasks…</p>
+                <p className="text-xs text-slate-500">Loading work items…</p>
               ) : (tasksByStatus.get(column.id) ?? []).length === 0 ? (
                 <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">
-                  No tasks.
+                  No work items.
                 </p>
               ) : (
                 (tasksByStatus.get(column.id) ?? []).map((task) => {
-                  const isEditing = canMutateTasks && editingId === task.id
+                  const isEditing = canMovePlannedWorkItems && editingId === task.id
                   const pattern = patterns.find((p) => p.id === task.followed_pattern_id)
                   if (isEditing) {
                     return (
@@ -587,11 +595,11 @@ export function TasksPage() {
                     >
                       <p className="text-sm font-semibold text-slate-900">{task.name}</p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Pattern: {pattern?.name ?? task.followed_pattern_id}
+                        Modeling pattern: {pattern?.name ?? task.followed_pattern_id}
                       </p>
                       <p className="mt-2 text-xs text-slate-700 line-clamp-3">{task.specification}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {task.status === 'completed' ? (
+                        {task.status === 'generating' ? (
                           <Link
                             to="/operations"
                             search={{
@@ -602,11 +610,23 @@ export function TasksPage() {
                             }}
                             className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
                           >
-                            Review operations
+                            Review this work item
                           </Link>
                         ) : null}
-                        {canMutateTasks && task.status === 'planned' ? (
+                        {canMovePlannedWorkItems && task.status === 'planned' ? (
                           <>
+                            <button
+                              type="button"
+                              onClick={() => handlePrepare(task.id, false)}
+                              disabled={prepareMutation.isPending || projectQuery.isLoading}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                              title="Move to Ready to review"
+                              aria-label={`Move ${task.name} to Ready to review`}
+                            >
+                              {prepareMutation.isPending && prepareMutation.variables?.targetTaskId === task.id
+                                ? '…'
+                                : '→'}
+                            </button>
                             <button
                               type="button"
                               onClick={() => startEdit(task)}
@@ -656,6 +676,95 @@ function groupByStatus(tasks: DesignTaskModel[]): Map<DesignTaskStatus, DesignTa
     map.get(task.status)?.push(task)
   }
   return map
+}
+
+type DirectionWorkPanelProps = {
+  activeIteration: DesignIterationModel | undefined
+  allIterations: DesignIterationModel[]
+  activeIterationId: string | undefined
+  domainId: string | undefined
+  projectId: string
+  tasks: DesignTaskModel[]
+  tasksByStatus: Map<DesignTaskStatus, DesignTaskModel[]>
+  onSelectIteration: (iterationId: string) => void
+}
+
+function DirectionWorkPanel({
+  activeIteration,
+  allIterations,
+  activeIterationId,
+  domainId,
+  projectId,
+  tasks,
+  tasksByStatus,
+  onSelectIteration,
+}: DirectionWorkPanelProps) {
+  const toPrepareCount = tasksByStatus.get('planned')?.length ?? 0
+  const readyCount = tasksByStatus.get('generating')?.length ?? 0
+  const appliedCount = tasksByStatus.get('completed')?.length ?? 0
+  const totalCount = Math.max(tasks.length, 1)
+  const progress = Math.round(((readyCount + appliedCount) / totalCount) * 100)
+
+  return (
+    <section className="rounded-2xl border border-emerald-200 bg-linear-to-br from-emerald-50 to-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Selected direction</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select
+              value={activeIterationId ?? ''}
+              onChange={(event) => onSelectIteration(event.target.value)}
+              className="max-w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            >
+              {allIterations.map((iteration) => (
+                <option key={iteration.id} value={iteration.id}>
+                  {iteration.name} - {iterationStatusLabels[iteration.status]}
+                </option>
+              ))}
+            </select>
+            <Link
+              to="/iterations-v2"
+              search={{ projectId, domainId }}
+              className="text-xs font-medium text-emerald-800 underline"
+            >
+              choose another direction
+            </Link>
+          </div>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
+            {activeIteration?.specification ??
+              'Choose a direction first, then break it into work items.'}
+          </p>
+        </div>
+
+        <div className="w-full rounded-xl border border-emerald-200 bg-white/80 p-4 sm:w-80">
+          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-emerald-800">
+            <span>Work progress</span>
+            <span>{progress}% ready</span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-100">
+            <div className="h-full rounded-full bg-emerald-600" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-lg bg-white px-2 py-2">
+              <div className="font-semibold text-slate-900">{toPrepareCount}</div>
+              <div className="text-slate-500">to prepare</div>
+            </div>
+            <div className="rounded-lg bg-white px-2 py-2">
+              <div className="font-semibold text-slate-900">{readyCount}</div>
+              <div className="text-slate-500">to review</div>
+            </div>
+            <div className="rounded-lg bg-white px-2 py-2">
+              <div className="font-semibold text-slate-900">{appliedCount}</div>
+              <div className="text-slate-500">applied</div>
+            </div>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-600">
+            Next step: move one work item to Ready to review with the arrow, then review just that item.
+          </p>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function toErrorMessage(error: unknown): string {

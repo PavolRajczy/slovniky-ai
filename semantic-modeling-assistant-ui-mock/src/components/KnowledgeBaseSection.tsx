@@ -127,7 +127,7 @@ export function KnowledgeBaseSection({ projectId }: Props) {
     <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Step 4 · Knowledge base
+          Knowledge base
         </h3>
         {kbQuery.isFetching ? <span className="text-xs text-slate-500">refreshing…</span> : null}
       </div>
@@ -184,7 +184,7 @@ export function KnowledgeBaseSection({ projectId }: Props) {
                 onClick={() => setLegalUrl(EXAMPLE_LEGAL_URL)}
                 className="text-[11px] font-medium text-emerald-700 hover:underline"
               >
-                Use example (Act 56/2001 – traffic)
+                Use example (Act 56/2001 - traffic)
               </button>
               <button
                 type="submit"

@@ -123,7 +123,7 @@ export function ExportResultPage() {
       return
     }
     if (!putUrl.trim()) {
-      setExportError('Provide a Dataspecer simplified-semantic-model URL (PUT target).')
+      setExportError('Provide a Dataspecer export URL.')
       return
     }
     exportMutation.mutate()
@@ -163,18 +163,18 @@ export function ExportResultPage() {
             exportSucceeded ? 'text-emerald-900' : 'text-slate-900'
           }`}
         >
-          {exportSucceeded ? 'Export completed' : 'Operations applied — ready to export'}
+          {exportSucceeded ? 'Export completed' : 'Approved changes applied - ready to export'}
         </h2>
         <p className={`mt-2 text-sm ${exportSucceeded ? 'text-emerald-900/90' : 'text-slate-600'}`}>
           {exportSucceeded
             ? 'The designed ontology was pushed to Dataspecer.'
-            : 'Approved operations are now part of the designed ontology. Push it back to Dataspecer to update the public specification.'}
+            : 'Approved changes are now part of the designed ontology. Push it back to Dataspecer to update the public specification.'}
         </p>
 
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <div>
             <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
-              Dataspecer simplified-semantic-model URL (PUT target)
+              Dataspecer export URL
             </label>
             <input
               type="url"
@@ -221,7 +221,7 @@ export function ExportResultPage() {
               search={operationsSearch}
               className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              Back to operations review
+              Back to review changes
             </Link>
           </div>
         </form>
@@ -275,7 +275,7 @@ export function ExportResultPage() {
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Session recap</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Snapshot of the review state passed from operations review via URL search params.
+          Snapshot of the review state passed from review changes via URL search params.
         </p>
         <ul className="mt-4 space-y-2 text-sm text-slate-800">
           {recap.taskId ? (
@@ -287,7 +287,7 @@ export function ExportResultPage() {
             </li>
           ) : null}
           <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-            <span className="text-slate-600">Operations approved</span>
+            <span className="text-slate-600">Changes approved</span>
             <span className="font-semibold tabular-nums">{recap.approved}</span>
           </li>
           <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
@@ -327,7 +327,7 @@ export function ExportResultPage() {
             search={operationsSearch}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            Back to operations review
+            Back to review changes
           </Link>
         </div>
       </section>

@@ -32,6 +32,18 @@ const operationStyles: Record<OntologyOperationModel['operation_type'], string> 
   delete: 'bg-rose-50 text-rose-800',
 }
 
+const operationLabels: Record<OntologyOperationModel['operation_type'], string> = {
+  create: 'Create',
+  update: 'Update',
+  delete: 'Delete',
+}
+
+const targetLabels: Record<OntologyOperationModel['target_type'], string> = {
+  class: 'Class',
+  attribute: 'Attribute',
+  relationship: 'Relationship',
+}
+
 type ReviewState = 'pending' | 'approved' | 'rejected'
 
 export function OperationsReviewPage() {
@@ -59,10 +71,19 @@ export function OperationsReviewPage() {
     retry: false,
   })
 
-  const operations = useMemo(
+  const allOperations = useMemo(
     () => operationsQuery.data?.operations ?? [],
     [operationsQuery.data],
   )
+  const operations = useMemo(() => {
+    if (!taskId) {
+      return allOperations
+    }
+    const scoped = allOperations.filter((op) => op.created_from_task_id === taskId)
+    return scoped.length > 0 ? scoped : allOperations
+  }, [allOperations, taskId])
+  const isScopedReview = Boolean(taskId)
+  const hasTraceableScope = !taskId || operations.every((op) => op.created_from_task_id === taskId)
 
   const [reviewById, setReviewById] = useState<Record<string, ReviewState>>({})
   const [rejectionReasonById, setRejectionReasonById] = useState<Record<string, string>>({})
@@ -103,27 +124,6 @@ export function OperationsReviewPage() {
     ])
   }
 
-  const setAllReviews = (next: ReviewState) => {
-    setReviewById(() => {
-      const map: Record<string, ReviewState> = {}
-      for (const op of operations) {
-        map[op.id] = next
-      }
-      return map
-    })
-  }
-
-  const clearReviews = () => {
-    setReviewById({})
-  }
-
-  const deleteOpMutation = useMutation({
-    mutationFn: (operationId: string) =>
-      deleteIterationOperation(projectId!, iterationId!, operationId),
-    onSuccess: invalidateAll,
-    onError: (error: unknown) => setActionError(toErrorMessage(error)),
-  })
-
   const saveGuidanceMutation = useMutation({
     mutationFn: ({ operationId, reason }: { operationId: string; reason: string }) =>
       addProjectGuidance(projectId!, {
@@ -150,20 +150,32 @@ export function OperationsReviewPage() {
     onSuccess: async (data) => {
       setActionError(null)
       await invalidateAll()
-      await navigate({
-        to: '/export-result',
-        search: {
-          projectId,
-          domainId,
-          iterationId,
-          taskId,
-          approved: counts.approved,
-          pending: counts.pending,
-          rejected: counts.rejected,
-          regenerated: undefined,
-          guidanceUpdated: Object.keys(savedGuidanceIds).length > 0,
-        },
-      })
+      if (isScopedReview) {
+        await navigate({
+          to: '/tasks',
+          search: {
+            projectId,
+            domainId,
+            iterationId,
+            taskId: undefined,
+          },
+        })
+      } else {
+        await navigate({
+          to: '/export-result',
+          search: {
+            projectId,
+            domainId,
+            iterationId,
+            taskId,
+            approved: counts.approved,
+            pending: counts.pending,
+            rejected: counts.rejected,
+            regenerated: undefined,
+            guidanceUpdated: Object.keys(savedGuidanceIds).length > 0,
+          },
+        })
+      }
       // Touch returned data to satisfy unused-warning lint if any.
       void data.applied_operations_count
     },
@@ -177,7 +189,7 @@ export function OperationsReviewPage() {
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No iteration selected. Prepare an iteration on the{' '}
           <Link to="/tasks" search={{ projectId, domainId, iterationId, taskId }} className="font-medium underline">
-            tasks page
+            prepare changes page
           </Link>{' '}
           first.
         </div>
@@ -210,27 +222,15 @@ export function OperationsReviewPage() {
   const hasOperations = operations.length > 0
   const isPrepared = operationsQuery.data?.status === 'prepared'
 
-  const handleRegenerateRejected = async () => {
-    if (!hasOperations) return
-    const rejectedIds = operations
-      .filter((op) => reviewOf(op.id) === 'rejected')
-      .map((op) => op.id)
-    if (rejectedIds.length === 0) {
-      setActionError('No rejected operations to regenerate.')
-      return
-    }
-    const ok = window.confirm(
-      `Delete ${rejectedIds.length} rejected operation${rejectedIds.length === 1 ? '' : 's'} and re-prepare the iteration? The AI will run again — this can take several minutes.`,
-    )
+  const handleRegenerateChange = async (operationId: string) => {
+    const ok = window.confirm('Regenerate this rejected change? The assistant will try again using your guidance.')
     if (!ok) return
     setActionError(null)
     try {
-      for (const id of rejectedIds) {
-        await deleteIterationOperation(projectId, iterationId, id)
-      }
+      await deleteIterationOperation(projectId, iterationId, operationId)
       setReviewById((prev) => {
         const next = { ...prev }
-        for (const id of rejectedIds) delete next[id]
+        delete next[operationId]
         return next
       })
       await regeneratePending.mutateAsync()
@@ -244,10 +244,29 @@ export function OperationsReviewPage() {
       <WorkflowStepper activeStep="operations" exportSearch={exportSearch} linkContext={linkContext} />
       <WorkflowContextCapsule linkContext={linkContext} />
 
+      {isScopedReview ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-medium">Reviewing one work item</p>
+          <p className="mt-1 text-emerald-900/90">
+            This view is scoped to the selected work item so you can approve changes in smaller pieces.
+            {!hasTraceableScope
+              ? ' Some older operations do not include work item traceability yet, so the full prepared set is shown.'
+              : null}
+          </p>
+          <Link
+            to="/operations"
+            search={{ projectId, domainId, iterationId, taskId: undefined }}
+            className="mt-2 inline-flex text-xs font-semibold text-emerald-800 underline"
+          >
+            Review all prepared changes
+          </Link>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
         <span className="font-medium text-slate-700">Summary:</span>
         <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">
-          Approved {counts.approved}
+          Kept {counts.approved}
         </span>
         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
           Pending {counts.pending}
@@ -259,44 +278,19 @@ export function OperationsReviewPage() {
           Total {counts.total}
         </span>
         {operationsQuery.isFetching ? <span className="text-xs text-slate-500">refreshing…</span> : null}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wide text-slate-500">Bulk:</span>
-          <button
-            type="button"
-            disabled={!hasOperations || counts.approved === counts.total}
-            onClick={() => setAllReviews('approved')}
-            className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-            title="Approve every operation in the list."
-          >
-            Select all
-          </button>
-          <button
-            type="button"
-            disabled={!hasOperations || (counts.approved === 0 && counts.rejected === 0)}
-            onClick={clearReviews}
-            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            title="Reset every operation back to pending."
-          >
-            Clear selection
-          </button>
-          <button
-            type="button"
-            disabled={!hasOperations || counts.rejected === counts.total}
-            onClick={() => setAllReviews('rejected')}
-            className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-800 hover:bg-rose-100 disabled:opacity-50"
-            title="Mark every operation as rejected (still shown, not applied)."
-          >
-            Reject all
-          </button>
-        </div>
       </div>
 
-      <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-        Each operation must be approved individually (or via the bulk buttons above). Apply sends only the
-        approved ones to the backend. Note: applying any operation marks the iteration's tasks as completed
-        on the backend, regardless of which operations were rejected — the rejected ones are simply not
-        applied to the ontology.
-      </p>
+      {!isScopedReview ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+          This is the full prepared set. For less context at once, go back to prepare changes and review one
+          work item at a time. Apply sends only kept changes to the backend.
+        </p>
+      ) : (
+        <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+          Decide each change once. Apply sends kept changes to the
+          backend; rejected changes stay out of the ontology.
+        </p>
+      )}
 
       {actionError ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
@@ -308,44 +302,46 @@ export function OperationsReviewPage() {
         <div className="min-w-0 flex-1 space-y-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Iteration operations
+              Proposed changes
             </p>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Operations review</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+              {isScopedReview ? 'Review this work item' : 'Review changes'}
+            </h2>
             <p className="mt-1 text-sm text-slate-600">
-              The AI proposed these ontology operations for the current iteration. Approve what should be
-              applied, reject anything wrong (with an optional reason saved as project guidance), then apply
-              the approved set.
+              {isScopedReview
+                ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, or reject anything wrong.'
+                : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then apply the kept set.'}
             </p>
           </div>
 
           {operationsQuery.isLoading ? (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
-              Loading prepared operations…
+              Loading prepared changes…
             </div>
           ) : operationsQuery.isError ? (
             <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-6 text-sm text-amber-900">
               <p className="font-medium">{(operationsQuery.error as Error).message}</p>
               <p className="mt-1">
-                If the iteration isn't prepared yet, prepare it from{' '}
+                If the iteration is not ready for review yet, prepare it from{' '}
                 <Link to="/tasks" search={tasksSearch} className="font-medium underline">
-                  the tasks page
+                  the prepare changes page
                 </Link>
                 .
               </p>
             </div>
           ) : !hasOperations ? (
             <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/70 px-4 py-6 text-sm text-amber-950">
-              <p className="font-medium">No operations for this iteration.</p>
+              <p className="font-medium">No proposed changes for this iteration.</p>
               <p className="mt-1 text-amber-900/90">
-                Prepare or re-prepare the iteration from the tasks page so the assistant can propose
-                operations.
+                Prepare or re-prepare the selected direction from the prepare changes page so the assistant can propose
+                changes.
               </p>
               <Link
                 to="/tasks"
                 search={tasksSearch}
                 className="mt-3 inline-flex rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800"
               >
-                Back to tasks
+                Back to prepare changes
               </Link>
             </div>
           ) : (
@@ -365,26 +361,17 @@ export function OperationsReviewPage() {
                     }`}
                   >
                     <div className="flex items-start gap-3 p-4">
-                      <input
-                        type="checkbox"
-                        className="mt-1 h-4 w-4 rounded border-slate-300"
-                        checked={state === 'approved'}
-                        onChange={(event) =>
-                          setReview(op.id, event.target.checked ? 'approved' : 'pending')
-                        }
-                        aria-label={`Approve ${op.label ?? op.uri}`}
-                      />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
                             className={`rounded px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${operationStyles[op.operation_type]}`}
                           >
-                            {op.operation_type}
+                            {operationLabels[op.operation_type]}
                           </span>
                           <span
                             className={`rounded px-2 py-0.5 text-[11px] font-medium ${targetStyles[op.target_type]}`}
                           >
-                            {op.target_type}
+                            {targetLabels[op.target_type]}
                           </span>
                           {state === 'rejected' && (
                             <span className="rounded bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-800">
@@ -393,12 +380,12 @@ export function OperationsReviewPage() {
                           )}
                           {state === 'approved' && (
                             <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                              Approved
+                              Kept
                             </span>
                           )}
                           {savedGuidanceIds[op.id] ? (
                             <span className="rounded bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-800">
-                              Saved as guidance
+                              Saved to guidance
                             </span>
                           ) : null}
                         </div>
@@ -442,17 +429,25 @@ export function OperationsReviewPage() {
                       <div className="flex shrink-0 flex-col gap-1">
                         <button
                           type="button"
-                          className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                          className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                            state === 'approved'
+                              ? 'border-emerald-600 bg-emerald-600 text-white'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                          }`}
                           onClick={() => setReview(op.id, 'approved')}
                         >
-                          Approve
+                          Keep this change
                         </button>
                         <button
                           type="button"
-                          className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                          className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                            state === 'rejected'
+                              ? 'border-rose-700 bg-rose-700 text-white'
+                              : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                          }`}
                           onClick={() => setRejectModalOpId(op.id)}
                         >
-                          Reject
+                          Reject this change
                         </button>
                         {state !== 'pending' ? (
                           <button
@@ -460,7 +455,17 @@ export function OperationsReviewPage() {
                             className="text-[11px] font-medium text-slate-600 hover:underline"
                             onClick={() => setReview(op.id, 'pending')}
                           >
-                            Reset
+                            Decide later
+                          </button>
+                        ) : null}
+                        {state === 'rejected' ? (
+                          <button
+                            type="button"
+                            className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-60"
+                            onClick={() => handleRegenerateChange(op.id)}
+                            disabled={regeneratePending.isPending}
+                          >
+                            {regeneratePending.isPending ? 'Regenerating…' : 'Regenerate'}
                           </button>
                         ) : null}
                       </div>
@@ -472,40 +477,18 @@ export function OperationsReviewPage() {
           )}
 
           {anyRejected ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              <p className="font-medium">{counts.rejected} rejected operation(s).</p>
-              <p className="mt-1 text-amber-900/90">
-                You can save the rejection reasons as project guidance for future iterations, then
-                regenerate — this deletes the rejected operations and re-prepares the iteration.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleRegenerateRejected}
-                  disabled={regeneratePending.isPending}
-                  className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60 hover:bg-violet-800"
-                >
-                  {regeneratePending.isPending
-                    ? 'Regenerating…'
-                    : 'Regenerate (delete rejected + re-prepare)'}
-                </button>
-                <Link
-                  to="/guidance"
-                  search={{ projectId }}
-                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Manage project guidance
-                </Link>
-              </div>
-            </div>
+            <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
+              Rejected changes can be regenerated directly on their cards.
+            </p>
           ) : null}
         </div>
 
         <aside className="w-full shrink-0 space-y-4 lg:w-96">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Approved diff preview</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Kept changes preview</h3>
             <p className="mt-1 text-xs text-slate-500">
-              Projection of the {approvedOperations.length} approved operation(s).
+              Projection of the {approvedOperations.length} kept change
+              {approvedOperations.length === 1 ? '' : 's'}.
             </p>
             <DiffBlock title="Classes" added={diff.classesAdded} updated={diff.classesUpdated} deleted={diff.classesDeleted} />
             <DiffBlock
@@ -544,22 +527,22 @@ export function OperationsReviewPage() {
               className="rounded-lg bg-emerald-600 py-2.5 text-center text-sm font-semibold text-white shadow-sm disabled:opacity-60"
               title={
                 !isPrepared
-                  ? 'Iteration is not in prepared state.'
+                  ? 'Iteration is not ready for review yet.'
                   : approvedOperations.length === 0
-                  ? 'Approve at least one operation first.'
-                  : 'Apply the approved operations to the ontology.'
+                  ? 'Keep at least one change first.'
+                  : 'Apply the kept changes to the ontology.'
               }
             >
               {applyMutation.isPending
                 ? 'Applying…'
-                : `Apply ${approvedOperations.length} approved operation${approvedOperations.length === 1 ? '' : 's'}`}
+                : `Apply ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`}
             </button>
             <Link
               to="/tasks"
               search={tasksSearch}
               className="rounded-lg border border-slate-200 py-2.5 text-center text-sm font-medium"
             >
-              Back to tasks
+              Back to prepare changes
             </Link>
           </div>
         </aside>
@@ -576,9 +559,6 @@ export function OperationsReviewPage() {
           isSavingGuidance={
             saveGuidanceMutation.isPending && saveGuidanceMutation.variables?.operationId === rejectModalOp.id
           }
-          isDeleting={
-            deleteOpMutation.isPending && deleteOpMutation.variables === rejectModalOp.id
-          }
           onConfirmReject={() => {
             setReview(rejectModalOp.id, 'rejected')
             setRejectModalOpId(null)
@@ -591,10 +571,6 @@ export function OperationsReviewPage() {
               return
             }
             saveGuidanceMutation.mutate({ operationId: rejectModalOp.id, reason })
-          }}
-          onDeleteAndRegenerate={async () => {
-            setRejectModalOpId(null)
-            await deleteOpMutation.mutateAsync(rejectModalOp.id)
           }}
         />
       ) : null}
@@ -645,11 +621,9 @@ type RejectModalProps = {
   onReasonChange: (value: string) => void
   alreadySavedGuidance: boolean
   isSavingGuidance: boolean
-  isDeleting: boolean
   onConfirmReject: () => void
   onCancel: () => void
   onSaveGuidance: () => void
-  onDeleteAndRegenerate: () => void
 }
 
 function RejectModal({
@@ -658,11 +632,9 @@ function RejectModal({
   onReasonChange,
   alreadySavedGuidance,
   isSavingGuidance,
-  isDeleting,
   onConfirmReject,
   onCancel,
   onSaveGuidance,
-  onDeleteAndRegenerate,
 }: RejectModalProps) {
   return (
     <div
@@ -679,7 +651,7 @@ function RejectModal({
       <div className="relative z-10 m-4 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Reject operation</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Reject change</p>
             <p className="mt-2 text-sm font-medium text-slate-900">{operation.label ?? operation.uri}</p>
             <p className="mt-0.5 break-all font-mono text-[11px] text-slate-500">{operation.uri}</p>
           </div>
@@ -714,21 +686,12 @@ function RejectModal({
                 ? 'Saved to guidance'
                 : isSavingGuidance
                 ? 'Saving…'
-                : 'Save as correction guidance'}
-            </button>
-            <button
-              type="button"
-              onClick={onDeleteAndRegenerate}
-              disabled={isDeleting}
-              className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-900 hover:bg-rose-50/80 disabled:opacity-60"
-            >
-              {isDeleting ? 'Deleting…' : 'Delete this operation now'}
+                : 'Save reason as guidance'}
             </button>
           </div>
           <p className="mt-2 text-[11px] text-rose-900/80">
-            Marking an operation rejected leaves it visible but excludes it from the diff and apply. Use
-            “Delete this operation now” to remove it server-side immediately; use “Regenerate” at the bottom
-            of the page to drop all rejected ops and re-prepare the iteration.
+            Marking a change rejected leaves it visible but excludes it from the preview and apply. After it
+            is rejected, use Regenerate on the card if you want the assistant to try again.
           </p>
         </div>
 
