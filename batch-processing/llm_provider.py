@@ -64,7 +64,7 @@ class LLMConfig:
         provider = LLMProvider(config_dict.get("provider", "openai").lower())
         return cls(
             provider=provider,
-            model_name=config_dict.get("model_name", "gpt-4o"),
+            model_name=config_dict.get("model_name", "gpt-4o-mini"),
             temperature=config_dict.get("temperature", 0.0),
             api_key=config_dict.get("api_key"),
             **config_dict.get("extra_params", {})
@@ -184,7 +184,7 @@ class LLMFactory:
     def _get_default_model(provider: LLMProvider) -> str:
         """Get default model name for the provider."""
         defaults = {
-            LLMProvider.OPENAI: "gpt-4o",
+            LLMProvider.OPENAI: "gpt-4o-mini",
             LLMProvider.ANTHROPIC: "claude-3-5-sonnet-20241022",
             LLMProvider.GOOGLE: "gemini-pro"
         }
@@ -220,32 +220,65 @@ def load_llm_config_from_env() -> Optional[LLMConfig]:
     
     Environment variables:
         LLM_PROVIDER: Provider name (openai, anthropic, google)
-        LLM_MODEL_NAME: Model name (e.g., gpt-4o)
+        LLM_MODEL_NAME: Model name (e.g., gpt-4o-mini)
         LLM_TEMPERATURE: Temperature (default: 0.0)
         
     Returns:
         LLMConfig instance or None if not configured
     """
     provider_str = os.getenv("LLM_PROVIDER")
-    if not provider_str:
-        return None
-    
-    try:
-        provider = LLMProvider(provider_str.lower())
-    except ValueError:
-        return None
-    
     model_name = os.getenv("LLM_MODEL_NAME")
+
+    if not provider_str and not model_name:
+        return None
+
+    if provider_str:
+        try:
+            provider = LLMProvider(provider_str.lower())
+        except ValueError:
+            return None
+    else:
+        provider = LLMProvider.OPENAI
+
     if not model_name:
         model_name = LLMFactory._get_default_model(provider)
-    
+
     temperature = float(os.getenv("LLM_TEMPERATURE", "0.0"))
-    
+
     return LLMConfig(
         provider=provider,
         model_name=model_name,
         temperature=temperature
     )
+
+
+def resolve_llm_config() -> LLMConfig:
+    """
+    Resolve LLM configuration from config file, environment variables, or defaults.
+
+    Tries to load configuration from:
+    1. Config file (if LLM_CONFIG_FILE env var is set)
+    2. Environment variables (LLM_PROVIDER and/or LLM_MODEL_NAME)
+    3. Defaults to OpenAI gpt-4o-mini
+    """
+    config_file = os.getenv("LLM_CONFIG_FILE")
+    if config_file and os.path.exists(config_file):
+        return load_llm_config_from_file(config_file)
+
+    llm_config = load_llm_config_from_env()
+    if llm_config is not None:
+        return llm_config
+
+    return LLMConfig(
+        provider=LLMProvider.OPENAI,
+        model_name="gpt-4o-mini",
+        temperature=0.0
+    )
+
+
+def get_model_output_dir_name(config: LLMConfig) -> str:
+    """Return a filesystem-safe directory name for the given model."""
+    return config.model_name.replace("/", "-").replace(":", "-")
 
 
 def get_llm_instance() -> BaseChatModel:
@@ -255,25 +288,10 @@ def get_llm_instance() -> BaseChatModel:
     Tries to load configuration from:
     1. Config file (if LLM_CONFIG_FILE env var is set)
     2. Environment variables
-    3. Defaults to OpenAI gpt-4o
+    3. Defaults to OpenAI gpt-4o-mini
     
     Returns:
         LangChain BaseChatModel instance
     """
-    llm_config = None
-    config_file = os.getenv("LLM_CONFIG_FILE")
-    if config_file and os.path.exists(config_file):
-        llm_config = load_llm_config_from_file(config_file)
-    else:
-        llm_config = load_llm_config_from_env()
-    
-    if llm_config is None:
-        # Default to OpenAI gpt-4o
-        llm_config = LLMConfig(
-            provider=LLMProvider.OPENAI,
-            model_name="gpt-4o",
-            temperature=0.0
-        )
-    
-    return LLMFactory.create_llm(llm_config)
+    return LLMFactory.create_llm(resolve_llm_config())
 
