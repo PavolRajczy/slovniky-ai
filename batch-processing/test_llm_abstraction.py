@@ -20,7 +20,8 @@ from llm_provider import (
     LLMConfig, 
     LLMFactory, 
     get_llm_instance,
-    load_llm_config_from_env
+    load_llm_config_from_env,
+    resolve_llm_config,
 )
 
 def test_imports():
@@ -31,18 +32,18 @@ def test_llm_config():
     """Test LLMConfig creation."""
     config = LLMConfig(
         provider=LLMProvider.OPENAI,
-        model_name="gpt-4o",
+        model_name="gpt-4o-mini",
         temperature=0.0
     )
     assert config.provider == LLMProvider.OPENAI
-    assert config.model_name == "gpt-4o"
+    assert config.model_name == "gpt-4o-mini"
     assert config.temperature == 0.0
     print("[OK] LLMConfig creation works")
 
 def test_factory_defaults():
     """Test factory with defaults."""
     try:
-        llm = LLMFactory.create_default_llm()
+        llm = LLMFactory.create_default_llm(model_name="gpt-4o-mini")
         print("[OK] LLMFactory.create_default_llm() works")
         print(f"  Model type: {type(llm).__name__}")
         # Test with a simple call to verify it actually works
@@ -56,10 +57,15 @@ def test_factory_defaults():
 
 def test_get_llm_instance():
     """Test the convenience function."""
+    previous_model_name = os.environ.pop("LLM_MODEL_NAME", None)
     try:
+        os.environ["LLM_MODEL_NAME"] = "gpt-4o-mini"
         llm = get_llm_instance()
+        config = resolve_llm_config()
+        assert config.model_name == "gpt-4o-mini"
         print("[OK] get_llm_instance() works")
         print(f"  Model type: {type(llm).__name__}")
+        print(f"  Resolved model: {config.model_name}")
         # Test with a simple call to verify it actually works
         response = llm.invoke("Say 'OK' if you can read this.")
         print(f"  Test response: {response.content}")
@@ -68,6 +74,30 @@ def test_get_llm_instance():
             print("[WARNING] get_llm_instance() works but API key not set (expected)")
         else:
             raise
+    finally:
+        if previous_model_name is None:
+            os.environ.pop("LLM_MODEL_NAME", None)
+        else:
+            os.environ["LLM_MODEL_NAME"] = previous_model_name
+
+def test_resolve_llm_config_defaults():
+    """Test default config resolution."""
+    previous_model_name = os.environ.pop("LLM_MODEL_NAME", None)
+    previous_provider = os.environ.pop("LLM_PROVIDER", None)
+    try:
+        config = resolve_llm_config()
+        assert config.provider == LLMProvider.OPENAI
+        assert config.model_name == "gpt-4o-mini"
+        print("[OK] resolve_llm_config() defaults to gpt-4o-mini")
+    finally:
+        if previous_model_name is None:
+            os.environ.pop("LLM_MODEL_NAME", None)
+        else:
+            os.environ["LLM_MODEL_NAME"] = previous_model_name
+        if previous_provider is None:
+            os.environ.pop("LLM_PROVIDER", None)
+        else:
+            os.environ["LLM_PROVIDER"] = previous_provider
 
 def test_env_config():
     """Test loading config from environment."""
@@ -95,6 +125,7 @@ def main():
         test_provider_enum()
         test_llm_config()
         test_factory_defaults()
+        test_resolve_llm_config_defaults()
         test_get_llm_instance()
         test_env_config()
         
