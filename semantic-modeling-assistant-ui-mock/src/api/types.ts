@@ -78,6 +78,51 @@ export type ExportOntologyToDataSpecerRequest = {
   put_url: string
 }
 
+export type ExportOntologyToOfnRequest = {
+  ontology_uri: string
+  vocabulary_iri?: string
+}
+
+export type OfnMultilingualText = {
+  cs?: string
+  en?: string
+}
+
+export type OfnPojem = {
+  iri: string
+  typ: string[]
+  název: OfnMultilingualText
+  popis?: OfnMultilingualText
+  definice?: OfnMultilingualText
+  'definiční-obor'?: string
+  'obor-hodnot'?: string
+  'nadřazená-třída'?: string[]
+  'nadřazený-vztah'?: string[]
+  'nadřazená-vlastnost'?: string[]
+  'definující-ustanovení-právního-předpisu'?: string[]
+  'související-ustanovení-právního-předpisu'?: string[]
+  [key: string]: unknown
+}
+
+export type OfnDocument = {
+  '@context': string | string[]
+  iri: string
+  typ: string[]
+  název: OfnMultilingualText
+  popis?: OfnMultilingualText
+  vytvořeno?: {
+    typ: string
+    datum?: string
+    datum_a_čas?: string
+  }
+  aktualizováno?: {
+    typ: string
+    datum?: string
+    datum_a_čas?: string
+  }
+  pojmy?: OfnPojem[]
+}
+
 export type ProjectSummary = {
   id: string
   name: string
@@ -226,6 +271,11 @@ export type IterationAppliedResponse = {
   applied_operations_count: number
   ontology_changes: Record<string, number>
   updated_ontology: OntologyModel
+  ofn_saved?: boolean
+  ofn_path?: string | null
+  ofn_absolute_path?: string | null
+  ofn_pojmy_count?: number | null
+  ofn_overwrote_existing?: boolean | null
 }
 
 export type SuccessResponse = {

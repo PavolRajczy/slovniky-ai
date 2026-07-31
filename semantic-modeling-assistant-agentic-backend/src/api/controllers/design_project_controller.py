@@ -14,6 +14,10 @@ from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
+from design_project.ofn_store import (
+    load_project_ofn,
+    regenerate_and_save_project_ofn,
+)
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
     DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
@@ -2570,6 +2574,14 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             project_id=project_id,
             operations=operations
         )
+
+        ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+        logger.info(
+            "Saved project OFN to %s (pojmy=%s, overwrite=%s)",
+            ofn_result["absolute_path"],
+            ofn_result["pojmy_count"],
+            ofn_result["overwrote_existing"],
+        )
         
         # Calculate statistics (simplified)
         stats = {
@@ -2586,7 +2598,12 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             status="completed",
             applied_operations_count=len(operations),
             ontology_changes=stats,
-            updated_ontology=_convert_ontology_to_model(updated_ontology)
+            updated_ontology=_convert_ontology_to_model(updated_ontology),
+            ofn_saved=True,
+            ofn_path=ofn_result["path"],
+            ofn_absolute_path=ofn_result["absolute_path"],
+            ofn_pojmy_count=ofn_result["pojmy_count"],
+            ofn_overwrote_existing=ofn_result["overwrote_existing"],
         )
     
     except FileNotFoundError:
@@ -2695,6 +2712,69 @@ async def get_project_ontology(
         )
 
 
+@router.get("/projects/{project_id}/ofn")
+async def get_project_ofn(project_id: str):
+    """
+    Return the project's saved OFN Slovníky JSON (`data/projects/{id}/ofn.json`).
+
+    Returns 404 if finalize/apply has not produced an OFN file yet.
+    """
+    try:
+        design_project_service.load_project(project_id)
+        document = load_project_ofn(project_id)
+        if document is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No OFN file for project '{project_id}'. "
+                    "Finalize/apply changes first, or call POST /ofn/regenerate."
+                ),
+            )
+        return document
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except Exception as e:
+        logger.error(f"Error loading project OFN: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load project OFN: {str(e)}",
+        )
+
+
+@router.post("/projects/{project_id}/ofn/regenerate")
+async def regenerate_project_ofn_endpoint(project_id: str):
+    """
+    Regenerate OFN from the current project ontology and overwrite `ofn.json`.
+    """
+    try:
+        project = design_project_service.load_project(project_id)
+        result = regenerate_and_save_project_ofn(project_id, project.designedOntology)
+        return {
+            "success": True,
+            "ofn_path": result["path"],
+            "ofn_absolute_path": result["absolute_path"],
+            "ofn_pojmy_count": result["pojmy_count"],
+            "ofn_overwrote_existing": result["overwrote_existing"],
+            "document": result["document"],
+        }
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except Exception as e:
+        logger.error(f"Error regenerating project OFN: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate project OFN: {str(e)}",
+        )
+
+
 # ============================================================================
 # Ontology Edit from Instruction (no iteration)
 # ============================================================================
@@ -2732,12 +2812,19 @@ async def generate_operations_from_instruction(project_id: str, request: Generat
 async def apply_operations_to_project_ontology_endpoint(project_id: str, request: ApplyProjectOperationsRequest):
     """
     Apply the given operations directly to the project's designed ontology (no iteration).
-    Saves the project and persists the ontology.
+    Saves the project, persists the ontology, and regenerates project OFN (overwrite).
     """
     try:
         domain_operations = [_convert_model_to_operation(m) for m in request.operations]
         updated_ontology = design_project_service.apply_operations_to_project_ontology(
             project_id, domain_operations
+        )
+        ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+        logger.info(
+            "Saved project OFN to %s after direct apply (pojmy=%s, overwrite=%s)",
+            ofn_result["absolute_path"],
+            ofn_result["pojmy_count"],
+            ofn_result["overwrote_existing"],
         )
         return _convert_ontology_to_model(updated_ontology)
     except FileNotFoundError:
