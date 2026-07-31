@@ -1,11 +1,11 @@
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  WorkflowStepper,
-  resolveWorkflowContext,
-} from '@/components/workflow'
 import { ApiError } from '@/api/client'
+import { PageBackLink } from '@/components/PageBackLink'
+import { actionButton, CardActions } from '@/components/ActionButtons'
+import { AppliedReviewSummaryModal, buildModalReviewGroups } from '@/components/AppliedReviewSummaryModal'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getProject } from '@/api/projects'
 import { listIterations } from '@/api/iterations'
 import { listTaskPatterns } from '@/api/patterns'
@@ -24,6 +24,15 @@ import type {
   DesignTaskModel,
   DesignTaskStatus,
 } from '@/api/types'
+import {
+  listAppliedReviewSummaries,
+  mergeAppliedReviewSummaries,
+} from '@/utils/appliedReviewStorage'
+import {
+  clearOfnSaveFeedback,
+  readOfnSaveFeedback,
+  type OfnSaveFeedback,
+} from '@/utils/ofnSaveFeedback'
 
 const tasksRouteApi = getRouteApi('/tasks')
 
@@ -64,9 +73,17 @@ const INITIAL_TASK_FORM: TaskFormState = { name: '', specification: '', patternI
 
 export function TasksPage() {
   const { projectId, domainId, iterationId, taskId } = tasksRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext({ projectId, domainId, iterationId, taskId })
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [ofnFeedback, setOfnFeedback] = useState<OfnSaveFeedback | null>(null)
+
+  useEffect(() => {
+    if (!projectId) {
+      setOfnFeedback(null)
+      return
+    }
+    setOfnFeedback(readOfnSaveFeedback(projectId))
+  }, [projectId])
 
   const projectQuery = useQuery({
     queryKey: ['project', projectId],
@@ -114,6 +131,9 @@ export function TasksPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<TaskFormState>(INITIAL_TASK_FORM)
   const [editError, setEditError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DesignTaskModel | null>(null)
+  const [appliedSummaryOpen, setAppliedSummaryOpen] = useState(false)
+  const [appliedSummaryFocusTaskId, setAppliedSummaryFocusTaskId] = useState<string | null>(null)
 
   // Default pattern in form once patterns load
   useEffect(() => {
@@ -175,7 +195,10 @@ export function TasksPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteTask(projectId!, activeIterationId!, id),
-    onSuccess: invalidateTasks,
+    onSuccess: async () => {
+      setDeleteTarget(null)
+      await invalidateTasks()
+    },
   })
 
   const prepareMutation = useMutation({
@@ -205,7 +228,6 @@ export function TasksPage() {
   if (!projectId) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <WorkflowStepper activeStep="tasks" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Open the{' '}
           <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
@@ -220,7 +242,6 @@ export function TasksPage() {
   if (!iterationsQuery.isLoading && allIterations.length === 0) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <WorkflowStepper activeStep="tasks" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           This project has no next directions yet. Ask for one in{' '}
           <Link to="/iterations-v2" search={{ projectId, domainId: undefined }} className="font-medium underline">
@@ -234,6 +255,26 @@ export function TasksPage() {
 
   const tasks = collectTasks(tasksQuery.data ?? null)
   const tasksByStatus = groupByStatus(tasks)
+  const plannedTasks = tasksByStatus.get('planned') ?? []
+  const appliedTasks = tasksByStatus.get('completed') ?? []
+  const appliedReviewSummaries = useMemo(
+    () =>
+      projectId && activeIterationId
+        ? listAppliedReviewSummaries(projectId, activeIterationId)
+        : [],
+    [projectId, activeIterationId, tasks],
+  )
+  const mergedAppliedReview = useMemo(
+    () => mergeAppliedReviewSummaries(appliedReviewSummaries),
+    [appliedReviewSummaries],
+  )
+  const appliedSummaryGroups = useMemo(
+    () => buildModalReviewGroups(mergedAppliedReview.kept, mergedAppliedReview.rejected),
+    [mergedAppliedReview],
+  )
+  const appliedSummaryFocusTask = appliedSummaryFocusTaskId
+    ? appliedTasks.find((task) => task.id === appliedSummaryFocusTaskId) ?? null
+    : null
   const isIterationPlanned = activeIteration?.status === 'planned' || activeIteration?.status === 'suggested'
   const canPlanWorkItems = isIterationPlanned
   const canMovePlannedWorkItems = activeIteration?.status !== 'completed'
@@ -268,9 +309,17 @@ export function TasksPage() {
   }
 
   const handleDelete = (task: DesignTaskModel) => {
-    const ok = window.confirm(`Delete work item "${task.name}"?`)
-    if (!ok) return
-    deleteMutation.mutate(task.id)
+    setDeleteTarget(task)
+  }
+
+  const openAppliedSummary = (focusTaskId: string | null) => {
+    setAppliedSummaryFocusTaskId(focusTaskId)
+    setAppliedSummaryOpen(true)
+  }
+
+  const closeAppliedSummary = () => {
+    setAppliedSummaryOpen(false)
+    setAppliedSummaryFocusTaskId(null)
   }
 
   const handlePrepare = (targetTaskId?: string, openReview = true) => {
@@ -285,7 +334,62 @@ export function TasksPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <WorkflowStepper activeStep="tasks" linkContext={linkContext} />
+      <PageBackLink
+        to="/iterations-v2"
+        search={{ projectId, domainId: activeIteration?.focused_area_id ?? domainId }}
+        label="next directions"
+      />
+
+      {ofnFeedback ? (
+        <section className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-sky-950 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                OFN saved on finalize
+              </p>
+              <p className="mt-1">
+                {ofnFeedback.overwroteExisting
+                  ? 'Existing project OFN was overwritten.'
+                  : 'New project OFN file was created.'}{' '}
+                Concepts: <span className="font-semibold tabular-nums">{ofnFeedback.pojmyCount}</span>
+              </p>
+              <p className="mt-1 break-all font-mono text-[11px] text-sky-900/80">
+                {ofnFeedback.absolutePath}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/export-result"
+                search={{
+                  projectId,
+                  domainId,
+                  iterationId,
+                  taskId: undefined,
+                  approved: undefined,
+                  pending: undefined,
+                  rejected: undefined,
+                  regenerated: undefined,
+                  guidanceUpdated: undefined,
+                }}
+                className="rounded-lg bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800"
+              >
+                Open OFN export
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  clearOfnSaveFeedback()
+                  setOfnFeedback(null)
+                }}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-medium text-sky-900 hover:bg-sky-50"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <DirectionWorkPanel
         activeIteration={activeIteration}
         allIterations={allIterations}
@@ -308,80 +412,246 @@ export function TasksPage() {
         }}
       />
 
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Prepare changes</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Break the selected direction into concrete work items, then let the assistant prepare proposed
-            ontology changes for review.
-          </p>
-          <p className="mt-2 text-xs text-slate-500">
-            For a lighter review, use the arrow on a work item card to move it into Ready to review, then
-            review only that item.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/iterations-v2"
-            search={{ projectId, domainId }}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Back to next directions
-          </Link>
-        </div>
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Prepare changes</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Break the selected direction into concrete work items, then let the assistant prepare proposed
+          ontology changes for review.
+        </p>
+        <p className="mt-2 text-xs text-slate-500">
+          For a lighter review, use the arrow on a work item card to move it into Ready to review, then
+          review only that item.
+        </p>
       </div>
 
-      {activeIteration ? (
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={() => handlePrepare()}
-            disabled={
-              !canMovePlannedWorkItems ||
-              tasks.length === 0 ||
-              prepareMutation.isPending ||
-              projectQuery.isLoading
-            }
-            className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
-            title={
-              !canMovePlannedWorkItems
-                ? 'This direction is already ready for review or applied.'
-                : tasks.length === 0
-                ? 'Add at least one work item before preparing changes.'
-                : 'Generate proposed changes and open review.'
-            }
-          >
-            {prepareMutation.isPending ? 'Preparing…' : 'Prepare all work items'}
-          </button>
-        </div>
-      ) : null}
       {prepareError ? (
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
           {prepareError}
         </p>
       ) : null}
 
-      {activeIteration?.status === 'prepared' ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <p className="font-medium">Changes are ready for review.</p>
-          <p className="mt-1 text-amber-900/90">
-            Open a work item below to review a smaller set of changes. Use the{' '}
-            <Link
-              to="/operations"
-              search={{
-                projectId,
-                domainId: activeIteration.focused_area_id,
-                iterationId: activeIterationId,
-                taskId: undefined,
-              }}
-              className="font-medium underline"
-            >
-              full review page
-            </Link>
-            {' '}only when you want to inspect everything at once.
-          </p>
-        </div>
-      ) : null}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {COLUMNS.map((column) => (
+          <section key={column.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                {column.label}
+              </h3>
+              <div className="flex items-center gap-2">
+                {column.id === 'completed' && appliedTasks.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => openAppliedSummary(null)}
+                    className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    View all applied
+                  </button>
+                ) : null}
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${columnStyles[column.id]}`}
+                >
+                  {(tasksByStatus.get(column.id) ?? []).length}
+                </span>
+              </div>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">{column.description}</p>
+            {column.id === 'planned' && activeIteration && plannedTasks.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => handlePrepare()}
+                disabled={!canMovePlannedWorkItems || prepareMutation.isPending || projectQuery.isLoading}
+                className="mt-3 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+                title={
+                  !canMovePlannedWorkItems
+                    ? 'This direction is already ready for review or applied.'
+                    : 'Generate proposed changes and open review.'
+                }
+              >
+                {prepareMutation.isPending ? 'Preparing…' : 'Prepare all work items'}
+              </button>
+            ) : null}
+            <div className="mt-4 space-y-3">
+              {tasksQuery.isLoading ? (
+                <p className="text-xs text-slate-500">Loading work items…</p>
+              ) : (tasksByStatus.get(column.id) ?? []).length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">
+                  No work items.
+                </p>
+              ) : (
+                (tasksByStatus.get(column.id) ?? []).map((task) => {
+                  const isEditing = canMovePlannedWorkItems && editingId === task.id
+                  const pattern = patterns.find((p) => p.id === task.followed_pattern_id)
+                  if (isEditing) {
+                    return (
+                      <article
+                        key={task.id}
+                        className="rounded-xl border border-emerald-300 bg-white p-3"
+                      >
+                        <form onSubmit={handleSaveEdit} className="space-y-2">
+                          <input
+                            value={editForm.name}
+                            onChange={(event) =>
+                              setEditForm((s) => ({ ...s, name: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                          <select
+                            value={editForm.patternId}
+                            onChange={(event) =>
+                              setEditForm((s) => ({ ...s, patternId: event.target.value }))
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          >
+                            {patterns.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <textarea
+                            value={editForm.specification}
+                            onChange={(event) =>
+                              setEditForm((s) => ({ ...s, specification: event.target.value }))
+                            }
+                            rows={2}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                          />
+                          {editError ? (
+                            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                              {editError}
+                            </p>
+                          ) : null}
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingId(null)
+                                setEditError(null)
+                              }}
+                              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={updateMutation.isPending}
+                              className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+                            >
+                              {updateMutation.isPending ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </form>
+                      </article>
+                    )
+                  }
+                  return (
+                    <article
+                      key={task.id}
+                      className={`rounded-xl border bg-slate-50/60 p-3 ${
+                        task.status === 'completed'
+                          ? 'cursor-pointer border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/40'
+                          : 'border-slate-200'
+                      }`}
+                      onClick={
+                        task.status === 'completed'
+                          ? () => openAppliedSummary(task.id)
+                          : undefined
+                      }
+                      onKeyDown={
+                        task.status === 'completed'
+                          ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault()
+                                openAppliedSummary(task.id)
+                              }
+                            }
+                          : undefined
+                      }
+                      role={task.status === 'completed' ? 'button' : undefined}
+                      tabIndex={task.status === 'completed' ? 0 : undefined}
+                    >
+                      <p className="text-sm font-semibold text-slate-900">{task.name}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Modeling pattern: {pattern?.name ?? task.followed_pattern_id}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-700 line-clamp-3">{task.specification}</p>
+                      <CardActions className="mt-3">
+                        {task.status === 'generating' ? (
+                          <Link
+                            to="/operations"
+                            search={{
+                              projectId,
+                              domainId: activeIteration?.focused_area_id ?? domainId,
+                              iterationId: activeIterationId,
+                              taskId: task.id,
+                            }}
+                            className={actionButton.primarySm}
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            Review this work item
+                          </Link>
+                        ) : null}
+                        {task.status === 'completed' ? (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              openAppliedSummary(task.id)
+                            }}
+                            className={actionButton.secondarySm}
+                          >
+                            View summary
+                          </button>
+                        ) : null}
+                        {canMovePlannedWorkItems && task.status === 'planned' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handlePrepare(task.id, false)
+                              }}
+                              disabled={prepareMutation.isPending || projectQuery.isLoading}
+                              className={actionButton.primarySm}
+                            >
+                              {prepareMutation.isPending && prepareMutation.variables?.targetTaskId === task.id
+                                ? 'Preparing…'
+                                : 'Prepare'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                startEdit(task)
+                              }}
+                              className={actionButton.secondarySm}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleDelete(task)
+                              }}
+                              disabled={
+                                deleteMutation.isPending && deleteMutation.variables === task.id
+                              }
+                              className={actionButton.dangerSm}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        ) : null}
+                      </CardActions>
+                    </article>
+                  )
+                })
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
 
       {canPlanWorkItems ? (
         <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
@@ -500,161 +770,28 @@ export function TasksPage() {
         </section>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {COLUMNS.map((column) => (
-          <section key={column.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                {column.label}
-              </h3>
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${columnStyles[column.id]}`}
-              >
-                {(tasksByStatus.get(column.id) ?? []).length}
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500">{column.description}</p>
-            <div className="mt-4 space-y-3">
-              {tasksQuery.isLoading ? (
-                <p className="text-xs text-slate-500">Loading work items…</p>
-              ) : (tasksByStatus.get(column.id) ?? []).length === 0 ? (
-                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs text-slate-500">
-                  No work items.
-                </p>
-              ) : (
-                (tasksByStatus.get(column.id) ?? []).map((task) => {
-                  const isEditing = canMovePlannedWorkItems && editingId === task.id
-                  const pattern = patterns.find((p) => p.id === task.followed_pattern_id)
-                  if (isEditing) {
-                    return (
-                      <article
-                        key={task.id}
-                        className="rounded-xl border border-emerald-300 bg-white p-3"
-                      >
-                        <form onSubmit={handleSaveEdit} className="space-y-2">
-                          <input
-                            value={editForm.name}
-                            onChange={(event) =>
-                              setEditForm((s) => ({ ...s, name: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          />
-                          <select
-                            value={editForm.patternId}
-                            onChange={(event) =>
-                              setEditForm((s) => ({ ...s, patternId: event.target.value }))
-                            }
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          >
-                            {patterns.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.name}
-                              </option>
-                            ))}
-                          </select>
-                          <textarea
-                            value={editForm.specification}
-                            onChange={(event) =>
-                              setEditForm((s) => ({ ...s, specification: event.target.value }))
-                            }
-                            rows={2}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          />
-                          {editError ? (
-                            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-                              {editError}
-                            </p>
-                          ) : null}
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingId(null)
-                                setEditError(null)
-                              }}
-                              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={updateMutation.isPending}
-                              className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
-                            >
-                              {updateMutation.isPending ? 'Saving…' : 'Save'}
-                            </button>
-                          </div>
-                        </form>
-                      </article>
-                    )
-                  }
-                  return (
-                    <article
-                      key={task.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
-                    >
-                      <p className="text-sm font-semibold text-slate-900">{task.name}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Modeling pattern: {pattern?.name ?? task.followed_pattern_id}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-700 line-clamp-3">{task.specification}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {task.status === 'generating' ? (
-                          <Link
-                            to="/operations"
-                            search={{
-                              projectId,
-                              domainId: activeIteration?.focused_area_id ?? domainId,
-                              iterationId: activeIterationId,
-                              taskId: task.id,
-                            }}
-                            className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
-                          >
-                            Review this work item
-                          </Link>
-                        ) : null}
-                        {canMovePlannedWorkItems && task.status === 'planned' ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handlePrepare(task.id, false)}
-                              disabled={prepareMutation.isPending || projectQuery.isLoading}
-                              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-                              title="Move to Ready to review"
-                              aria-label={`Move ${task.name} to Ready to review`}
-                            >
-                              {prepareMutation.isPending && prepareMutation.variables?.targetTaskId === task.id
-                                ? '…'
-                                : '→'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => startEdit(task)}
-                              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(task)}
-                              disabled={
-                                deleteMutation.isPending && deleteMutation.variables === task.id
-                              }
-                              className="rounded-md border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
-                            >
-                              Delete
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-                    </article>
-                  )
-                })
-              )}
-            </div>
-          </section>
-        ))}
-      </div>
+      {deleteTarget ? (
+        <ConfirmDialog
+          title={`Delete work item "${deleteTarget.name}"?`}
+          description="This cannot be undone. Any prepared changes for this work item will be removed."
+          confirmLabel="Delete work item"
+          isConfirmPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      ) : null}
+
+      {appliedSummaryOpen ? (
+        <AppliedReviewSummaryModal
+          title="All applied work items"
+          subtitle="Combined summary of kept and rejected changes across every applied work item in this direction."
+          keptCount={mergedAppliedReview.kept.length}
+          rejectedCount={mergedAppliedReview.rejected.length}
+          summaries={appliedSummaryGroups}
+          focusTaskName={appliedSummaryFocusTask?.name ?? null}
+          onClose={closeAppliedSummary}
+        />
+      ) : null}
     </div>
   )
 }

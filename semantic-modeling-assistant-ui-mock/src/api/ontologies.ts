@@ -1,7 +1,9 @@
 import { apiFetch } from './client'
 import type {
   ExportOntologyToDataSpecerRequest,
+  ExportOntologyToOfnRequest,
   ImportOntologyFromDataSpecerRequest,
+  OfnDocument,
   OntologyMetadata,
   OntologyModel,
   SuccessResponse,
@@ -28,6 +30,13 @@ export function exportOntologyToDataspecer(
   body: ExportOntologyToDataSpecerRequest,
 ): Promise<SuccessResponse> {
   return apiFetch<SuccessResponse>('/ontologies/export-to-dataspecer', {
+    method: 'POST',
+    body,
+  })
+}
+
+export function exportOntologyToOfn(body: ExportOntologyToOfnRequest): Promise<OfnDocument> {
+  return apiFetch<OfnDocument>('/ontologies/export-to-ofn', {
     method: 'POST',
     body,
   })

@@ -1,7 +1,9 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { WorkflowStepper, resolveWorkflowContext } from '@/components/workflow'
+import { resolveWorkflowContext } from '@/components/workflow'
+import { PageBackLink } from '@/components/PageBackLink'
+import { OfnExportPanel } from '@/components/OfnExportPanel'
 import { ApiError } from '@/api/client'
 import { getProject } from '@/api/projects'
 import { exportOntologyToDataspecer, getOntology } from '@/api/ontologies'
@@ -93,17 +95,6 @@ export function ExportResultPage() {
     taskId: search.taskId,
   }
 
-  const exportSearch = {
-    domainId: linkContext.domainId,
-    iterationId: linkContext.iterationId,
-    taskId: linkContext.taskId,
-    approved: recap.approved,
-    pending: recap.pending,
-    rejected: recap.rejected,
-    regenerated: recap.regenerated,
-    guidanceUpdated: recap.guidanceUpdated,
-  }
-
   const operationsSearch = {
     projectId,
     domainId: linkContext.domainId,
@@ -132,7 +123,6 @@ export function ExportResultPage() {
   if (!projectId) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
-        <WorkflowStepper activeStep="export" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Pick or create a project on the{' '}
           <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
@@ -148,8 +138,8 @@ export function ExportResultPage() {
   const exportPending = exportMutation.isPending
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <WorkflowStepper activeStep="export" exportSearch={exportSearch} linkContext={linkContext} />
+    <div className="mx-auto max-w-5xl space-y-6">
+      <PageBackLink to="/operations" search={operationsSearch} label="review changes" />
 
       <section
         className={`rounded-2xl border p-6 shadow-sm ${
@@ -167,8 +157,8 @@ export function ExportResultPage() {
         </h2>
         <p className={`mt-2 text-sm ${exportSucceeded ? 'text-emerald-900/90' : 'text-slate-600'}`}>
           {exportSucceeded
-            ? 'The designed ontology was pushed to Dataspecer.'
-            : 'Approved changes are now part of the designed ontology. Push it back to Dataspecer to update the public specification.'}
+            ? 'The designed ontology was pushed to Dataspecer. Project OFN is updated automatically on finalize.'
+            : 'Approved changes are part of the designed ontology. Finalize already regenerates project OFN; Dataspecer export below is optional.'}
         </p>
 
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
@@ -200,7 +190,7 @@ export function ExportResultPage() {
           ) : null}
           {exportSucceeded ? (
             <p className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900">
-              Last export succeeded. You can re-run it any time after the next iteration.
+              Last Dataspecer export succeeded. You can re-run it any time after the next direction.
             </p>
           ) : null}
 
@@ -216,16 +206,11 @@ export function ExportResultPage() {
                 ? 'Re-export to Dataspecer'
                 : 'Export to Dataspecer'}
             </button>
-            <Link
-              to="/operations"
-              search={operationsSearch}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Back to review changes
-            </Link>
           </div>
         </form>
       </section>
+
+      <OfnExportPanel projectId={projectId} projectName={projectQuery.data?.name} />
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ontology snapshot</h3>
@@ -309,11 +294,11 @@ export function ExportResultPage() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Next steps</h3>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            to="/iterations"
+            to="/iterations-v2"
             search={iterationsSearch}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Start next iteration
+            Start next direction
           </Link>
           <Link
             to="/guidance"
@@ -321,13 +306,6 @@ export function ExportResultPage() {
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Open guidance
-          </Link>
-          <Link
-            to="/operations"
-            search={operationsSearch}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Back to review changes
           </Link>
         </div>
       </section>
