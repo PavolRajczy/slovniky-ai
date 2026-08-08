@@ -1,0 +1,93 @@
+{
+  "@context": "https://ofn.gov.cz/slovníky/2026-02-26/kompletní/kontext.jsonld",
+  "iri": "https://slovník.gov.cz/legislativní/sbírka/56/2001",
+  "typ": [
+    "Slovník",
+    "Tezaurus",
+    "Konceptuální model"
+  ],
+  "název": {
+    "cs": "Slovník zákona č. 56/2001 Sb."
+  },
+  "popis": {
+    "cs": "Slovník zákona o podmínkách provozu vozidel na pozemních komunikacích."
+  },
+  "vytvořeno": {
+    "typ": "Časový okamžik",
+    "datum": "2026-07-03"
+  },
+  "aktualizováno": {
+    "typ": "Časový okamžik",
+    "datum_a_čas": "2026-07-03T07:01:32+00:00"
+  },
+  "pojmy": [
+    {
+      "iri": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/silniční-vozidlo",
+      "typ": [
+        "Koncept",
+        "Pojem",
+        "Třída",
+        "Typ objektu práva"
+      ],
+      "název": {
+        "cs": "Silniční vozidlo"
+      },
+      "definice": {
+        "cs": "Silniční vozidlo je motorové nebo nemotorové vozidlo, které je vyrobené za účelem provozu na pozemních komunikacích pro přepravu osob, zvířat nebo věcí."
+      },
+      "definující-ustanovení-právního-předpisu": [
+        "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2026-01-01/dokument/norma/cast_1/par_2/odst_1"
+      ],
+      "nadřazená-třída": [
+        "https://slovník.gov.cz/legislativní/sbírka/361/2000/pojem/vozidlo"
+      ]
+    },
+    {
+      "iri": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/vlastník-vozidla",
+      "typ": [
+        "Koncept",
+        "Pojem",
+        "Třída",
+        "Typ subjektu práva"
+      ],
+      "název": {
+        "cs": "Vlastník vozidla"
+      },
+      "definice": {
+        "cs": "Fyzická nebo právnická osoba, která je vlastníkem vozidla."
+      }
+    },
+    {
+      "iri": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/je-vlastníkem",
+      "typ": [
+        "Koncept",
+        "Pojem",
+        "Vztah"
+      ],
+      "název": {
+        "cs": "je vlastníkem"
+      },
+      "definiční-obor": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/vlastník-vozidla",
+      "obor-hodnot": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/silniční-vozidlo",
+      "definice": {
+        "cs": "Vztah mezi vlastníkem vozidla a silničním vozidlem."
+      }
+    },
+    {
+      "iri": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/registrační-značka",
+      "typ": [
+        "Koncept",
+        "Pojem",
+        "Vlastnost"
+      ],
+      "název": {
+        "cs": "registrační značka"
+      },
+      "definiční-obor": "https://slovník.gov.cz/legislativní/sbírka/56/2001/pojem/silniční-vozidlo",
+      "obor-hodnot": "xsd:string",
+      "definice": {
+        "cs": "Evidenční číslo přidělené silničnímu vozidlu."
+      }
+    }
+  ]
+}

@@ -14,7 +14,7 @@ export function WorkflowContextCapsule({ linkContext, goal = mockWorkflowContext
   const task = mockTasks.find((t) => t.id === linkContext.taskId)
 
   return (
-    <section className="sticky top-0 z-10 rounded-xl border border-slate-200/90 bg-gradient-to-r from-slate-50 to-white px-4 py-3 shadow-sm backdrop-blur-sm">
+    <section className="sticky top-0 z-10 rounded-xl border border-slate-200/90 bg-linear-to-r from-slate-50 to-white px-4 py-3 shadow-sm backdrop-blur-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current context</p>
@@ -25,7 +25,7 @@ export function WorkflowContextCapsule({ linkContext, goal = mockWorkflowContext
             <span className="font-mono text-[11px] text-slate-500">{linkContext.iterationId}</span>
           </p>
           <p className="text-xs text-slate-600">
-            <span className="font-medium text-slate-700">Task:</span> {task?.title ?? linkContext.taskId}
+            <span className="font-medium text-slate-700">Work item:</span> {task?.title ?? linkContext.taskId}
             <span className="mx-2 text-slate-300">·</span>
             <span className="font-mono text-[11px] text-slate-500">{linkContext.taskId}</span>
           </p>
@@ -36,13 +36,14 @@ export function WorkflowContextCapsule({ linkContext, goal = mockWorkflowContext
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link
             to="/domain-areas"
+            search={{ projectId: linkContext.projectId }}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            Domain areas
+            Domain map
           </Link>
           <Link
             to="/iterations"
-            search={{ domainId: linkContext.domainId }}
+            search={{ projectId: linkContext.projectId, domainId: linkContext.domainId }}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             Iterations
@@ -50,13 +51,14 @@ export function WorkflowContextCapsule({ linkContext, goal = mockWorkflowContext
           <Link
             to="/tasks"
             search={{
+              projectId: linkContext.projectId,
               domainId: linkContext.domainId,
               iterationId: linkContext.iterationId,
               taskId: linkContext.taskId,
             }}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            Tasks
+            Prepare changes
           </Link>
         </div>
       </div>

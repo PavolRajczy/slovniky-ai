@@ -662,6 +662,90 @@ class DesignProjectService:
             self.store.store_project(project)
             raise e
 
+    def prepare_planned_iteration_task(self, project_id: str, iteration_id: str, task_id: str):
+        """
+        Prepares a single planned task by generating only that task's operations.
+        Existing prepared operations for other tasks are preserved.
+        """
+        project = self.store.load_project(project_id)
+        iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
+
+        if iteration:
+            if project.currentIteration and project.currentIteration.id != iteration_id:
+                raise ValueError("Another iteration is already being prepared.")
+            project.plannedIterations.remove(iteration)
+            project.currentIteration = iteration
+        else:
+            iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
+
+        if not iteration:
+            raise ValueError(f"Iteration not found: {iteration_id}")
+
+        if iteration.status not in [
+            DesignIterationStatus.PLANNED,
+            DesignIterationStatus.TASKS_PLANNED,
+            DesignIterationStatus.OPERATIONS_GENERATED,
+        ]:
+            raise ValueError(f"Iteration cannot prepare a single task from status: {iteration.status}")
+
+        task = next((t for t in iteration.plannedTasks if t.id == task_id), None)
+        if not task:
+            raise ValueError(f"Planned task not found: {task_id}")
+
+        existing_operations = [
+            identified_op
+            for identified_op in (iteration.plannedOperations or [])
+            if identified_op.created_from_task_id == task_id
+        ]
+        if existing_operations:
+            return existing_operations
+
+        import uuid
+        from design_project.domain import IdentifiedOperation
+
+        iteration.status = DesignIterationStatus.GENERATING_OPERATIONS
+        task.status = DesignTaskStatus.GENERATING_OPERATIONS
+
+        current_ontology = copy.deepcopy(project.designedOntology)
+        if iteration.plannedOperations:
+            self._apply_operations_to_ontology(
+                current_ontology,
+                [identified_op.operation for identified_op in iteration.plannedOperations],
+            )
+
+        project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
+
+        try:
+            edit_operations = self.modeler_agent.get_operations_for_design_task(
+                project,
+                current_ontology,
+                iteration,
+                task,
+                project_guidance_text=project_guidance,
+            )
+
+            identified_operations = [
+                IdentifiedOperation(
+                    id=str(uuid.uuid4()),
+                    operation=operation,
+                    created_from_task_id=task.id,
+                )
+                for operation in edit_operations
+            ]
+
+            task.status = DesignTaskStatus.OPERATIONS_GENERATED
+            iteration.currentTask = None
+            iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
+            iteration.plannedOperations = [*(iteration.plannedOperations or []), *identified_operations]
+
+            self.store.store_project(project)
+            return identified_operations
+        except Exception as e:
+            task.status = DesignTaskStatus.PLANNED
+            iteration.status = DesignIterationStatus.TASKS_PLANNED
+            self.store.store_project(project)
+            raise e
+
     def _rollback_iteration_state(self, project: DesignProject, iteration: DesignIteration) -> None:
         """
         Rollback the iteration state without touching the ontology.
@@ -791,20 +875,52 @@ class DesignProjectService:
             self._apply_operations_to_ontology(project.designedOntology, actual_operations, project)
             print(f"Successfully applied {len(actual_operations)} operations")
 
-            # Mark all tasks as completed
-            for task in iteration.plannedTasks:
-                task.status = DesignTaskStatus.COMPLETED
-                iteration.finishedTasks.append(task)
-            iteration.plannedTasks.clear()
+            persisted_operations = iteration.plannedOperations or []
+            is_partial_apply = operations is not None
+            applied_task_ids = {
+                identified_op.created_from_task_id
+                for identified_op in ops_to_apply
+                if identified_op.created_from_task_id
+            }
 
-            # Status transition: APPLYING_OPERATIONS -> COMPLETED
-            # Location transition: currentIteration -> finishedIterations
-            iteration.status = DesignIterationStatus.COMPLETED
-            project.finishedIterations.append(iteration)
-            project.currentIteration = None
+            if is_partial_apply and applied_task_ids:
+                remaining_tasks = []
+                for task in iteration.plannedTasks:
+                    if task.id in applied_task_ids:
+                        task.status = DesignTaskStatus.COMPLETED
+                        iteration.finishedTasks.append(task)
+                    else:
+                        remaining_tasks.append(task)
+                iteration.plannedTasks = remaining_tasks
 
-            # Clear the stored operations as they've been applied
-            iteration.plannedOperations = None
+                iteration.plannedOperations = [
+                    identified_op
+                    for identified_op in persisted_operations
+                    if identified_op.created_from_task_id not in applied_task_ids
+                ] or None
+
+                if iteration.plannedTasks:
+                    iteration.status = (
+                        DesignIterationStatus.OPERATIONS_GENERATED
+                        if iteration.plannedOperations
+                        else DesignIterationStatus.TASKS_PLANNED
+                    )
+                else:
+                    iteration.status = DesignIterationStatus.COMPLETED
+                    project.finishedIterations.append(iteration)
+                    project.currentIteration = None
+                    iteration.plannedOperations = None
+            else:
+                # Legacy full-iteration apply.
+                for task in iteration.plannedTasks:
+                    task.status = DesignTaskStatus.COMPLETED
+                    iteration.finishedTasks.append(task)
+                iteration.plannedTasks.clear()
+
+                iteration.status = DesignIterationStatus.COMPLETED
+                project.finishedIterations.append(iteration)
+                project.currentIteration = None
+                iteration.plannedOperations = None
 
             self.store.store_project(project)
             self.ontology_service.store_ontology(project.designedOntology)

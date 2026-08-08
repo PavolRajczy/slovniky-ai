@@ -12,12 +12,12 @@ export function NextActionBanner({ variant, operationsHasRejected }: NextActionB
       break
     case 'tasks':
       message =
-        "Run tasks as needed; open operations review from a task card to approve or reject that task's operations only."
+        "Run tasks as needed; open the change review from a task card to approve or reject that task's proposed changes only."
       break
     case 'operations':
       message = operationsHasRejected
-        ? 'Rejected operations can be regenerated in place. Update guidance if needed, then approve remaining operations and export.'
-        : 'Approve or reject each operation, then apply selected changes and continue to export.'
+        ? 'Rejected changes can be regenerated in place. Update guidance if needed, then approve remaining changes and export.'
+        : 'Approve or reject each proposed change, then apply selected changes and continue to export.'
       break
     default:
       message = ''

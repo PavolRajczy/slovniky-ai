@@ -89,6 +89,12 @@ class ExportOntologyToDataSpecerRequest(BaseModel):
     put_url: str
 
 
+class ExportOntologyToOfnRequest(BaseModel):
+    """Request to export ontology as OFN Slovníky JSON."""
+    ontology_uri: str
+    vocabulary_iri: Optional[str] = None
+
+
 class ImportOntologyFromDataSpecerRequest(BaseModel):
     """Request to import ontology from DataSpecer simplified-semantic-model URL."""
     url: str
@@ -327,6 +333,7 @@ class OntologyOperationModel(BaseModel):
     id: str  # Unique identifier for this operation instance
     operation_type: Literal["create", "update", "delete"]
     target_type: Literal["class", "attribute", "relationship"]
+    created_from_task_id: Optional[str] = None
     
     # Required for all operations
     uri: str
@@ -469,6 +476,11 @@ class IterationAppliedResponse(BaseModel):
     applied_operations_count: int
     ontology_changes: Dict[str, int]
     updated_ontology: OntologyModel
+    ofn_saved: bool = False
+    ofn_path: Optional[str] = None
+    ofn_absolute_path: Optional[str] = None
+    ofn_pojmy_count: Optional[int] = None
+    ofn_overwrote_existing: Optional[bool] = None
 
 
 class IterationsListResponse(BaseModel):

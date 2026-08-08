@@ -8,10 +8,15 @@ import { AppShell } from '@/shell/AppShell'
 import { ProjectSetupPage } from '@/pages/ProjectSetupPage'
 import { DomainAreasPage } from '@/pages/DomainAreasPage'
 import { IterationsPage } from '@/pages/IterationsPage'
+import { IterationsV2Page } from '@/pages/IterationsV2Page'
 import { TasksPage } from '@/pages/TasksPage'
 import { OperationsReviewPage } from '@/pages/OperationsReviewPage'
 import { GuidancePage } from '@/pages/GuidancePage'
 import { ExportResultPage } from '@/pages/ExportResultPage'
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
 
 const rootRoute = createRootRoute({
   component: AppShell,
@@ -20,18 +25,24 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <Navigate to="/project" replace />,
+  component: () => <Navigate to="/project" replace search={{ projectId: undefined }} />,
 })
 
 const projectRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/project',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+  }),
   component: ProjectSetupPage,
 })
 
 const domainAreasRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/domain-areas',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+  }),
   component: DomainAreasPage,
 })
 
@@ -39,18 +50,30 @@ const iterationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/iterations',
   validateSearch: (search: Record<string, unknown>) => ({
-    domainId: typeof search.domainId === 'string' ? search.domainId : undefined,
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
   }),
   component: IterationsPage,
+})
+
+const iterationsV2Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/iterations-v2',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+  }),
+  component: IterationsV2Page,
 })
 
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/tasks',
   validateSearch: (search: Record<string, unknown>) => ({
-    domainId: typeof search.domainId === 'string' ? search.domainId : undefined,
-    iterationId: typeof search.iterationId === 'string' ? search.iterationId : undefined,
-    taskId: typeof search.taskId === 'string' ? search.taskId : undefined,
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+    iterationId: readString(search.iterationId),
+    taskId: readString(search.taskId),
   }),
   component: TasksPage,
 })
@@ -59,9 +82,10 @@ const operationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/operations',
   validateSearch: (search: Record<string, unknown>) => ({
-    domainId: typeof search.domainId === 'string' ? search.domainId : undefined,
-    iterationId: typeof search.iterationId === 'string' ? search.iterationId : undefined,
-    taskId: typeof search.taskId === 'string' ? search.taskId : undefined,
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+    iterationId: readString(search.iterationId),
+    taskId: readString(search.taskId),
   }),
   component: OperationsReviewPage,
 })
@@ -69,6 +93,9 @@ const operationsRoute = createRoute({
 const guidanceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/guidance',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+  }),
   component: GuidancePage,
 })
 
@@ -94,12 +121,15 @@ const exportResultRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/export-result',
   validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+    domainId: readString(search.domainId),
+    iterationId: readString(search.iterationId),
+    taskId: readString(search.taskId),
     approved: parseOptionalNumber(search.approved),
     pending: parseOptionalNumber(search.pending),
     rejected: parseOptionalNumber(search.rejected),
     regenerated: parseOptionalNumber(search.regenerated),
     guidanceUpdated: parseOptionalBool(search.guidanceUpdated),
-    taskId: typeof search.taskId === 'string' ? search.taskId : undefined,
   }),
   component: ExportResultPage,
 })
@@ -109,6 +139,7 @@ const routeTree = rootRoute.addChildren([
   projectRoute,
   domainAreasRoute,
   iterationsRoute,
+  iterationsV2Route,
   tasksRoute,
   operationsRoute,
   guidanceRoute,
