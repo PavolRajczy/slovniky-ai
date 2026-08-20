@@ -1,0 +1,49 @@
+# Mock UI + agentic backend for local Docker Desktop.
+#
+# 1. Put OPENAI_API_KEY in the repo-root .env (see .env.example).
+# 2. From this directory:  docker compose up --build
+# 3. UI:  http://localhost:8080
+#    API: http://localhost:8000/api/docs
+#
+# Stop: Ctrl+C, then optionally  docker compose down
+
+name: slovniky-ai
+
+services:
+  backend:
+    build:
+      context: ./semantic-modeling-assistant-agentic-backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the repo-root .env file}
+    volumes:
+      - ./semantic-modeling-assistant-agentic-backend/data:/opt/backend/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  frontend:
+    build:
+      context: ./semantic-modeling-assistant-ui-mock
+      dockerfile: Dockerfile
+      args:
+        # Same-origin: the UI calls /api and nginx proxies to backend.
+        VITE_API_BASE_URL: same-origin
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy

@@ -17,6 +17,16 @@
 
 2. The API runs at `http://localhost:8000`. Health check: `http://localhost:8000/api/health`.
 
+## Docker
+
+From the **repository root** (not this folder), with `OPENAI_API_KEY` in `.env`:
+
+```bash
+docker compose up --build
+```
+
+API: http://localhost:8000 (`/api/docs`, `/api/health`). The `data/` directory is mounted into the container so projects and caches persist on the host. Full guide: [`DOCKER.md`](../DOCKER.md).
+
 ## Running the API example
 
 **Working directory:** same — `semantic-modeling-assistant-agentic-backend`.
