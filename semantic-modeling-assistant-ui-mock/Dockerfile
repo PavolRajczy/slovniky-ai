@@ -12,9 +12,8 @@ COPY . .
 ARG VITE_API_BASE_URL=same-origin
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
-# Production bundle. Typecheck with `npm run build` on the host if needed.
 RUN printf 'VITE_API_BASE_URL=%s\n' "$VITE_API_BASE_URL" > .env.production \
-    && npx vite build
+    && npm run build
 
 FROM nginx:1.27-alpine
 
