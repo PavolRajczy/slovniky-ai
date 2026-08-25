@@ -42,6 +42,8 @@ export type RegenerateProjectOfnResponse = {
   success: boolean
   ofn_path: string
   ofn_absolute_path: string
+  ofn_turtle_path?: string
+  ofn_turtle_absolute_path?: string
   ofn_pojmy_count: number
   ofn_overwrote_existing: boolean
   document: OfnDocument
@@ -52,6 +54,16 @@ export function getProjectOfn(
   signal?: AbortSignal,
 ): Promise<ProjectOfnDocument> {
   return apiFetch<ProjectOfnDocument>(`/projects/${projectId}/ofn`, { signal })
+}
+
+export function getProjectOfnTurtle(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  return apiFetch<string>(`/projects/${projectId}/ofn`, {
+    signal,
+    query: { format: 'turtle' },
+  })
 }
 
 export function regenerateProjectOfn(projectId: string): Promise<RegenerateProjectOfnResponse> {

@@ -36,6 +36,9 @@ def test_regenerate_overwrites_project_ofn(tmp_path: Path):
     )
     assert first["overwrote_existing"] is False
     assert (tmp_path / project_id / "ofn.json").exists()
+    assert (tmp_path / project_id / "ofn.ttl").exists()
+    ttl = (tmp_path / project_id / "ofn.ttl").read_text(encoding="utf-8")
+    assert "Test vocab" in ttl
 
     loaded = load_project_ofn(project_id, base_dir=str(tmp_path))
     assert loaded is not None

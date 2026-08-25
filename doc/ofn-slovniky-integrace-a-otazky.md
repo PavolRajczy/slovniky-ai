@@ -40,7 +40,7 @@ flowchart LR
 
 | Požadavek | Rozhodnutí |
 |-----------|------------|
-| Formát | JSON (JSON-LD s povinným `@context`) |
+| Formát | JSON-LD (`ofn.json`) a Turtle (`ofn.ttl`) |
 | Úroveň složitosti | **Konceptuální model** (Třída / Vztah / Vlastnost) |
 | Rozšíření v1 | Mapování `Kind` → Typ subjektu/objektu práva |
 | Rozšíření později | RPP anotace, § 23 vyhlášky 360/2023 Sb. |

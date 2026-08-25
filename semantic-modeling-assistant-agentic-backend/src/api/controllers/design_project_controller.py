@@ -5,6 +5,7 @@ Main controller handling all design project operations and orchestrating the des
 """
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query
+from fastapi.responses import Response
 from urllib.parse import unquote
 import logging
 import uuid
@@ -16,6 +17,7 @@ from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from design_project.ofn_store import (
     load_project_ofn,
+    project_ofn_as_turtle,
     regenerate_and_save_project_ofn,
 )
 from design_project.domain import (
@@ -2713,14 +2715,28 @@ async def get_project_ontology(
 
 
 @router.get("/projects/{project_id}/ofn")
-async def get_project_ofn(project_id: str):
+async def get_project_ofn(project_id: str, format: str = Query("json")):
     """
-    Return the project's saved OFN Slovníky JSON (`data/projects/{id}/ofn.json`).
+    Return the project's saved OFN Slovníky document.
 
-    Returns 404 if finalize/apply has not produced an OFN file yet.
+    `format=json` (default) returns JSON-LD.
+    `format=turtle` or `format=ttl` returns the same vocabulary as Turtle.
     """
     try:
         design_project_service.load_project(project_id)
+        normalized_format = (format or "json").strip().lower()
+        if normalized_format in {"turtle", "ttl"}:
+            turtle = project_ofn_as_turtle(project_id)
+            if turtle is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        f"No OFN file for project '{project_id}'. "
+                        "Finalize/apply changes first, or call POST /ofn/regenerate."
+                    ),
+                )
+            return Response(content=turtle, media_type="text/turtle; charset=utf-8")
+
         document = load_project_ofn(project_id)
         if document is None:
             raise HTTPException(
@@ -2758,6 +2774,8 @@ async def regenerate_project_ofn_endpoint(project_id: str):
             "success": True,
             "ofn_path": result["path"],
             "ofn_absolute_path": result["absolute_path"],
+            "ofn_turtle_path": result["turtle_path"],
+            "ofn_turtle_absolute_path": result["turtle_absolute_path"],
             "ofn_pojmy_count": result["pojmy_count"],
             "ofn_overwrote_existing": result["overwrote_existing"],
             "document": result["document"],
