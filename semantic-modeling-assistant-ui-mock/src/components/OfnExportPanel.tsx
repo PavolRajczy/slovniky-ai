@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/client'
 import {
   getProjectOfn,
+  getProjectOfnTurtle,
   regenerateProjectOfn,
   type ProjectOfnDocument,
 } from '@/api/projects'
@@ -14,6 +15,7 @@ import {
 } from '@/utils/ofnSaveFeedback'
 
 type PojemKind = 'all' | 'Třída' | 'Vztah' | 'Vlastnost'
+type ExportFormat = 'json' | 'turtle'
 
 const KIND_FILTERS: { id: PojemKind; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -73,6 +75,7 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
   const [query, setQuery] = useState('')
   const [selectedIri, setSelectedIri] = useState<string | null>(null)
   const [showRaw, setShowRaw] = useState(false)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('json')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [saveFeedback, setSaveFeedback] = useState<OfnSaveFeedback | null>(null)
 
@@ -91,10 +94,18 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
     retry: false,
   })
 
+  const turtleQuery = useQuery({
+    queryKey: ['project-ofn-turtle', projectId],
+    queryFn: ({ signal }) => getProjectOfnTurtle(projectId!, signal),
+    enabled: Boolean(projectId) && Boolean(ofnQuery.data),
+    retry: false,
+  })
+
   const regenerateMutation = useMutation({
     mutationFn: () => regenerateProjectOfn(projectId!),
     onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: ['project-ofn', projectId] })
+      await queryClient.invalidateQueries({ queryKey: ['project-ofn-turtle', projectId] })
       if (projectId) {
         const feedback: OfnSaveFeedback = {
           projectId,
@@ -157,23 +168,31 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
     () => (document ? JSON.stringify(document, null, 2) : ''),
     [document],
   )
+  const turtleText = turtleQuery.data ?? ''
+  const exportText = exportFormat === 'turtle' ? turtleText : jsonText
+  const exportReady = exportFormat === 'turtle' ? turtleText.length > 0 : jsonText.length > 0
 
-  const downloadJson = () => {
-    if (!jsonText) return
-    const blob = new Blob([jsonText], { type: 'application/ld+json;charset=utf-8' })
+  const downloadExport = () => {
+    if (!exportText) return
+    const blob = new Blob([exportText], {
+      type:
+        exportFormat === 'turtle'
+          ? 'text/turtle;charset=utf-8'
+          : 'application/ld+json;charset=utf-8',
+    })
     const url = URL.createObjectURL(blob)
     const anchor = window.document.createElement('a')
     const slug = shortIri(document?.iri || 'slovnik') || 'ofn-slovnik'
     anchor.href = url
-    anchor.download = `${slug}.ofn.json`
+    anchor.download = exportFormat === 'turtle' ? `${slug}.ofn.ttl` : `${slug}.ofn.json`
     anchor.click()
     URL.revokeObjectURL(url)
   }
 
-  const copyJson = async () => {
-    if (!jsonText) return
+  const copyExport = async () => {
+    if (!exportText) return
     try {
-      await navigator.clipboard.writeText(jsonText)
+      await navigator.clipboard.writeText(exportText)
       setCopyState('copied')
       window.setTimeout(() => setCopyState('idle'), 1800)
     } catch {
@@ -199,7 +218,7 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
           : null
 
   const storageHint = projectId
-    ? `semantic-modeling-assistant-agentic-backend/data/projects/${projectId}/ofn.json`
+    ? `semantic-modeling-assistant-agentic-backend/data/projects/${projectId}/ofn.json and ofn.ttl`
     : null
 
   return (
@@ -214,11 +233,33 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
               {document ? textCs(document.název) || 'Project OFN' : 'Project OFN'}
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Finalize writes approved changes into the ontology and regenerates this OFN file
-              (overwrite). Path is fixed per project for now.
+              Finalize writes approved changes into the ontology and regenerates OFN as JSON-LD
+              and Turtle. Choose a format the same way as on the ontology page, then copy or download.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <button
+                type="button"
+                onClick={() => setExportFormat('json')}
+                className={`px-3 py-2 text-sm font-medium ${
+                  exportFormat === 'json' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+                title="Export as JSON-LD"
+              >
+                JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => setExportFormat('turtle')}
+                className={`border-l border-slate-200 px-3 py-2 text-sm font-medium ${
+                  exportFormat === 'turtle' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+                title="Export as RDF/Turtle"
+              >
+                Turtle
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => projectId && regenerateMutation.mutate()}
@@ -229,19 +270,25 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
             </button>
             <button
               type="button"
-              onClick={() => void copyJson()}
-              disabled={!jsonText}
+              onClick={() => void copyExport()}
+              disabled={!exportReady}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy JSON'}
+              {copyState === 'copied'
+                ? 'Copied'
+                : copyState === 'failed'
+                  ? 'Copy failed'
+                  : exportFormat === 'turtle'
+                    ? 'Copy Turtle'
+                    : 'Copy JSON'}
             </button>
             <button
               type="button"
-              onClick={downloadJson}
-              disabled={!jsonText}
+              onClick={downloadExport}
+              disabled={!exportReady}
               className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
             >
-              Download copy
+              {exportFormat === 'turtle' ? 'Download .ttl' : 'Download .json'}
             </button>
           </div>
         </div>
@@ -326,7 +373,9 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
             <p className="mt-1 text-amber-900/90">
               Finalize approved changes, or click <span className="font-semibold">Generate OFN</span>{' '}
               to create{' '}
-              <span className="font-mono text-[11px]">data/projects/{projectId}/ofn.json</span>.
+              <span className="font-mono text-[11px]">data/projects/{projectId}/ofn.json</span>
+              {' '}and{' '}
+              <span className="font-mono text-[11px]">ofn.ttl</span>.
             </p>
           </div>
         ) : document ? (
@@ -412,11 +461,21 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
                 onClick={() => setShowRaw((value) => !value)}
                 className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
               >
-                {showRaw ? 'Hide raw JSON' : 'Show raw JSON'}
+                {showRaw
+                  ? exportFormat === 'turtle'
+                    ? 'Hide raw Turtle'
+                    : 'Hide raw JSON'
+                  : exportFormat === 'turtle'
+                    ? 'Show raw Turtle'
+                    : 'Show raw JSON'}
               </button>
               {showRaw ? (
                 <pre className="mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-[11px] leading-relaxed text-slate-100">
-                  {jsonText}
+                  {exportFormat === 'turtle'
+                    ? turtleQuery.isLoading
+                      ? 'Loading Turtle…'
+                      : turtleText || 'Turtle is not available yet.'
+                    : jsonText}
                 </pre>
               ) : null}
             </div>
