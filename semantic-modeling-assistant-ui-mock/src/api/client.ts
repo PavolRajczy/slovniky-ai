@@ -2,8 +2,9 @@
  * Typed fetch wrapper used by every API module.
  *
  * The backend lives at `import.meta.env.VITE_API_BASE_URL` (defaults to
- * `http://localhost:8000`). All requests use `${base}/api/...` so callers
- * pass just the route, e.g. `apiFetch('/projects')`.
+ * `http://localhost:8000`). Set it to `same-origin` or an empty string when
+ * the UI is served behind a reverse proxy that forwards `/api`. All requests
+ * use `${base}/api/...` so callers pass just the route, e.g. `apiFetch('/projects')`.
  */
 
 import type { ApiErrorBody } from './types'
@@ -11,9 +12,15 @@ import type { ApiErrorBody } from './types'
 const DEFAULT_BASE_URL = 'http://localhost:8000'
 
 export function getApiBaseUrl(): string {
-  const fromEnv = import.meta.env.VITE_API_BASE_URL as string | undefined
-  const trimmed = fromEnv?.replace(/\/+$/, '')
-  return trimmed && trimmed.length > 0 ? trimmed : DEFAULT_BASE_URL
+  const fromEnv = import.meta.env.VITE_API_BASE_URL
+  if (fromEnv === undefined || fromEnv === null) {
+    return DEFAULT_BASE_URL
+  }
+  const trimmed = String(fromEnv).replace(/\/+$/, '')
+  if (trimmed === '' || trimmed === 'same-origin') {
+    return ''
+  }
+  return trimmed
 }
 
 export class ApiError extends Error {
@@ -38,7 +45,8 @@ export type ApiFetchOptions = {
 function buildUrl(path: string, query?: ApiFetchOptions['query']): string {
   const base = getApiBaseUrl()
   const normalized = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${base}/api${normalized}`)
+  const apiPath = `/api${normalized}`
+  const url = base.length > 0 ? new URL(`${base}${apiPath}`) : new URL(apiPath, window.location.origin)
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined) {

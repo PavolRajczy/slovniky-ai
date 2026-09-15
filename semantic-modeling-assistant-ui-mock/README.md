@@ -6,7 +6,7 @@ Stack: **TypeScript**, **React**, **Vite**, **TanStack Router**, **TanStack Quer
 
 ## Backend connection
 
-The UI talks to the backend via `VITE_API_BASE_URL` (defaults to `http://localhost:8000`). Copy `.env.example` to `.env.local` and adjust if your backend runs elsewhere. The sidebar header shows a live "Backend OK / Backend down" pill.
+The UI talks to the backend via `VITE_API_BASE_URL` (defaults to `http://localhost:8000`). Copy `.env.example` to `.env.local` and adjust if your backend runs elsewhere. In Docker the value is `same-origin` and nginx proxies `/api`. The sidebar header shows a live "Backend OK / Backend down" pill.
 
 ## Run locally
 
@@ -17,6 +17,16 @@ npm run dev
 ```
 
 Open the printed local URL (typically `http://localhost:5173`).
+
+## Docker
+
+From the **repository root** (not this folder), with `OPENAI_API_KEY` in `.env`:
+
+```bash
+docker compose up --build
+```
+
+UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backend). Full guide: [`DOCKER.md`](../DOCKER.md).
 
 ## Routes (for screenshots)
 

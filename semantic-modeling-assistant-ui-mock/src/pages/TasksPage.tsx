@@ -72,7 +72,7 @@ type TaskFormState = {
 const INITIAL_TASK_FORM: TaskFormState = { name: '', specification: '', patternId: '' }
 
 export function TasksPage() {
-  const { projectId, domainId, iterationId, taskId } = tasksRouteApi.useSearch()
+  const { projectId, domainId, iterationId } = tasksRouteApi.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [ofnFeedback, setOfnFeedback] = useState<OfnSaveFeedback | null>(null)
