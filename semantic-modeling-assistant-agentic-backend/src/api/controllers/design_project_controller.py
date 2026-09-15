@@ -10,7 +10,7 @@ from urllib.parse import unquote
 import logging
 import uuid
 
-from design_project.domain import ProjectGuidanceItemType
+from design_project.domain import ProjectGuidanceItemSource, ProjectGuidanceItemType
 from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
@@ -761,16 +761,27 @@ async def add_project_guidance(project_id: str, request: CreateProjectGuidanceIt
     try:
         design_project_service.load_project(project_id)
         item_type = ProjectGuidanceItemType(request.type)
+        item_source = (
+            ProjectGuidanceItemSource(request.source)
+            if request.source
+            else ProjectGuidanceItemSource.MANUAL
+        )
         item = guidance_service.add_item(
             project_id=project_id,
             content=request.content,
             type=item_type,
+            source=item_source,
         )
         return _guidance_item_to_model(item)
     except FileNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error adding project guidance: {e}")
@@ -802,6 +813,11 @@ async def update_project_guidance(project_id: str, item_id: str, request: Update
         )
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
         logger.error(f"Error updating project guidance: {e}")
         raise HTTPException(

@@ -74,6 +74,27 @@ export type MergedAppliedReview = {
   rejected: AppliedRejectedOperation[]
 }
 
+export function listAppliedReviewSummariesForProject(projectId: string): AppliedReviewSummary[] {
+  const prefix = `${STORAGE_PREFIX}:${projectId}:`
+  const summaries: AppliedReviewSummary[] = []
+
+  try {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)
+      if (!key?.startsWith(prefix)) continue
+      const raw = localStorage.getItem(key)
+      if (!raw) continue
+      summaries.push(JSON.parse(raw) as AppliedReviewSummary)
+    }
+  } catch {
+    return []
+  }
+
+  return summaries.sort(
+    (left, right) => new Date(right.finalizedAt).getTime() - new Date(left.finalizedAt).getTime(),
+  )
+}
+
 export function mergeAppliedReviewSummaries(summaries: AppliedReviewSummary[]): MergedAppliedReview {
   const kept: OntologyOperationModel[] = []
   const rejected: AppliedRejectedOperation[] = []

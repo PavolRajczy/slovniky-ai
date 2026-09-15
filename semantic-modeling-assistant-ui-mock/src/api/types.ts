@@ -369,6 +369,7 @@ export type AddKnowledgeDocumentsRequest = {
 export type CreateProjectGuidanceItemRequest = {
   content: string
   type?: GuidanceItemType
+  source?: GuidanceItemSource
 }
 
 export type UpdateProjectGuidanceItemRequest = {

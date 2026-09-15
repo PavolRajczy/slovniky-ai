@@ -432,6 +432,7 @@ class CreateProjectGuidanceItemRequest(BaseModel):
     """Request to add a project guidance item."""
     content: str
     type: Literal["instruction", "correction", "preference", "constraint"] = "instruction"
+    source: Optional[Literal["manual", "correction", "saved_from_request"]] = None
 
 
 class UpdateProjectGuidanceItemRequest(BaseModel):

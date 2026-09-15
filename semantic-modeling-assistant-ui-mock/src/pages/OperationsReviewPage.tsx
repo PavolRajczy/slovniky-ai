@@ -151,7 +151,9 @@ export function OperationsReviewPage() {
       : null
 
   useEffect(() => {
-    setSaveRejectReasonAsGuidance(false)
+    if (rejectModalOpId) {
+      setSaveRejectReasonAsGuidance(true)
+    }
   }, [rejectModalOpId])
 
   useEffect(() => {
@@ -253,6 +255,7 @@ export function OperationsReviewPage() {
       queryClient.invalidateQueries({ queryKey: ['iteration-tasks', projectId, iterationId] }),
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] }),
     ])
   }
 
@@ -261,9 +264,11 @@ export function OperationsReviewPage() {
       addProjectGuidance(projectId!, {
         content: reason,
         type: 'correction',
+        source: 'correction',
       }).then((item) => ({ operationId, item })),
     onSuccess: ({ operationId, item }) => {
       setSavedGuidanceIds((prev) => ({ ...prev, [operationId]: item.id }))
+      void queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] })
     },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
