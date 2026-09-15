@@ -5,6 +5,7 @@ import {
   WorkflowStepper,
   resolveWorkflowContext,
 } from '@/components/workflow'
+import { ActivitySummary } from '@/components/ActivitySummary'
 import { ApiError } from '@/api/client'
 import { listDomainAreas } from '@/api/domainAreas'
 import {
@@ -83,6 +84,7 @@ export function IterationsV2Page() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] }),
     ])
   }
 
@@ -160,6 +162,7 @@ export function IterationsV2Page() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <WorkflowStepper activeStep="iterations" linkContext={linkContext} />
+      <ActivitySummary projectId={projectId} />
       <DomainFeedbackPanel
         domain={currentDomain}
         progress={domainProgress}

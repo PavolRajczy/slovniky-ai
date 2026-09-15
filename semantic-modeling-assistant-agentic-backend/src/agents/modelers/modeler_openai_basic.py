@@ -6,8 +6,9 @@ from rdflib import URIRef
 
 from openai import OpenAI
 
+from agents.model_config import get_mini_model
 from agents.modelers.modeler import ModelerAgent
-from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory
+from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
@@ -208,18 +209,18 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
     A simple implementation of ModelerAgent using OpenAI.
     """
 
-    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: str = "gpt-5-mini"):
+    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: Optional[str] = None):
         """
         Initialize the simple modeler agent.
 
         Args:
             knowledge_base_service (KnowledgeBaseService): The knowledge base service instance for loading and accessing knowledge documents.
             knowledge_base_index_service (KnowledgeBaseIndexService): The knowledge base index service instance for searching in the knowledge base.
-            model_name (str): The name of the model (defaults to "gpt-4o").
+            model_name (str, optional): Overrides the model; defaults to the OPENAI_MODEL_MINI environment variable.
         """
         self.knowledge_base_service = knowledge_base_service
         self.knowledge_base_index_service = knowledge_base_index_service
-        self.model_name = "gpt-5-mini"
+        self.model_name = model_name or get_mini_model()
         self.language = "Czech"
 
         # Initialize OpenAI client
@@ -228,16 +229,13 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
             raise ValueError("OPENAI_API_KEY environment variable is not set")
         self.client = OpenAI(api_key=api_key)
 
-
-    #TODO - The current implementation pressumes that the ontology edit operations are directly applied to the ontology and that this edited ontology is then used in the next task.
-
     def get_operations_for_design_task(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         """
         Gets the ontology edit operations for the given design task.
 
         Args:
             design_project (DesignProject): The design project containing the iteration.
-            current_ontology (Ontology): The current ontology being modified. This ontology should reflect all changes made by previously executed tasks in the same iteration. We cannot work with the original ontology from the design_project as this needs to remain unchanged until the final list of operations for all tasks in the iteration is ready and approved.
+            current_ontology (Ontology): The finalized designed ontology. Unreviewed proposals from other tasks are not applied here; they are listed as pending in the prompt.
             iteration (DesignIteration): The iteration in which the task is to be performed.
             task (DesignTask): The design task to be executed.
             project_guidance_text (str, optional): Project-scoped human-in-the-loop guidance to inject into the prompt.
@@ -429,7 +427,8 @@ As a source of the domain knowledge to plan the search queries, use the summary 
     def _get_goal_context(self, design_project: DesignProject, iteration: DesignIteration, task: DesignTask) -> str:
         return f"""<GOAL_CONTEXT>
 - You are working on designing the ontology "{design_project.designedOntology.label}" which models the domain "{design_project.modeledKnowledgeDomain.label}".
-- The current ontology is provided by the user in their user message.
+- The current ontology is provided by the user in their user message. It contains only changes that have already been finalized.
+- Proposed changes from other work items are not part of the ontology until the user finalizes them.
 - The domain is separated into multiple areas, now you focus on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 - You work in iterations, the current iteration is "{iteration.name}" described as "{iteration.specification}".
 - There is a planned sequence of ontology design tasks in the current iteration comprising finished, current, and planned tasks specified below. You must accomplish the solely current task in the context of the finished and planned tasks.
@@ -440,11 +439,24 @@ As a source of the domain knowledge to plan the search queries, use the summary 
             "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.finishedTasks)
             if iteration.finishedTasks else "- None"
         )
+        awaiting_review = [
+            dt for dt in iteration.plannedTasks
+            if dt.id != task.id and dt.status == DesignTaskStatus.OPERATIONS_GENERATED
+        ]
+        still_planned = [
+            dt for dt in iteration.plannedTasks
+            if dt.id != task.id and dt.status != DesignTaskStatus.OPERATIONS_GENERATED
+        ]
+        awaiting_review_str = (
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in awaiting_review)
+            if awaiting_review else "- None"
+        )
         planned_tasks_str = (
-            "".join(f"- {dt.name}: {dt.specification}\n" for dt in iteration.plannedTasks)
-            if iteration.plannedTasks else "- None"
+            "".join(f"- {dt.name}: {dt.specification}\n" for dt in still_planned)
+            if still_planned else "- None"
         )
         return f"""<FINISHED_DESIGN_TASKS>
+These tasks are already finalized; their kept changes are in the current ontology.
 {finished_tasks_str}
 </FINISHED_DESIGN_TASKS>
 
@@ -452,9 +464,39 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 - {task.name}: {task.specification}
 </CURRENT_DESIGN_TASK>
 
+<PREPARED_AWAITING_REVIEW_TASKS>
+These tasks have proposed operations that are not in the ontology yet.
+{awaiting_review_str}
+</PREPARED_AWAITING_REVIEW_TASKS>
+
 <PLANNED_DESIGN_TASKS>
 {planned_tasks_str}
 </PLANNED_DESIGN_TASKS>"""
+
+    def _get_pending_operations_context(self, iteration: DesignIteration, task: DesignTask) -> str:
+        pending = [
+            identified_op
+            for identified_op in (iteration.plannedOperations or [])
+            if identified_op.created_from_task_id != task.id
+        ]
+        if not pending:
+            return """<PENDING_UNAPPLIED_OPERATIONS>
+None. The current ontology already includes every change that has been finalized.
+</PENDING_UNAPPLIED_OPERATIONS>"""
+
+        lines = []
+        for identified_op in pending:
+            op = identified_op.operation
+            op_type = getattr(getattr(op, "operation_type", None), "value", type(op).__name__)
+            label = getattr(op, "label", None) or "(no label)"
+            uri = getattr(op, "uri", "")
+            kind = type(op).__name__.replace("Operation", "")
+            lines.append(f"- {op_type} {kind}: {label} ({uri})")
+        listed = "\n".join(lines)
+        return f"""<PENDING_UNAPPLIED_OPERATIONS>
+These changes were proposed for other work items and are not in the current ontology yet. Do not assume they exist. Do not duplicate them. Only reference elements that already exist in the current ontology.
+{listed}
+</PENDING_UNAPPLIED_OPERATIONS>"""
     
     def _get_domain_knowledge_context(self) -> str:
         return f"""<DOMAIN_KNOWLEDGE_BASE>
@@ -466,6 +508,8 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 
 {self._get_tasks_context(iteration, task)}
 
+{self._get_pending_operations_context(iteration, task)}
+
 {self._get_domain_knowledge_context()}"""
         if project_guidance_text and project_guidance_text.strip():
             return project_guidance_text.strip() + "\n\n" + base
@@ -475,6 +519,7 @@ As a source of the domain knowledge to guide your decisions, use the domain know
         return f"""<INSTRUCTIONS>
 - The user speaks {self.language} language, you must respond in {self.language} language.
 - Generate ontology edit operations that are needed to accomplish the ontology design task.
+- The current ontology is the approved, finalized state. Proposed operations from other work items are not applied yet.
 - Focus solely on ontology elements as specified by the ontology design task.
 - Consider the ontology metamodel described below.
 - Work in the context of the finished as well as planned ontology design tasks in the current iteration - do not generate operations that would overtake to the scope of other design tasks.
@@ -482,7 +527,7 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 - If the ontology design task requires designing a concrete new ontology element with a concrete label, you must change it if the provided domain knowledge requires a different label.
 - Strictly output the labels, definitions, and descriptions in {self.language} language.
 - Strictly double-check that IDs of references to knowledge base snippets that you provide actually exist in the provided relevant knowledge snippets.
-- Strictly double-check that other ontology elements you reference in the operations (e.g. generalizations of a class, owning class of an attribute, source and target class of a relationship) actually exist in the current ontology.
+- Strictly double-check that other ontology elements you reference in the operations (e.g. generalizations of a class, owning class of an attribute, source and target class of a relationship) actually exist in the current ontology. Do not treat pending unapplied operations as existing elements.
 - For the ontology edit operations, return definition, specification or generic references to the original knowledge base snippets (using snippet ID) to support your modeling decisions. If the content of the snippets is further structured into fragments represented as <f> XML elements with IDs, refer to the most specific fragments (using the snippet ID and fragment ID).
 </INSTRUCTIONS>"""
     

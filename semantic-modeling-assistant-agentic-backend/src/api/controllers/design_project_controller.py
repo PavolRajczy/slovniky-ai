@@ -10,7 +10,14 @@ from urllib.parse import unquote
 import logging
 import uuid
 
-from design_project.domain import ProjectGuidanceItemSource, ProjectGuidanceItemType
+from design_project.domain import (
+    ProjectActivityActor,
+    ProjectActivityEventType,
+    ProjectGuidanceItemSource,
+    ProjectGuidanceItemType,
+)
+from design_project.project_activity_service import ProjectActivityService
+from design_project.project_activity_store import FileSystemProjectActivityStore
 from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
@@ -51,6 +58,7 @@ from api.models import (
     KnowledgeDocumentSummary, OntologyModel,
     ProjectGuidanceItemModel, CreateProjectGuidanceItemRequest, UpdateProjectGuidanceItemRequest,
     ProjectGuidanceListResponse,
+    ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
     GenerateOperationsRequest, ApplyProjectOperationsRequest,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
@@ -74,6 +82,9 @@ knowledge_base_index_service = KnowledgeBaseIndexService(
 
 guidance_store = FileSystemProjectGuidanceStore(base_dir="data/projects")
 guidance_service = ProjectGuidanceService(store=guidance_store)
+
+activity_store = FileSystemProjectActivityStore(base_dir="data/projects")
+activity_service = ProjectActivityService(store=activity_store)
 
 design_project_service = DesignProjectService(
     store=FileSystemDesignProjectStore(ontology_service=ontology_service),
@@ -772,6 +783,18 @@ async def add_project_guidance(project_id: str, request: CreateProjectGuidanceIt
             type=item_type,
             source=item_source,
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_ADDED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Added {item.type.value} guidance",
+            detail={
+                "guidanceId": item.id,
+                "guidanceType": item.type.value,
+                "source": item.source.value if item.source else None,
+                "content": item.content,
+            },
+        )
         return _guidance_item_to_model(item)
     except FileNotFoundError:
         raise HTTPException(
@@ -805,6 +828,18 @@ async def update_project_guidance(project_id: str, item_id: str, request: Update
         content = request.content if request.content is not None else existing.content
         item_type = ProjectGuidanceItemType(request.type) if request.type is not None else existing.type
         item = guidance_service.update_item(project_id, item_id, content, item_type)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_UPDATED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Edited {item.type.value} guidance",
+            detail={
+                "guidanceId": item.id,
+                "guidanceType": item.type.value,
+                "content": item.content,
+                "previousContent": existing.content,
+            },
+        )
         return _guidance_item_to_model(item)
     except FileNotFoundError:
         raise HTTPException(
@@ -831,12 +866,25 @@ async def delete_project_guidance(project_id: str, item_id: str):
     """Remove a guidance item. The agent will no longer follow it."""
     try:
         design_project_service.load_project(project_id)
+        # Read the item before deleting it so the activity log can keep its content.
+        existing = guidance_service.get_item(project_id, item_id)
         removed = guidance_service.delete_item(project_id, item_id)
         if not removed:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Guidance item '{item_id}' not found"
             )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_DELETED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Removed {existing.type.value} guidance" if existing else "Removed guidance",
+            detail={
+                "guidanceId": item_id,
+                "guidanceType": existing.type.value if existing else None,
+                "content": existing.content if existing else None,
+            },
+        )
         return DeleteResponse(success=True, message="Guidance item deleted")
     except FileNotFoundError:
         raise HTTPException(
@@ -847,6 +895,147 @@ async def delete_project_guidance(project_id: str, item_id: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+# ============================================================================
+# Project Activity Log Endpoints
+# ============================================================================
+
+def _activity_event_to_model(event) -> ProjectActivityEventModel:
+    """Convert a domain ProjectActivityEvent to its API model."""
+    return ProjectActivityEventModel(
+        id=event.id,
+        project_id=event.project_id,
+        type=event.type.value,
+        actor=event.actor.value,
+        summary=event.summary,
+        at=event.at,
+        iteration_id=event.iteration_id,
+        task_id=event.task_id,
+        operation_id=event.operation_id,
+        detail=event.detail,
+    )
+
+
+@router.get("/projects/{project_id}/activity", response_model=ProjectActivityListResponse)
+async def list_project_activity(
+    project_id: str,
+    type: Optional[List[str]] = Query(None, description="Filter by event type; repeat for several types"),
+    iteration_id: Optional[str] = Query(None, description="Only events for this iteration"),
+    task_id: Optional[str] = Query(None, description="Only events for this task"),
+    limit: Optional[int] = Query(None, ge=0, description="Return only the most recent N events"),
+):
+    """
+    Return the project activity timeline, newest first, with keep/reject totals.
+
+    This is the append-only record of what the user and the assistant did: guidance
+    changes, generated proposals, per-operation decisions, applies and exports.
+    """
+    try:
+        design_project_service.load_project(project_id)
+
+        event_types = None
+        if type:
+            try:
+                event_types = [ProjectActivityEventType(t) for t in type]
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown activity event type: {e}",
+                )
+
+        events = activity_service.list_events(
+            project_id,
+            types=event_types,
+            iteration_id=iteration_id,
+            task_id=task_id,
+            limit=limit,
+        )
+        counts = activity_service.get_decision_counts(project_id, iteration_id=iteration_id)
+
+        return ProjectActivityListResponse(
+            events=[_activity_event_to_model(e) for e in events],
+            approved_count=counts["approved"],
+            rejected_count=counts["rejected"],
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing project activity: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post("/projects/{project_id}/activity/decisions", response_model=ProjectActivityListResponse, status_code=status.HTTP_201_CREATED)
+async def record_operation_decisions(project_id: str, request: RecordOperationDecisionsRequest):
+    """
+    Record the keep/reject decisions taken during an operations review.
+
+    The review UI sends the decisions once the user finalises a task, so that the
+    reasons behind each rejection survive beyond the browser session.
+    """
+    try:
+        design_project_service.load_project(project_id)
+
+        recorded = []
+        for decision in request.approved:
+            event = activity_service.record(
+                project_id=project_id,
+                type=ProjectActivityEventType.OPERATION_APPROVED,
+                actor=ProjectActivityActor.USER,
+                summary=f"Kept {decision.label}",
+                iteration_id=request.iteration_id,
+                task_id=request.task_id,
+                operation_id=decision.operation_id,
+                detail={"taskName": request.task_name} if request.task_name else {},
+            )
+            if event:
+                recorded.append(event)
+
+        for decision in request.rejected:
+            detail: Dict[str, Any] = {"savedAsGuidance": decision.saved_as_guidance}
+            if decision.reason:
+                detail["reason"] = decision.reason
+            if request.task_name:
+                detail["taskName"] = request.task_name
+
+            event = activity_service.record(
+                project_id=project_id,
+                type=ProjectActivityEventType.OPERATION_REJECTED,
+                actor=ProjectActivityActor.USER,
+                summary=f"Rejected {decision.label}",
+                iteration_id=request.iteration_id,
+                task_id=request.task_id,
+                operation_id=decision.operation_id,
+                detail=detail,
+            )
+            if event:
+                recorded.append(event)
+
+        counts = activity_service.get_decision_counts(project_id)
+        return ProjectActivityListResponse(
+            events=[_activity_event_to_model(e) for e in recorded],
+            approved_count=counts["approved"],
+            rejected_count=counts["rejected"],
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except Exception as e:
+        logger.error(f"Error recording operation decisions: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -1221,6 +1410,16 @@ async def generate_domain_areas(project_id: str, request: GenerateDomainAreasReq
         areas = design_project_service.generate_domain_areas(
             project_id=project_id,
             user_instruction=request.user_instruction or ""
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.DOMAIN_AREAS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Identified {len(areas)} domain area(s)",
+            detail={
+                "count": len(areas),
+                "userInstruction": request.user_instruction or None,
+            },
         )
         
         return [_convert_domain_area_to_model(area) for area in areas]
@@ -1661,6 +1860,18 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
             k=request.count,
             user_instruction=request.user_instruction or ""
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATIONS_SUGGESTED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Suggested {len(iterations)} iteration(s)",
+            detail={
+                "count": len(iterations),
+                "focusedAreaId": request.focused_area_id,
+                "names": [it.name for it in iterations if it.name],
+                "userInstruction": request.user_instruction or None,
+            },
+        )
         
         return [_convert_iteration_to_model(it) for it in iterations]
     
@@ -1952,6 +2163,18 @@ async def plan_tasks(project_id: str, iteration_id: str, request: PlanTasksReque
             iteration_id=iteration_id,
             user_instruction=request.user_instruction or ""
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.TASKS_PLANNED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Planned {len(tasks)} task(s)",
+            iteration_id=iteration_id,
+            detail={
+                "count": len(tasks),
+                "names": [t.name for t in tasks if t.name],
+                "userInstruction": request.user_instruction or None,
+            },
+        )
         
         return [_convert_task_to_model(t) for t in tasks]
     
@@ -2216,6 +2439,14 @@ async def prepare_iteration(project_id: str, iteration_id: str):
             project_id=project_id,
             iteration_id=iteration_id
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATION_PREPARED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(operations)} operation(s) for review",
+            iteration_id=iteration_id,
+            detail={"operationCount": len(operations)},
+        )
         
         return IterationPreparedResponse(
             iteration_id=iteration_id,
@@ -2256,6 +2487,15 @@ async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: st
             project_id=project_id,
             iteration_id=iteration_id,
             task_id=task_id
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.OPERATIONS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(operations)} operation(s) for one task",
+            iteration_id=iteration_id,
+            task_id=task_id,
+            detail={"operationCount": len(operations)},
         )
 
         return IterationPreparedResponse(
@@ -2600,6 +2840,20 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_result["pojmy_count"],
             ofn_result["overwrote_existing"],
         )
+
+        iteration_name = project.currentIteration.name or iteration_id
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATION_APPLIED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Applied {len(operations)} operation(s) to the ontology",
+            iteration_id=iteration_id,
+            detail={
+                "operationCount": len(operations),
+                "iterationName": iteration_name,
+                "clientModifiedOperations": request.operations is not None,
+            },
+        )
         
         # Calculate statistics (simplified)
         stats = {
@@ -2786,6 +3040,17 @@ async def regenerate_project_ofn_endpoint(project_id: str):
     try:
         project = design_project_service.load_project(project_id)
         result = regenerate_and_save_project_ofn(project_id, project.designedOntology)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ONTOLOGY_EXPORTED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Exported OFN with {result['pojmy_count']} concept(s)",
+            detail={
+                "pojmyCount": result["pojmy_count"],
+                "path": result["path"],
+                "overwroteExisting": result["overwrote_existing"],
+            },
+        )
         return {
             "success": True,
             "ofn_path": result["path"],
@@ -2828,6 +3093,16 @@ async def generate_operations_from_instruction(project_id: str, request: Generat
             IdentifiedOperation(id=str(uuid.uuid4()), operation=op, created_from_task_id=None)
             for op in operations
         ]
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.OPERATIONS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(identified)} operation(s) from your instruction",
+            detail={
+                "operationCount": len(identified),
+                "userInstruction": request.user_instruction,
+            },
+        )
         return [_convert_operation_to_model(io) for io in identified]
     except FileNotFoundError:
         raise HTTPException(

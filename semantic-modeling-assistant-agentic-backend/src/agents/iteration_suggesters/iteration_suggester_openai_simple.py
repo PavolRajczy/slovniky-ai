@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from openai import OpenAI
 
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
+from agents.model_config import get_model
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, KnowledgeDomainArea
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
@@ -35,17 +36,17 @@ class IterationSuggesterAgent_Simple_OpenAI(IterationSuggesterAgent):
     A simple implementation of IterationSuggesterAgent using OpenAI.
     """
 
-    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: str = "gpt-5"):
+    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: Optional[str] = None):
         """
         Initialize the simple iteration suggester agent.
 
         Args:
             knowledge_base_service (KnowledgeBaseService): The knowledge base service instance.
-            model_name (str): The name of the model (defaults to "gpt-4.1").
+            model_name (str, optional): Overrides the model; defaults to the OPENAI_MODEL environment variable.
         """
         self.knowledge_base_service = knowledge_base_service
         self.knowledge_base_index_service = knowledge_base_index_service
-        self.model_name = "gpt-5"
+        self.model_name = model_name or get_model()
         self.language = "Czech"
 
         # Initialize OpenAI client

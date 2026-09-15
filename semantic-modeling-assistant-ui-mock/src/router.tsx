@@ -12,6 +12,7 @@ import { IterationsV2Page } from '@/pages/IterationsV2Page'
 import { TasksPage } from '@/pages/TasksPage'
 import { OperationsReviewPage } from '@/pages/OperationsReviewPage'
 import { GuidancePage } from '@/pages/GuidancePage'
+import { ActivityPage } from '@/pages/ActivityPage'
 import { ExportResultPage } from '@/pages/ExportResultPage'
 
 function readString(value: unknown): string | undefined {
@@ -99,6 +100,15 @@ const guidanceRoute = createRoute({
   component: GuidancePage,
 })
 
+const activityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activity',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+  }),
+  component: ActivityPage,
+})
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined
@@ -143,6 +153,7 @@ const routeTree = rootRoute.addChildren([
   tasksRoute,
   operationsRoute,
   guidanceRoute,
+  activityRoute,
   exportResultRoute,
 ])
 

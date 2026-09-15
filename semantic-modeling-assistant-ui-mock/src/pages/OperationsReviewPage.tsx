@@ -31,6 +31,9 @@ import {
   saveReviewDraft,
 } from '@/utils/reviewDraftStorage'
 import { saveAppliedReviewSummary } from '@/utils/appliedReviewStorage'
+import { recordOperationDecisions } from '@/api/activity'
+import { ActivitySummary } from '@/components/ActivitySummary'
+import type { OperationDecisionModel } from '@/api/types'
 
 const operationsRouteApi = getRouteApi('/operations')
 
@@ -256,6 +259,8 @@ export function OperationsReviewPage() {
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-ontology', projectId] }),
     ])
   }
 
@@ -297,19 +302,37 @@ export function OperationsReviewPage() {
           savedAt: new Date().toISOString(),
         })
       }
+      const rejectedOperations = operations.filter(
+        (op) => (reviewById[op.id] ?? 'pending') === 'rejected',
+      )
+
+      if (projectId) {
+        // Persist the decisions server-side so the reasons outlive this browser.
+        await recordOperationDecisions(projectId, {
+          iteration_id: iterationId,
+          task_id: taskId,
+          task_name: activeTask?.name ?? null,
+          approved: approvedOperations.map(toDecision),
+          rejected: rejectedOperations.map((op) => ({
+            ...toDecision(op),
+            reason: rejectionReasonById[op.id]?.trim() || null,
+            saved_as_guidance: Boolean(savedGuidanceIds[op.id]),
+          })),
+        }).catch(() => {
+          // The ontology change already succeeded; a failed audit write must not block it.
+        })
+      }
+
       if (isScopedReview && projectId && iterationId && taskId) {
-        const rejected = operations
-          .filter((op) => (reviewById[op.id] ?? 'pending') === 'rejected')
-          .map((op) => ({
-            ...op,
-            rejectionReason: rejectionReasonById[op.id]?.trim() || undefined,
-          }))
         saveAppliedReviewSummary(projectId, iterationId, {
           taskId,
           taskName: activeTask?.name ?? 'Work item',
           finalizedAt: new Date().toISOString(),
           kept: approvedOperations,
-          rejected,
+          rejected: rejectedOperations.map((op) => ({
+            ...op,
+            rejectionReason: rejectionReasonById[op.id]?.trim() || undefined,
+          })),
         })
         clearReviewDraft(projectId, iterationId, taskId)
         hydratedDraftKeyRef.current = null
@@ -406,13 +429,9 @@ export function OperationsReviewPage() {
     }
   }
 
-  const applyButtonLabel = isScopedReview
-    ? applyMutation.isPending
-      ? 'Finalizing…'
-      : `Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
-    : applyMutation.isPending
-      ? 'Applying…'
-      : `Apply ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
+  const applyButtonLabel = applyMutation.isPending
+    ? 'Finalizing…'
+    : `Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
 
   const applyButtonTitle = !isPrepared
     ? 'Direction is not ready for review yet.'
@@ -420,17 +439,12 @@ export function OperationsReviewPage() {
       ? 'Keep at least one change first.'
       : isScopedReview && counts.pending > 0
         ? `Decide ${counts.pending} pending change${counts.pending === 1 ? '' : 's'} first.`
-        : isScopedReview
-          ? 'Finalize the kept changes for this work item.'
-          : 'Apply the kept changes to the ontology.'
+        : 'Finalize the kept changes. The ontology is updated only after this step.'
 
   const handleApplyClick = () => {
-    if (isScopedReview) {
-      if (!canFinalize) return
-      setFinalizeConfirmOpen(true)
-      return
-    }
-    applyMutation.mutate()
+    if (isScopedReview && !canFinalize) return
+    if (!isScopedReview && (!isPrepared || approvedOperations.length === 0)) return
+    setFinalizeConfirmOpen(true)
   }
 
   return (
@@ -520,12 +534,12 @@ export function OperationsReviewPage() {
       {!isScopedReview ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
           This is the full prepared set. For less context at once, go back to prepare changes and review one
-          work item at a time. Apply sends only kept changes to the backend.
+          work item at a time. Finalize writes only kept changes into the ontology.
         </p>
       ) : (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-          Decide each change once. Finalize writes kept changes to the backend and you will not be able
-          to change them here again; rejected changes stay out of the ontology.
+          Decide each change once. Finalize writes kept changes into the ontology; until then the ontology
+          stays unchanged. Rejected changes stay out.
         </p>
       )}
 
@@ -546,10 +560,12 @@ export function OperationsReviewPage() {
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               {isScopedReview
-                ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize the kept set.'
-                : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then apply the kept set.'}
+                ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'
+                : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'}
             </p>
           </div>
+
+          <ActivitySummary projectId={projectId} iterationId={iterationId} />
 
           {operationsQuery.isLoading ? (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
@@ -795,11 +811,11 @@ export function OperationsReviewPage() {
         </aside>
       </div>
 
-      {finalizeConfirmOpen && isScopedReview ? (
+      {finalizeConfirmOpen ? (
         <ConfirmDialog
           tone="primary"
           title={`Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}?`}
-          description="Kept changes are written into the project ontology and the project OFN file is regenerated (overwrites data/projects/{id}/ofn.json if it already exists). Pending changes are not applied."
+          description="Kept changes are written into the project ontology and the project OFN file is regenerated (overwrites data/projects/{id}/ofn.json if it already exists). Until you confirm, the ontology stays unchanged. Pending changes are not applied."
           confirmLabel="Finalize & save OFN"
           isConfirmPending={applyMutation.isPending}
           onConfirm={() => applyMutation.mutate()}
@@ -1094,4 +1110,12 @@ function toErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error) return error.message
   return 'Request failed.'
+}
+
+function toDecision(operation: OntologyOperationModel): OperationDecisionModel {
+  const name = operation.label ?? operation.uri.split(/[#/]/).pop() ?? operation.uri
+  return {
+    operation_id: operation.id,
+    label: `${operationLabels[operation.operation_type].toLowerCase()} ${operation.target_type} ${name}`,
+  }
 }

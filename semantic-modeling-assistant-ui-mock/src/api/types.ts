@@ -230,6 +230,56 @@ export type ProjectGuidanceListResponse = {
   items: ProjectGuidanceItemModel[]
 }
 
+export type ProjectActivityEventType =
+  | 'guidance_added'
+  | 'guidance_updated'
+  | 'guidance_deleted'
+  | 'domain_areas_generated'
+  | 'iterations_suggested'
+  | 'tasks_planned'
+  | 'operations_generated'
+  | 'iteration_prepared'
+  | 'iteration_applied'
+  | 'operation_approved'
+  | 'operation_rejected'
+  | 'ontology_exported'
+
+export type ProjectActivityActor = 'user' | 'assistant'
+
+export type ProjectActivityEventModel = {
+  id: string
+  project_id: string
+  type: ProjectActivityEventType
+  actor: ProjectActivityActor
+  summary: string
+  at: string
+  iteration_id?: string | null
+  task_id?: string | null
+  operation_id?: string | null
+  detail: Record<string, unknown>
+}
+
+export type ProjectActivityListResponse = {
+  events: ProjectActivityEventModel[]
+  approved_count: number
+  rejected_count: number
+}
+
+export type OperationDecisionModel = {
+  operation_id?: string | null
+  label: string
+  reason?: string | null
+  saved_as_guidance?: boolean
+}
+
+export type RecordOperationDecisionsRequest = {
+  iteration_id?: string | null
+  task_id?: string | null
+  task_name?: string | null
+  approved?: OperationDecisionModel[]
+  rejected?: OperationDecisionModel[]
+}
+
 export type KnowledgeDocumentSummary = {
   id: string
   title: string

@@ -446,6 +446,63 @@ class ProjectGuidanceListResponse(BaseModel):
     items: List[ProjectGuidanceItemModel]
 
 
+ProjectActivityEventTypeLiteral = Literal[
+    "guidance_added",
+    "guidance_updated",
+    "guidance_deleted",
+    "domain_areas_generated",
+    "iterations_suggested",
+    "tasks_planned",
+    "operations_generated",
+    "iteration_prepared",
+    "iteration_applied",
+    "operation_approved",
+    "operation_rejected",
+    "ontology_exported",
+]
+
+
+class ProjectActivityEventModel(BaseModel):
+    """A single entry in the project activity log."""
+    id: str
+    project_id: str
+    type: ProjectActivityEventTypeLiteral
+    actor: Literal["user", "assistant"]
+    summary: str
+    at: str
+    iteration_id: Optional[str] = None
+    task_id: Optional[str] = None
+    operation_id: Optional[str] = None
+    detail: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectActivityListResponse(BaseModel):
+    """Response with the project activity timeline, newest first."""
+    events: List[ProjectActivityEventModel]
+    approved_count: int = 0
+    rejected_count: int = 0
+
+
+class RecordOperationDecisionsRequest(BaseModel):
+    """Request to record the keep/reject decisions taken during an operations review."""
+    iteration_id: Optional[str] = None
+    task_id: Optional[str] = None
+    task_name: Optional[str] = None
+    approved: List["OperationDecisionModel"] = Field(default_factory=list)
+    rejected: List["OperationDecisionModel"] = Field(default_factory=list)
+
+
+class OperationDecisionModel(BaseModel):
+    """A single keep/reject decision on one proposed operation."""
+    operation_id: Optional[str] = None
+    label: str
+    reason: Optional[str] = None
+    saved_as_guidance: bool = False
+
+
+RecordOperationDecisionsRequest.model_rebuild()
+
+
 # ============================================================================
 # Response Models
 # ============================================================================

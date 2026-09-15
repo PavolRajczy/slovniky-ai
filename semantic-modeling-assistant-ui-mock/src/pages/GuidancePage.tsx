@@ -8,11 +8,9 @@ import {
   listProjectGuidance,
   updateProjectGuidance,
 } from '@/api/guidance'
-import { getProject } from '@/api/projects'
-import type { DesignIterationModel, GuidanceItemSource, GuidanceItemType } from '@/api/types'
+import type { GuidanceItemSource, GuidanceItemType } from '@/api/types'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
-import { listAppliedReviewSummariesForProject } from '@/utils/appliedReviewStorage'
 
 const guidanceRouteApi = getRouteApi('/guidance')
 
@@ -33,9 +31,9 @@ const typeLabels: Record<GuidanceItemType, string> = {
 }
 
 const sourceLabels: Record<GuidanceItemSource, string> = {
-  manual: 'Manual',
-  correction: 'Rejection',
-  saved_from_request: 'Saved from request',
+  manual: 'Added by you',
+  correction: 'Saved from a rejected change',
+  saved_from_request: 'Saved from a request',
 }
 
 type CreateFormState = {
@@ -64,12 +62,6 @@ export function GuidancePage() {
   const [editForm, setEditForm] = useState<EditFormState>({ type: 'instruction', content: '' })
   const [itemError, setItemError] = useState<string | null>(null)
 
-  const projectQuery = useQuery({
-    queryKey: ['project', projectId],
-    queryFn: ({ signal }) => getProject(projectId!, signal),
-    enabled: Boolean(projectId),
-  })
-
   const guidanceQuery = useQuery({
     queryKey: ['project-guidance', projectId],
     queryFn: ({ signal }) => listProjectGuidance(projectId!, signal),
@@ -81,19 +73,11 @@ export function GuidancePage() {
     return [...list].sort((left, right) => compareOptionalIso(right.created_at, left.created_at))
   }, [guidanceQuery.data?.items])
 
-  const decisions = useMemo(
-    () => (projectId ? listAppliedReviewSummariesForProject(projectId) : []),
-    [projectId],
-  )
-
-  const historyEntries = useMemo(
-    () => buildHistoryEntries(items, projectQuery.data ?? null, decisions),
-    [items, projectQuery.data, decisions],
-  )
-
   const invalidateGuidance = async () => {
     if (!projectId) return
     await queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] })
+    // Guidance edits are recorded as activity events, so the timeline is stale too.
+    await queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] })
   }
 
   const addMutation = useMutation({
@@ -373,83 +357,18 @@ export function GuidancePage() {
       </section>
 
       <section className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-600">
-        <strong className="text-slate-800">History</strong>
-        <p className="mt-1 text-xs text-slate-500">
-          Guidance changes, iteration status, and keep/reject decisions from this browser.
+        <strong className="text-slate-800">Looking for what changed?</strong>
+        <p className="mt-1 text-sm text-slate-600">
+          This page only holds the guidance the assistant currently follows. Every guidance edit,
+          proposal and keep/reject decision is recorded on the{' '}
+          <Link to="/activity" search={{ projectId }} className="font-medium underline">
+            activity page
+          </Link>
+          .
         </p>
-        {historyEntries.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">No history for this project yet.</p>
-        ) : (
-          <ul className="mt-2 space-y-1">
-            {historyEntries.map((entry) => (
-              <li key={entry.id} className="text-sm text-slate-600">
-                {entry.at ? `${entry.at} — ` : ''}
-                <span className="font-medium text-slate-800">{entry.action}</span>
-                {': '}
-                {entry.detail}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   )
-}
-
-type HistoryEntry = {
-  id: string
-  at?: string
-  action: string
-  detail: string
-  sortKey: number
-}
-
-function buildHistoryEntries(
-  items: { id: string; type: GuidanceItemType; content: string; created_at?: string | null; source?: GuidanceItemSource | null }[],
-  project: {
-    planned_iterations: DesignIterationModel[]
-    current_iteration?: DesignIterationModel | null
-    finished_iterations: DesignIterationModel[]
-  } | null,
-  decisions: ReturnType<typeof listAppliedReviewSummariesForProject>,
-): HistoryEntry[] {
-  const entries: HistoryEntry[] = items.map((item) => ({
-    id: `guidance-${item.id}`,
-    at: item.created_at ? formatDate(item.created_at) : undefined,
-    action: `Guidance (${typeLabels[item.type]})`,
-    detail: item.content,
-    sortKey: parseIso(item.created_at),
-  }))
-
-  for (const decision of decisions) {
-    entries.push({
-      id: `decision-${decision.taskId}-${decision.finalizedAt}`,
-      at: formatDate(decision.finalizedAt),
-      action: 'Decision',
-      detail: `${decision.taskName}: kept ${decision.kept.length}, rejected ${decision.rejected.length}`,
-      sortKey: parseIso(decision.finalizedAt),
-    })
-  }
-
-  if (project) {
-    const iterations: Array<DesignIterationModel & { bucket: string }> = [
-      ...project.finished_iterations.map((iteration) => ({ ...iteration, bucket: 'finished' })),
-      ...(project.current_iteration
-        ? [{ ...project.current_iteration, bucket: 'current' }]
-        : []),
-      ...project.planned_iterations.map((iteration) => ({ ...iteration, bucket: 'planned' })),
-    ]
-    for (const iteration of iterations) {
-      entries.push({
-        id: `iteration-${iteration.id}`,
-        action: `Iteration (${iteration.bucket})`,
-        detail: `${iteration.name} — ${iteration.status.replace(/_/g, ' ')}`,
-        sortKey: 0,
-      })
-    }
-  }
-
-  return entries.sort((left, right) => right.sortKey - left.sortKey || left.action.localeCompare(right.action))
 }
 
 function compareOptionalIso(left?: string | null, right?: string | null): number {

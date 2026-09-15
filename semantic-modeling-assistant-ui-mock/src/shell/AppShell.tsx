@@ -11,6 +11,7 @@ const navItems = [
   { to: '/tasks', label: 'Prepare changes' },
   { to: '/operations', label: 'Review changes' },
   { to: '/guidance', label: 'Guidance' },
+  { to: '/activity', label: 'Activity' },
 ] as const
 
 function ProjectSwitcher() {

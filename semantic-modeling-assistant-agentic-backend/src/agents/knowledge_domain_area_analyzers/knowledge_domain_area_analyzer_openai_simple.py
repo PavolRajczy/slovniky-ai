@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from openai import OpenAI
 
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgent
+from agents.model_config import get_mini_model
 from design_project.domain import DesignProject, KnowledgeDomain, KnowledgeDomainArea
 from knowledge_base.domain import KnowledgeDocument
 from knowledge_base.service import KnowledgeBaseService
@@ -44,16 +45,16 @@ class KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(KnowledgeDomainAreaAnalyzer
     A simple implementation of KnowledgeDomainAreaAnalyzerAgent.
     """
 
-    def __init__(self, knowledge_base_service: KnowledgeBaseService, model_name: str = "gpt-5-mini"):
+    def __init__(self, knowledge_base_service: KnowledgeBaseService, model_name: Optional[str] = None):
         """
         Initialize the simple domain area analyzer agent.
 
         Args:
             knowledge_base_service (KnowledgeBaseService): The knowledge base service to work with knowledge documents.
-            model_name (str): The name of the model (defaults to "gpt-4.1").
+            model_name (str, optional): Overrides the model; defaults to the OPENAI_MODEL_MINI environment variable.
         """
         self.knowledge_base_service = knowledge_base_service
-        self.model_name = "gpt-5-mini"
+        self.model_name = model_name or get_mini_model()
         self.language = "Czech"
 
         # Initialize OpenAI client

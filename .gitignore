@@ -1,5 +1,6 @@
 #
 .*
+!.dockerignore
 
 */data/
 */data_test/

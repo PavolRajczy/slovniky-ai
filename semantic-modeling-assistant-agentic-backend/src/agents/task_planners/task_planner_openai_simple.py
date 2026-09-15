@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from openai import OpenAI
 
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
+from agents.model_config import get_model
 from agents.task_planners.task_planner import TaskPlannerAgent
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, DesignTask, DesignTaskStatus, KnowledgeDomainArea
@@ -68,18 +69,18 @@ class TaskPlannerAgent_Simple_OpenAI(TaskPlannerAgent):
     A simple implementation of TaskPlannerAgent using OpenAI.
     """
 
-    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: str = "gpt-5"):
+    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: Optional[str] = None):
         """
         Initialize the simple task planner agent.
 
         Args:
             knowledge_base_service (KnowledgeBaseService): The knowledge base service instance for loading and accessing knowledge documents.
             knowledge_base_index_service (KnowledgeBaseIndexService): The knowledge base index service instance for searching in the knowledge base.
-            model_name (str): The name of the model (defaults to "gpt-4.1").
+            model_name (str, optional): Overrides the model; defaults to the OPENAI_MODEL environment variable.
         """
         self.knowledge_base_service = knowledge_base_service
         self.knowledge_base_index_service = knowledge_base_index_service
-        self.model_name = "gpt-5"
+        self.model_name = model_name or get_model()
         self.language = "Czech"
 
         # Initialize OpenAI client

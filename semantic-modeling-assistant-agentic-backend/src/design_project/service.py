@@ -559,7 +559,7 @@ class DesignProjectService:
         The iteration can have finished tasks. These tasks will not be repeated nor changed.
         
         This method generates operations and stores them in the iteration for review and traceability.
-        The operations are returned for the client to review and potentially modify before applying.
+        The designed ontology is left unchanged; operations are applied only when the user finalizes.
 
         Args:
             project_id (str): The ID of the project to iterate on.
@@ -585,12 +585,7 @@ class DesignProjectService:
         iteration.status = DesignIterationStatus.GENERATING_OPERATIONS
 
         print(f"Preparing iteration {iteration.id}...")
-        
-        # Create a deep copy of the ontology for fake updates during task processing
-        print(f"Creating ontology copy for fake updates during task processing...")
-        current_ontology = copy.deepcopy(project.designedOntology)
-        print(f"... ontology copy created")
-        
+
         all_operations = []
         
         try:
@@ -610,7 +605,9 @@ class DesignProjectService:
                 task.status = DesignTaskStatus.GENERATING_OPERATIONS
 
                 try:
-                    # Provide the current ontology state (with fake updates from previous tasks)
+                    # Each task sees only the finalized ontology. Unreviewed proposals stay
+                    # on the iteration for the modeler to treat as pending, not applied.
+                    current_ontology = copy.deepcopy(project.designedOntology)
                     edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task, project_guidance_text=project_guidance)
                     
                     # Wrap each operation with identity
@@ -621,13 +618,10 @@ class DesignProjectService:
                             created_from_task_id=task.id
                         )
                         all_operations.append(identified_op)
+
+                    iteration.plannedOperations = all_operations
                     
                     print(f"  Generated {len(edit_operations)} operations for task")
-                    
-                    # Apply operations to the fake ontology copy (without processing references)
-                    if edit_operations:
-                        self._apply_operations_to_ontology(current_ontology, edit_operations)
-                        print(f"  ... applied {len(edit_operations)} operations to fake ontology")
                         
                 except Exception as e:
                     print(f"  Error while generating operations for task {task.id}: {e}")
@@ -666,6 +660,7 @@ class DesignProjectService:
         """
         Prepares a single planned task by generating only that task's operations.
         Existing prepared operations for other tasks are preserved.
+        The designed ontology is left unchanged until the user finalizes kept changes.
         """
         project = self.store.load_project(project_id)
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
@@ -707,11 +702,6 @@ class DesignProjectService:
         task.status = DesignTaskStatus.GENERATING_OPERATIONS
 
         current_ontology = copy.deepcopy(project.designedOntology)
-        if iteration.plannedOperations:
-            self._apply_operations_to_ontology(
-                current_ontology,
-                [identified_op.operation for identified_op in iteration.plannedOperations],
-            )
 
         project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
 
