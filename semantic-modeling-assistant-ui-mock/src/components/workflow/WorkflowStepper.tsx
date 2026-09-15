@@ -4,10 +4,10 @@ import { getWorkflowStepIndex } from '@/components/workflow/workflowTypes'
 import type { WorkflowLinkContext } from '@/components/workflow/WorkflowSearchContext'
 
 const STEP_META: { id: WorkflowStepId; label: string }[] = [
-  { id: 'domain-areas', label: 'Domain areas' },
+  { id: 'domain-areas', label: 'Domain map' },
   { id: 'iterations', label: 'Iterations' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'operations', label: 'Operations' },
+  { id: 'tasks', label: 'Prepare changes' },
+  { id: 'operations', label: 'Review changes' },
   { id: 'export', label: 'Export' },
 ]
 
@@ -35,8 +35,10 @@ export function WorkflowStepper({ activeStep, linkContext, exportSearch }: Workf
           const isCurrent = index === activeIndex
           const isCompleted = index < activeIndex
 
-          const domainSearch = { domainId: linkContext.domainId }
+          const projectSearch = { projectId: linkContext.projectId }
+          const domainSearch = { ...projectSearch, domainId: linkContext.domainId }
           const tasksOpsSearch = {
+            ...projectSearch,
             domainId: linkContext.domainId,
             iterationId: linkContext.iterationId,
             taskId: linkContext.taskId,
@@ -49,6 +51,7 @@ export function WorkflowStepper({ activeStep, linkContext, exportSearch }: Workf
             switch (step.id) {
               case 'domain-areas':
                 href = '/domain-areas'
+                search = projectSearch
                 break
               case 'iterations':
                 href = '/iterations'
@@ -64,7 +67,7 @@ export function WorkflowStepper({ activeStep, linkContext, exportSearch }: Workf
                 break
               case 'export':
                 href = '/export-result'
-                search = exportSearch !== undefined ? { ...exportSearch } : undefined
+                search = exportSearch !== undefined ? { ...projectSearch, ...exportSearch } : projectSearch
                 break
               default:
                 break

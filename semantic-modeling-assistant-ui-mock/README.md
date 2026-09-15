@@ -1,9 +1,12 @@
 # Semantic modeling assistant — mock UI
 
-Static **screenshot prototype** for the production frontend described in `doc/specifikace.tex` (Frontend section).  
-**No backend** — all content is placeholder data in `src/data/mockContent.ts`.
+Production-track frontend for the assistant described in `doc/specifikace.tex` (Frontend section). The app is being wired to the FastAPI backend in [`semantic-modeling-assistant-agentic-backend`](../semantic-modeling-assistant-agentic-backend) screen-by-screen; remaining static placeholders live in `src/data/mockContent.ts` and are removed as each commit lands.
 
-Stack: **TypeScript**, **React**, **Vite**, **TanStack Router**, **Tailwind CSS v4** (same family as the specification).
+Stack: **TypeScript**, **React**, **Vite**, **TanStack Router**, **TanStack Query**, **Tailwind CSS v4** (same family as the specification).
+
+## Backend connection
+
+The UI talks to the backend via `VITE_API_BASE_URL` (defaults to `http://localhost:8000`). Copy `.env.example` to `.env.local` and adjust if your backend runs elsewhere. In Docker the value is `same-origin` and nginx proxies `/api`. The sidebar header shows a live "Backend OK / Backend down" pill.
 
 ## Run locally
 
@@ -14,6 +17,16 @@ npm run dev
 ```
 
 Open the printed local URL (typically `http://localhost:5173`).
+
+## Docker
+
+From the **repository root** (not this folder), with `OPENAI_API_KEY` in `.env`:
+
+```bash
+docker compose up --build
+```
+
+UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backend). Full guide: [`DOCKER.md`](../DOCKER.md).
 
 ## Routes (for screenshots)
 

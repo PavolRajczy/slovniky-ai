@@ -75,15 +75,19 @@ class OntologyService:
         if ontology.uri is None:
             raise ValueError("Ontology URI cannot be None")
         
-        # Ensure the ontology is loaded in the store first
-        try:
-            # Try to load it first to register it in the store
-            self.store.load_ontology(str(ontology.uri))
-        except FileNotFoundError:
-            # If it doesn't exist, we need to register it first
-            # For FilesystemOntologyStore, we need to add it to the internal registry
-            if hasattr(self.store, 'ontologies'):
-                self.store.ontologies[ontology.uri] = ontology
+        # FilesystemOntologyStore.store_ontology enforces a "load-before-store"
+        # contract by checking that ontology.uri is present in its in-memory
+        # `ontologies` dict. For ontologies that have just been constructed
+        # from external data (e.g. imported from Dataspecer) there is nothing
+        # to load yet, and the previous "try load first" workaround was
+        # fragile: when the on-disk file existed under the same safe dirname
+        # but with a slightly different URI (e.g. trailing '#' added by
+        # _normalize_base_uri), the cache would be populated with the *old*
+        # URI and the subsequent store call would still raise
+        # "Ontology not found in the store". Register the exact ontology we
+        # are about to store directly to make the operation deterministic.
+        if hasattr(self.store, 'ontologies'):
+            self.store.ontologies[ontology.uri] = ontology
         
         self.store.store_ontology(ontology)
     

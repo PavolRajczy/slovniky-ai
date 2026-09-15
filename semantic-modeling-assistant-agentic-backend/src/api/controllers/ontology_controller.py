@@ -14,6 +14,7 @@ from ontology.service import OntologyService
 from ontology.domain import Ontology, OntologyClass, OntologyAttribute, OntologyRelationship
 from ontology.owl_loader import load_ontology_from_url
 from ontology.dataspecer_simplified import ontology_to_simplified, simplified_to_ontology
+from ontology.ofn_export import ontology_to_ofn
 from api.models import (
     OntologyModel,
     OntologyMetadata,
@@ -24,6 +25,7 @@ from api.models import (
     UpdateOntologyRequest,
     ImportOntologyFromUrlRequest,
     ExportOntologyToDataSpecerRequest,
+    ExportOntologyToOfnRequest,
     ImportOntologyFromDataSpecerRequest,
     SuccessResponse,
 )
@@ -329,6 +331,34 @@ async def export_ontology_to_dataspecer(request: ExportOntologyToDataSpecerReque
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Export failed: {str(e)}",
+        )
+
+
+@router.post("/ontologies/export-to-ofn")
+async def export_ontology_to_ofn(request: ExportOntologyToOfnRequest):
+    """
+    Export ontology as OFN Slovníky JSON (Konceptuální model, 2026-02-26).
+
+    Returns the OFN document directly so the client can preview and download it.
+    """
+    try:
+        ontology = ontology_service.load_ontology(request.ontology_uri)
+        return ontology_to_ofn(ontology, vocabulary_iri=request.vocabulary_iri)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ontology with URI '{request.ontology_uri}' not found",
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"OFN export failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OFN export failed: {str(e)}",
         )
 
 

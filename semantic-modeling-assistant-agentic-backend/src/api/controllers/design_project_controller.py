@@ -5,6 +5,7 @@ Main controller handling all design project operations and orchestrating the des
 """
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query
+from fastapi.responses import Response
 from urllib.parse import unquote
 import logging
 import uuid
@@ -14,6 +15,11 @@ from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
+from design_project.ofn_store import (
+    load_project_ofn,
+    project_ofn_as_turtle,
+    regenerate_and_save_project_ofn,
+)
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
     DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
@@ -215,8 +221,11 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
         CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation,
         CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation
     )
+    import uuid
     
-    operation = identified_op.operation
+    operation = getattr(identified_op, "operation", identified_op)
+    operation_id = getattr(identified_op, "id", str(uuid.uuid4()))
+    created_from_task_id = getattr(identified_op, "created_from_task_id", None)
     
     # Determine operation type
     op_type = operation.operation_type.value
@@ -224,9 +233,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Class Operations
     if isinstance(operation, (CreateClassOperation, UpdateClassOperation, DeleteClassOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="class",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             kind=operation.kind.value if hasattr(operation, 'kind') and operation.kind else None,
@@ -241,9 +251,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Attribute Operations
     elif isinstance(operation, (CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="attribute",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             definition=getattr(operation, 'definition', None),
@@ -257,9 +268,10 @@ def _convert_operation_to_model(identified_op) -> OntologyOperationModel:
     # Relationship Operations
     elif isinstance(operation, (CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation)):
         return OntologyOperationModel(
-            id=identified_op.id,
+            id=operation_id,
             operation_type=op_type,
             target_type="relationship",
+            created_from_task_id=created_from_task_id,
             uri=str(operation.uri),
             label=getattr(operation, 'label', None),
             definition=getattr(operation, 'definition', None),
@@ -395,7 +407,7 @@ def _convert_model_to_identified_operation(model: OntologyOperationModel):
     return IdentifiedOperation(
         id=model.id,
         operation=operation,
-        created_from_task_id=None  # Not tracked when coming from API
+        created_from_task_id=model.created_from_task_id
     )
 
 
@@ -2213,6 +2225,47 @@ async def prepare_iteration(project_id: str, iteration_id: str):
         )
 
 
+@router.post("/projects/{project_id}/iterations/{iteration_id}/tasks/{task_id}/prepare", response_model=IterationPreparedResponse)
+async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
+    """
+    Prepare one task by materializing only that task into ontology edit operations.
+    """
+    try:
+        logger.info(f"Preparing task: {task_id} in iteration: {iteration_id} for project: {project_id}")
+
+        project = design_project_service.load_project(project_id)
+        _ensure_project_documents_indexed(project)
+
+        operations = design_project_service.prepare_planned_iteration_task(
+            project_id=project_id,
+            iteration_id=iteration_id,
+            task_id=task_id
+        )
+
+        return IterationPreparedResponse(
+            iteration_id=iteration_id,
+            status="prepared",
+            operations=[_convert_operation_to_model(op) for op in operations]
+        )
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project or iteration not found"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error preparing task: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to prepare task: {str(e)}"
+        )
+
+
 @router.get("/projects/{project_id}/iterations/{iteration_id}/operations", response_model=IterationPreparedResponse)
 async def get_iteration_operations(project_id: str, iteration_id: str):
     """
@@ -2523,6 +2576,14 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             project_id=project_id,
             operations=operations
         )
+
+        ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+        logger.info(
+            "Saved project OFN to %s (pojmy=%s, overwrite=%s)",
+            ofn_result["absolute_path"],
+            ofn_result["pojmy_count"],
+            ofn_result["overwrote_existing"],
+        )
         
         # Calculate statistics (simplified)
         stats = {
@@ -2539,7 +2600,12 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             status="completed",
             applied_operations_count=len(operations),
             ontology_changes=stats,
-            updated_ontology=_convert_ontology_to_model(updated_ontology)
+            updated_ontology=_convert_ontology_to_model(updated_ontology),
+            ofn_saved=True,
+            ofn_path=ofn_result["path"],
+            ofn_absolute_path=ofn_result["absolute_path"],
+            ofn_pojmy_count=ofn_result["pojmy_count"],
+            ofn_overwrote_existing=ofn_result["overwrote_existing"],
         )
     
     except FileNotFoundError:
@@ -2648,6 +2714,85 @@ async def get_project_ontology(
         )
 
 
+@router.get("/projects/{project_id}/ofn")
+async def get_project_ofn(project_id: str, format: str = Query("json")):
+    """
+    Return the project's saved OFN Slovníky document.
+
+    `format=json` (default) returns JSON-LD.
+    `format=turtle` or `format=ttl` returns the same vocabulary as Turtle.
+    """
+    try:
+        design_project_service.load_project(project_id)
+        normalized_format = (format or "json").strip().lower()
+        if normalized_format in {"turtle", "ttl"}:
+            turtle = project_ofn_as_turtle(project_id)
+            if turtle is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        f"No OFN file for project '{project_id}'. "
+                        "Finalize/apply changes first, or call POST /ofn/regenerate."
+                    ),
+                )
+            return Response(content=turtle, media_type="text/turtle; charset=utf-8")
+
+        document = load_project_ofn(project_id)
+        if document is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=(
+                    f"No OFN file for project '{project_id}'. "
+                    "Finalize/apply changes first, or call POST /ofn/regenerate."
+                ),
+            )
+        return document
+    except HTTPException:
+        raise
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except Exception as e:
+        logger.error(f"Error loading project OFN: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load project OFN: {str(e)}",
+        )
+
+
+@router.post("/projects/{project_id}/ofn/regenerate")
+async def regenerate_project_ofn_endpoint(project_id: str):
+    """
+    Regenerate OFN from the current project ontology and overwrite `ofn.json`.
+    """
+    try:
+        project = design_project_service.load_project(project_id)
+        result = regenerate_and_save_project_ofn(project_id, project.designedOntology)
+        return {
+            "success": True,
+            "ofn_path": result["path"],
+            "ofn_absolute_path": result["absolute_path"],
+            "ofn_turtle_path": result["turtle_path"],
+            "ofn_turtle_absolute_path": result["turtle_absolute_path"],
+            "ofn_pojmy_count": result["pojmy_count"],
+            "ofn_overwrote_existing": result["overwrote_existing"],
+            "document": result["document"],
+        }
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found",
+        )
+    except Exception as e:
+        logger.error(f"Error regenerating project OFN: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate project OFN: {str(e)}",
+        )
+
+
 # ============================================================================
 # Ontology Edit from Instruction (no iteration)
 # ============================================================================
@@ -2685,12 +2830,19 @@ async def generate_operations_from_instruction(project_id: str, request: Generat
 async def apply_operations_to_project_ontology_endpoint(project_id: str, request: ApplyProjectOperationsRequest):
     """
     Apply the given operations directly to the project's designed ontology (no iteration).
-    Saves the project and persists the ontology.
+    Saves the project, persists the ontology, and regenerates project OFN (overwrite).
     """
     try:
         domain_operations = [_convert_model_to_operation(m) for m in request.operations]
         updated_ontology = design_project_service.apply_operations_to_project_ontology(
             project_id, domain_operations
+        )
+        ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+        logger.info(
+            "Saved project OFN to %s after direct apply (pojmy=%s, overwrite=%s)",
+            ofn_result["absolute_path"],
+            ofn_result["pojmy_count"],
+            ofn_result["overwrote_existing"],
         )
         return _convert_ontology_to_model(updated_ontology)
     except FileNotFoundError:
