@@ -1,6 +1,7 @@
 #
 .*
 !.dockerignore
+!.env.example
 
 */data/
 */data_test/

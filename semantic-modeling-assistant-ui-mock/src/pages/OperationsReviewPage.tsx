@@ -227,6 +227,15 @@ export function OperationsReviewPage() {
   const reviewOf = (id: string): ReviewState => reviewById[id] ?? 'pending'
   const setReview = (id: string, next: ReviewState) =>
     setReviewById((prev) => ({ ...prev, [id]: next }))
+  const acceptAll = () => {
+    setReviewById((prev) => {
+      const next = { ...prev }
+      for (const op of operations) {
+        next[op.id] = 'approved'
+      }
+      return next
+    })
+  }
 
   const counts = useMemo(() => {
     let approved = 0
@@ -551,18 +560,30 @@ export function OperationsReviewPage() {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Proposed changes
-            </p>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-              {isScopedReview ? 'Review this work item' : 'Review changes'}
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              {isScopedReview
-                ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'
-                : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Proposed changes
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                {isScopedReview ? 'Review this work item' : 'Review changes'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {isScopedReview
+                  ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'
+                  : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'}
+              </p>
+            </div>
+            {hasOperations ? (
+              <button
+                type="button"
+                onClick={acceptAll}
+                disabled={counts.approved === counts.total}
+                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-default disabled:opacity-60"
+              >
+                Accept all
+              </button>
+            ) : null}
           </div>
 
           <ActivitySummary projectId={projectId} iterationId={iterationId} />

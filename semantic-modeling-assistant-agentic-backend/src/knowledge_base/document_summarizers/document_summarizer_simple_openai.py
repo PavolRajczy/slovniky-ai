@@ -2,8 +2,9 @@ import os
 import json
 from pathlib import Path
 from typing import Optional
-from openai import OpenAI
 from dotenv import load_dotenv
+
+from agents.model_config import create_openai_client
 
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.store import KnowledgeDocumentSummarizer
@@ -48,7 +49,7 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
         self.open_api_key = os.getenv("OPENAI_API_KEY")
         if not self.open_api_key:
             raise ValueError("OPENAI_API_KEY not found in environment variables")
-        self.client = OpenAI(api_key=self.open_api_key)
+        self.client = create_openai_client(self.open_api_key)
 
     def summarize_document(self, document: KnowledgeDocument) -> None:
         """

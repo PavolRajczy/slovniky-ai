@@ -2,10 +2,8 @@ import os
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
-from openai import OpenAI
-
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgent
-from agents.model_config import get_mini_model
+from agents.model_config import create_openai_client, get_mini_model
 from design_project.domain import DesignProject, KnowledgeDomain, KnowledgeDomainArea
 from knowledge_base.domain import KnowledgeDocument
 from knowledge_base.service import KnowledgeBaseService
@@ -62,7 +60,7 @@ class KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(KnowledgeDomainAreaAnalyzer
         if not api_key:
             raise ValueError("OpenAI API key must be provided as OPENAI_API_KEY environment variable")
 
-        self.openai_client = OpenAI(api_key=api_key)
+        self.openai_client = create_openai_client(api_key)
 
     def identify_domain_areas(self, knowledge_domain: KnowledgeDomain, knowledge_document: KnowledgeDocument, consider_existing_areas: bool = False, user_instruction: str = "") -> List[KnowledgeDomainArea]:
         """

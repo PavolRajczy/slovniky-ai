@@ -180,6 +180,11 @@ class CreateProjectRequest(BaseModel):
     knowledge_domain_description: Optional[str] = None
 
 
+class OpenFromDataspecerRequest(BaseModel):
+    """Open the app project linked to a Dataspecer vocabulary, creating it when missing."""
+    package_iri: str
+
+
 class UpdateProjectRequest(BaseModel):
     """Request to update project metadata."""
     name: Optional[str] = None
@@ -197,6 +202,7 @@ class ProjectSummary(BaseModel):
     updated_at: str
     domain_areas_count: int
     iterations_count: int
+    dataspecer_package_iri: Optional[str] = None
 
 
 class KnowledgeDomainAreaModel(BaseModel):
@@ -412,6 +418,7 @@ class ProjectModel(BaseModel):
     planned_iterations: List[DesignIterationModel] = Field(default_factory=list)
     current_iteration: Optional[DesignIterationModel] = None
     finished_iterations: List[DesignIterationModel] = Field(default_factory=list)
+    dataspecer_package_iri: Optional[str] = None
 
 
 # ============================================================================

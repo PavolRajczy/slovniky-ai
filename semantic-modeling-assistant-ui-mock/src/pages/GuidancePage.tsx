@@ -142,7 +142,7 @@ export function GuidancePage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Open the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
+          <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
             project setup page
           </Link>{' '}
           and pick or create a project first.

@@ -1,11 +1,11 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
 import { OfnExportPanel } from '@/components/OfnExportPanel'
 import { ApiError } from '@/api/client'
-import { getProject } from '@/api/projects'
+import { getDataspecerExportUrl, getProject } from '@/api/projects'
 import { exportOntologyToDataspecer, getOntology } from '@/api/ontologies'
 
 const exportRouteApi = getRouteApi('/export-result')
@@ -39,6 +39,10 @@ export function ExportResultPage() {
   const [putUrl, setPutUrl] = useState('')
   const [putUrlTouched, setPutUrlTouched] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [linkedExportUrl, setLinkedExportUrl] = useState<string | null>(null)
+  const autoExportStarted = useRef(false)
+
+  const linkedToDataspecer = Boolean(projectQuery.data?.dataspecer_package_iri)
 
   useEffect(() => {
     if (!projectId || putUrlTouched) {
@@ -48,11 +52,35 @@ export function ExportResultPage() {
       const stored = window.localStorage.getItem(putUrlStorageKey(projectId))
       if (stored && stored.length > 0) {
         setPutUrl(stored)
+        return
       }
     } catch {
       // localStorage may be unavailable; safe to ignore.
     }
-  }, [projectId, putUrlTouched])
+    if (!linkedToDataspecer) {
+      return
+    }
+    let cancelled = false
+    getDataspecerExportUrl(projectId)
+      .then((result) => {
+        if (cancelled) {
+          return
+        }
+        setLinkedExportUrl(result.put_url)
+        setPutUrl(result.put_url)
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+        if (error instanceof ApiError) setExportError(error.message)
+        else if (error instanceof Error) setExportError(error.message)
+        else setExportError('Could not resolve the local Dataspecer export URL.')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, putUrlTouched, linkedToDataspecer])
 
   const exportMutation = useMutation({
     mutationFn: () =>
@@ -76,6 +104,14 @@ export function ExportResultPage() {
       else setExportError('Export failed.')
     },
   })
+
+  useEffect(() => {
+    if (!linkedExportUrl || !ontologyUri || putUrl !== linkedExportUrl || autoExportStarted.current) {
+      return
+    }
+    autoExportStarted.current = true
+    exportMutation.mutate()
+  }, [linkedExportUrl, ontologyUri, putUrl, exportMutation])
 
   const counts = useMemo(() => {
     const o = ontologyQuery.data
@@ -125,7 +161,7 @@ export function ExportResultPage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Pick or create a project on the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
+          <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
             project setup
           </Link>{' '}
           page first.
@@ -178,8 +214,9 @@ export function ExportResultPage() {
               disabled={exportPending}
             />
             <p className="mt-1 text-[11px] text-slate-500">
-              Same URL convention as the import step (GET fetches, PUT replaces). The last value is
-              remembered per project on this device.
+              {linkedToDataspecer
+                ? 'Filled from the linked local Dataspecer vocabulary. Export runs on its own when this page opens.'
+                : 'Same URL convention as the import step (GET fetches, PUT replaces). The last value is remembered per project on this device.'}
             </p>
           </div>
 

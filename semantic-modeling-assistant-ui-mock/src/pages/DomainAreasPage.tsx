@@ -1,5 +1,5 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { WorkflowStepper, resolveWorkflowContext } from '@/components/workflow'
 import { ApiError } from '@/api/client'
@@ -11,7 +11,8 @@ import {
   reidentifyDomainAreas,
   updateDomainArea,
 } from '@/api/domainAreas'
-import { getProject } from '@/api/projects'
+import { getProject, openProjectFromDataspecer } from '@/api/projects'
+import { useCurrentProject } from '@/hooks/useCurrentProject'
 import type { KnowledgeDomainAreaModel } from '@/api/types'
 
 const domainAreasRouteApi = getRouteApi('/domain-areas')
@@ -35,9 +36,11 @@ type EditFormState = {
 }
 
 export function DomainAreasPage() {
-  const { projectId } = domainAreasRouteApi.useSearch()
+  const { projectId, packageIri } = domainAreasRouteApi.useSearch()
+  const { setProjectId } = useCurrentProject()
   const linkContext = resolveWorkflowContext({ projectId })
   const queryClient = useQueryClient()
+  const [dataspecerError, setDataspecerError] = useState<string | null>(null)
 
   const [createForm, setCreateForm] = useState<CreateFormState>(INITIAL_CREATE)
   const [createError, setCreateError] = useState<string | null>(null)
@@ -47,6 +50,30 @@ export function DomainAreasPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditFormState>({ label: '', description: '', keyConcepts: '' })
   const [editError, setEditError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!packageIri || projectId) {
+      return
+    }
+    let cancelled = false
+    setDataspecerError(null)
+    openProjectFromDataspecer(packageIri)
+      .then(async (project) => {
+        if (cancelled) {
+          return
+        }
+        await queryClient.invalidateQueries({ queryKey: ['projects'] })
+        setProjectId(project.id)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setDataspecerError(toErrorMessage(error))
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [packageIri, projectId, queryClient, setProjectId])
 
   const projectQuery = useQuery({
     queryKey: ['project', projectId],
@@ -178,15 +205,31 @@ export function DomainAreasPage() {
 
   if (!projectId) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
+      <div className="mx-auto max-w-5xl space-y-8">
         <WorkflowStepper activeStep="domain-areas" linkContext={linkContext} />
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          No project selected. Open the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
-            project setup page
-          </Link>{' '}
-          and pick or create a project first.
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Domain map</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            A simple map of the main topics in this domain.
+          </p>
         </div>
+        {packageIri && !dataspecerError ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-700">
+            Opening this vocabulary and preparing its domain map…
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
+            {dataspecerError ?? (
+              <>
+                No project selected. Open the{' '}
+                <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
+                  project setup page
+                </Link>{' '}
+                and pick or create a project first.
+              </>
+            )}
+          </div>
+        )}
       </div>
     )
   }
@@ -235,7 +278,7 @@ export function DomainAreasPage() {
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             No key document is set on this project. The domain map needs a key document -
             set one on the{' '}
-            <Link to="/project" search={{ projectId }} className="font-medium underline">
+            <Link to="/project" search={{ projectId, packageIri: undefined }} className="font-medium underline">
               project page
             </Link>
             .

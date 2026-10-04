@@ -3,15 +3,13 @@ import { useMemo } from 'react'
 import { BackendStatusPill } from '@/components/BackendStatusPill'
 import { CurrentProjectProvider, useCurrentProjectContext } from '@/shell/CurrentProjectProvider'
 
+const modelingPaths = ['/domain-areas', '/iterations-v2', '/tasks', '/operations', '/export-result']
+
 const navItems = [
-  { to: '/project', label: 'Project setup' },
-  { to: '/domain-areas', label: 'Domain map' },
-  { to: '/iterations', label: 'Iterations' },
-  { to: '/iterations-v2', label: 'Iterations (v2)' },
-  { to: '/tasks', label: 'Prepare changes' },
-  { to: '/operations', label: 'Review changes' },
-  { to: '/guidance', label: 'Guidance' },
-  { to: '/activity', label: 'Activity' },
+  { to: '/project', label: 'Project setup', activePaths: ['/project'] },
+  { to: '/domain-areas', label: 'Modeling', activePaths: modelingPaths },
+  { to: '/guidance', label: 'Guidance', activePaths: ['/guidance'] },
+  { to: '/activity', label: 'Activity', activePaths: ['/activity'] },
 ] as const
 
 function ProjectSwitcher() {
@@ -36,7 +34,7 @@ function ProjectSwitcher() {
     return (
       <Link
         to="/project"
-        search={{ projectId: undefined }}
+        search={{ projectId: undefined, packageIri: undefined }}
         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
       >
         Import a vocabulary…
@@ -124,12 +122,12 @@ function Sidebar() {
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
         {navItems.map((item) => {
-          const active = pathname === item.to
+          const active = (item.activePaths as readonly string[]).includes(pathname)
           return (
             <Link
               key={item.to}
               to={item.to}
-              search={search}
+              search={item.to === '/domain-areas' ? { projectId, packageIri: undefined } : search}
               className={
                 active
                   ? 'rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white'
@@ -163,13 +161,6 @@ function ShellChrome() {
               Project
             </label>
             <ProjectSwitcher />
-            <Link
-              to="/project"
-              search={{ projectId: undefined }}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Import another…
-            </Link>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">

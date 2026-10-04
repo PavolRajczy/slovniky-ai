@@ -150,7 +150,7 @@ export function IterationsV2Page() {
         <WorkflowStepper activeStep="iterations" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Open the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
+          <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
             project setup page
           </Link>{' '}
           first.
@@ -480,7 +480,7 @@ function DomainFeedbackPanel({ domain, progress, projectId }: DomainFeedbackPane
       <div className="mt-4 flex justify-end">
         <Link
           to="/domain-areas"
-          search={{ projectId }}
+          search={{ projectId, packageIri: undefined }}
           className="text-xs font-medium text-emerald-700 hover:underline"
         >
           Choose a different domain

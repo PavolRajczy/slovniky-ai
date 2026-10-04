@@ -20,6 +20,17 @@ export function createProject(body: CreateProjectRequest): Promise<ProjectModel>
   return apiFetch<ProjectModel>('/projects', { method: 'POST', body })
 }
 
+export function getDataspecerExportUrl(projectId: string): Promise<{ put_url: string }> {
+  return apiFetch<{ put_url: string }>(`/projects/${projectId}/dataspecer-export-url`)
+}
+
+export function openProjectFromDataspecer(packageIri: string): Promise<ProjectModel> {
+  return apiFetch<ProjectModel>('/projects/open-from-dataspecer', {
+    method: 'POST',
+    body: { package_iri: packageIri },
+  })
+}
+
 export function updateProject(projectId: string, body: UpdateProjectRequest): Promise<ProjectModel> {
   return apiFetch<ProjectModel>(`/projects/${projectId}`, { method: 'PUT', body })
 }

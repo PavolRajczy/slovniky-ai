@@ -1,12 +1,14 @@
 from typing import List, Optional
 import uuid
 import copy
+import threading
 
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgent
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.modelers.modeler import ModelerAgent
 from agents.task_planners.task_planner import TaskPlannerAgent
 
+from design_project.dataspecer_link import DataspecerLinkError, import_vocabulary
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskPattern, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.project_guidance_service import ProjectGuidanceService
@@ -53,6 +55,7 @@ class DesignProjectService:
 
         # Initialize the design task patterns factory to be used to get design task patterns.
         self.design_task_patterns_factory = DesignTaskPatternsFactory_Basic()
+        self._dataspecer_open_lock = threading.Lock()
 
     def _effective_user_instruction(self, project_id: str, user_instruction: str) -> str:
         """Combine project guidance (if any) with the per-request user_instruction for agent prompts."""
@@ -283,7 +286,37 @@ class DesignProjectService:
         """
         return self.store.list_all_projects()
 
-    def initialize_new_project(self, project_name: str, working_ontology_uri: str, knowledge_domain_name: str = "", knowledge_domain_description: str = "") -> DesignProject:
+    def open_from_dataspecer(self, package_iri: str) -> DesignProject:
+        """
+        Return the project linked to a Dataspecer vocabulary.
+
+        When none is stored, import that vocabulary's semantic model and create the project.
+        A later call with the same package id returns the stored project and does not import again.
+        """
+        if not package_iri or not package_iri.strip():
+            raise DataspecerLinkError("Dataspecer package IRI is required.", status_code=400)
+
+        with self._dataspecer_open_lock:
+            existing = self.find_by_dataspecer_package_iri(package_iri)
+            if existing is not None:
+                return existing
+
+            name, ontology = import_vocabulary(package_iri)
+            self.ontology_service.store_ontology(ontology)
+            return self.initialize_new_project(
+                project_name=name,
+                working_ontology_uri=str(ontology.uri),
+                dataspecer_package_iri=package_iri,
+            )
+
+    def find_by_dataspecer_package_iri(self, package_iri: str) -> Optional[DesignProject]:
+        """Return the project linked to this Dataspecer vocabulary, if one was stored."""
+        for project in self.list_all_projects():
+            if project.dataspecerPackageIri == package_iri:
+                return self.load_project(project.id)
+        return None
+
+    def initialize_new_project(self, project_name: str, working_ontology_uri: str, knowledge_domain_name: str = "", knowledge_domain_description: str = "", dataspecer_package_iri: Optional[str] = None) -> DesignProject:
         """
         Initializes a new design project with empty knowledge base.
 
@@ -322,7 +355,8 @@ class DesignProjectService:
             expertKnowledgeBase=[],  # Empty - will be added later
             keyKnowledgeDocument=None,  # Will be set later
             modeledKnowledgeDomain=knowledge_domain,
-            designedOntology=working_ontology
+            designedOntology=working_ontology,
+            dataspecerPackageIri=dataspecer_package_iri,
         )
 
         self.store.store_project(project)
@@ -570,30 +604,38 @@ class DesignProjectService:
         """
         project = self.store.load_project(project_id)
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
+        if iteration:
+            if project.currentIteration and project.currentIteration.id != iteration_id:
+                raise ValueError("Another iteration is already being prepared.")
+            project.plannedIterations.remove(iteration)
+            project.currentIteration = iteration
+        else:
+            iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
         if not iteration:
             raise ValueError(f"Iteration not found in planned iterations: {iteration_id}")
-        if iteration.status not in [DesignIterationStatus.PLANNED, DesignIterationStatus.TASKS_PLANNED]:
-            raise ValueError(f"Iteration must be in PLANNED or TASKS_PLANNED status, but is: {iteration.status}")
-        
-        if not iteration.plannedTasks or len(iteration.plannedTasks) == 0:
+        if iteration.status not in [
+            DesignIterationStatus.PLANNED,
+            DesignIterationStatus.TASKS_PLANNED,
+            DesignIterationStatus.OPERATIONS_GENERATED,
+        ]:
+            raise ValueError(f"Iteration cannot prepare remaining work items from status: {iteration.status}")
+
+        plannedTasksToProcess = [task for task in iteration.plannedTasks if task.status == DesignTaskStatus.PLANNED]
+        if len(plannedTasksToProcess) == 0:
             raise ValueError(f"Iteration has no planned tasks: {iteration_id}")
 
         # Status transition: PLANNED/TASKS_PLANNED -> GENERATING_OPERATIONS
         # Location transition: plannedIterations -> currentIteration
-        project.plannedIterations.remove(iteration)
-        project.currentIteration = iteration
         iteration.status = DesignIterationStatus.GENERATING_OPERATIONS
+        iteration.plannedTasks = [task for task in iteration.plannedTasks if task.status != DesignTaskStatus.PLANNED]
 
         print(f"Preparing iteration {iteration.id}...")
 
-        all_operations = []
+        all_operations = list(iteration.plannedOperations or [])
         
         try:
             import uuid
             from design_project.domain import IdentifiedOperation
-            
-            plannedTasksToProcess = list(iteration.plannedTasks)  # Copy of the original planned tasks to process
-            iteration.plannedTasks.clear()
             project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
             while plannedTasksToProcess and len(plannedTasksToProcess) > 0:
                 task = plannedTasksToProcess.pop(0)

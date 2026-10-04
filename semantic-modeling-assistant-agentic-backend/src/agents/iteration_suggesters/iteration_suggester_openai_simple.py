@@ -3,10 +3,8 @@ import uuid
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
-from openai import OpenAI
-
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
-from agents.model_config import get_model
+from agents.model_config import create_openai_client, get_model
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, KnowledgeDomainArea
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
@@ -53,7 +51,7 @@ class IterationSuggesterAgent_Simple_OpenAI(IterationSuggesterAgent):
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        self.client = OpenAI(api_key=api_key)
+        self.client = create_openai_client(api_key)
 
     def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str) -> List[DesignIteration]:
         """

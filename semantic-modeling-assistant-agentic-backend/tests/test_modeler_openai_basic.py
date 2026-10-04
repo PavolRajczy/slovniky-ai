@@ -167,7 +167,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
         self.assertIn("owl:Ontology", result)
         self.assertIn("Test Ontology", result)
     
-    @patch('agents.modelers.modeler_openai_basic.OpenAI')
+    @patch('agents.model_config.OpenAI')
     def test_do_design_task_success(self, mock_openai_class):
         """Test successful execution of design task."""
         # Mock OpenAI client and responses
@@ -232,7 +232,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
         self.knowledge_base_index_service.search_by_query.side_effect = Exception("Search failed")
         
         # Mock OpenAI client that fails
-        with patch('agents.modelers.modeler_openai_basic.OpenAI') as mock_openai_class:
+        with patch('agents.model_config.OpenAI') as mock_openai_class:
             mock_client = Mock()
             mock_openai_class.return_value = mock_client
             mock_client.beta.chat.completions.parse.side_effect = Exception("OpenAI API failed")

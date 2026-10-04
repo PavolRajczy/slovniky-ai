@@ -132,6 +132,7 @@ export type ProjectSummary = {
   updated_at: string
   domain_areas_count: number
   iterations_count: number
+  dataspecer_package_iri?: string | null
 }
 
 export type KnowledgeDomainAreaModel = {
@@ -212,6 +213,7 @@ export type ProjectModel = {
   planned_iterations: DesignIterationModel[]
   current_iteration?: DesignIterationModel | null
   finished_iterations: DesignIterationModel[]
+  dataspecer_package_iri?: string | null
 }
 
 export type GuidanceItemType = 'instruction' | 'correction' | 'preference' | 'constraint'

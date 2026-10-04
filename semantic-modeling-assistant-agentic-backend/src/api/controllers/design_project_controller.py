@@ -44,8 +44,9 @@ from agents.iteration_suggesters.iteration_suggester_openai_simple import Iterat
 from agents.task_planners.task_planner_openai_simple import TaskPlannerAgent_Simple_OpenAI
 from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
 
+from design_project.dataspecer_link import DataspecerLinkError, export_url_for_package
 from api.models import (
-    CreateProjectRequest, UpdateProjectRequest, ProjectSummary, ProjectModel,
+    CreateProjectRequest, OpenFromDataspecerRequest, UpdateProjectRequest, ProjectSummary, ProjectModel,
     KnowledgeDomainAreaModel, CreateDomainAreaRequest, UpdateDomainAreaRequest,
     ReidentifyDomainAreasRequest, SetKeyDocumentRequest, GenerateDomainAreasRequest,
     DesignIterationModel, CreateIterationRequest,
@@ -549,7 +550,8 @@ def _convert_project_to_summary(project: DesignProject) -> ProjectSummary:
         created_at="",  # Not tracked in current domain model
         updated_at="",  # Not tracked in current domain model
         domain_areas_count=len(project.modeledKnowledgeDomain.areas) if project.modeledKnowledgeDomain else 0,
-        iterations_count=len(project.plannedIterations) + len(project.finishedIterations) + (1 if project.currentIteration else 0)
+        iterations_count=len(project.plannedIterations) + len(project.finishedIterations) + (1 if project.currentIteration else 0),
+        dataspecer_package_iri=project.dataspecerPackageIri,
     )
 
 
@@ -567,7 +569,8 @@ def _convert_project_to_model(project: DesignProject) -> ProjectModel:
         domain_areas=[_convert_domain_area_to_model(area) for area in (project.modeledKnowledgeDomain.areas if project.modeledKnowledgeDomain else [])],
         planned_iterations=[_convert_iteration_to_model(it) for it in project.plannedIterations],
         current_iteration=_convert_iteration_to_model(project.currentIteration) if project.currentIteration else None,
-        finished_iterations=[_convert_iteration_to_model(it) for it in project.finishedIterations]
+        finished_iterations=[_convert_iteration_to_model(it) for it in project.finishedIterations],
+        dataspecer_package_iri=project.dataspecerPackageIri,
     )
 
 
@@ -611,6 +614,47 @@ async def create_project(request: CreateProjectRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create project: {str(e)}"
+        )
+
+
+@router.get("/projects/{project_id}/dataspecer-export-url")
+async def dataspecer_export_url(project_id: str):
+    """
+    URL that receives this project's ontology on the configured Dataspecer backend.
+    """
+    try:
+        project = design_project_service.load_project(project_id)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+
+    if not project.dataspecerPackageIri:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This project is not linked to a Dataspecer vocabulary.",
+        )
+    try:
+        return {"put_url": export_url_for_package(project.dataspecerPackageIri)}
+    except DataspecerLinkError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error))
+
+
+@router.post("/projects/open-from-dataspecer", response_model=ProjectModel)
+async def open_project_from_dataspecer(request: OpenFromDataspecerRequest):
+    """
+    Open the project linked to a Dataspecer vocabulary.
+
+    Creates the project and imports the vocabulary semantic model when this package id is not stored yet.
+    """
+    try:
+        project = design_project_service.open_from_dataspecer(request.package_iri)
+        return _convert_project_to_model(project)
+    except DataspecerLinkError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error))
+    except Exception as error:
+        logger.error(f"Error opening project from Dataspecer: {error}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to open project from Dataspecer: {str(error)}",
         )
 
 
@@ -2764,6 +2808,41 @@ async def delete_operation(project_id: str, iteration_id: str, operation_id: str
         )
 
 
+def _iteration_already_applied_response(
+    project_id: str,
+    iteration_id: str,
+    iteration: DesignIteration,
+    project: DesignProject,
+) -> IterationAppliedResponse:
+    """Return the saved ontology when apply already finished this iteration."""
+    updated_ontology = project.designedOntology
+    ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+    stats = {
+        "classes_added": len(updated_ontology.classes),
+        "attributes_added": len(updated_ontology.attributes),
+        "relationships_added": len(updated_ontology.relationships),
+        "elements_updated": 0,
+        "elements_deleted": 0,
+    }
+    logger.info(
+        "Iteration %s was already applied; returning the saved ontology",
+        iteration_id,
+    )
+    return IterationAppliedResponse(
+        success=True,
+        iteration_id=iteration_id,
+        status="completed",
+        applied_operations_count=len(iteration.finishedTasks),
+        ontology_changes=stats,
+        updated_ontology=_convert_ontology_to_model(updated_ontology),
+        ofn_saved=True,
+        ofn_path=ofn_result["path"],
+        ofn_absolute_path=ofn_result["absolute_path"],
+        ofn_pojmy_count=ofn_result["pojmy_count"],
+        ofn_overwrote_existing=ofn_result["overwrote_existing"],
+    )
+
+
 @router.post("/projects/{project_id}/iterations/{iteration_id}/apply", response_model=IterationAppliedResponse)
 async def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOperationsRequest):
     """
@@ -2785,9 +2864,17 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
         
         # Load project and validate
         project = design_project_service.load_project(project_id)
-        
-        # Validate there is a current iteration
+
+        # Apply clears currentIteration on the cached project before this handler
+        # builds the response. A retry after that successful write has nothing left
+        # to apply, so return the already saved result.
         if not project.currentIteration:
+            finished = next(
+                (it for it in project.finishedIterations if it.id == iteration_id),
+                None,
+            )
+            if finished and finished.status == DesignIterationStatus.COMPLETED:
+                return _iteration_already_applied_response(project_id, iteration_id, finished, project)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="No current iteration to apply. Prepare an iteration first."
@@ -2826,7 +2913,11 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             logger.info(f"Using {len(operations)} persisted operations from prepare step")
         
         logger.info(f"Applying {len(operations)} operations to iteration {iteration_id}")
-        
+
+        # Apply moves the iteration to finished and clears currentIteration on the
+        # same cached project object, so the name must be read before that call.
+        iteration_name = project.currentIteration.name or iteration_id
+
         # Apply the operations
         updated_ontology = design_project_service.apply_current_iteration_changes(
             project_id=project_id,
@@ -2840,8 +2931,6 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_result["pojmy_count"],
             ofn_result["overwrote_existing"],
         )
-
-        iteration_name = project.currentIteration.name or iteration_id
         activity_service.record(
             project_id=project_id,
             type=ProjectActivityEventType.ITERATION_APPLIED,
@@ -2877,7 +2966,9 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_pojmy_count=ofn_result["pojmy_count"],
             ofn_overwrote_existing=ofn_result["overwrote_existing"],
         )
-    
+
+    except HTTPException:
+        raise
     except FileNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

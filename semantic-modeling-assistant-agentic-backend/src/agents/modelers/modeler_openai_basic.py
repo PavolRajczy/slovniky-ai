@@ -4,9 +4,7 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 from rdflib import URIRef
 
-from openai import OpenAI
-
-from agents.model_config import get_mini_model
+from agents.model_config import create_openai_client, get_mini_model
 from agents.modelers.modeler import ModelerAgent
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
@@ -227,7 +225,7 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-        self.client = OpenAI(api_key=api_key)
+        self.client = create_openai_client(api_key)
 
     def get_operations_for_design_task(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         """

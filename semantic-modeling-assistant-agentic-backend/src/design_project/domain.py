@@ -139,6 +139,7 @@ class DesignProject:
     keyKnowledgeDocument: Optional[KnowledgeDocument]       # The key knowledge document that structures the knowledge domain and its areas.
     modeledKnowledgeDomain: Optional[KnowledgeDomain]       # The knowledge domain for which we design an ontology in the design project.
     designedOntology: Ontology                              # The ontology that is being designed.
+    dataspecerPackageIri: Optional[str] = None              # Dataspecer vocabulary package this project was opened from. Absent on older projects.
 
 @dataclass
 class DesignIteration:

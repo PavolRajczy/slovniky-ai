@@ -5,10 +5,8 @@ import re
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
-from openai import OpenAI
-
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
-from agents.model_config import get_model
+from agents.model_config import create_openai_client, get_model
 from agents.task_planners.task_planner import TaskPlannerAgent
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, DesignTask, DesignTaskStatus, KnowledgeDomainArea
@@ -87,7 +85,7 @@ class TaskPlannerAgent_Simple_OpenAI(TaskPlannerAgent):
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        self.client = OpenAI(api_key=api_key)
+        self.client = create_openai_client(api_key)
 
     def build_iteration_plan(self, design_project: DesignProject, iteration: DesignIteration, user_instruction: str = "") -> List[DesignTask]:
         """

@@ -6,8 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import numpy as np
 import faiss
-from openai import OpenAI
-
+from agents.model_config import create_openai_client
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base_index.indexer import KnowledgeDocumentIndexer
 from ..domain import IndexDocument, TextChunk, SearchQuery, SearchResult, ChunkMatch
@@ -46,7 +45,7 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         if not api_key:
             raise ValueError("OpenAI API key must be provided as OPENAI_API_KEY environment variable")
 
-        self.openai_client = OpenAI(api_key=api_key)
+        self.openai_client = create_openai_client(api_key)
         
         # Initialize chunker
         self.chunker = SemchunkIndexDocumentChunker(chunk_size=chunk_size, chunk_overlap=0, target_model=target_model)

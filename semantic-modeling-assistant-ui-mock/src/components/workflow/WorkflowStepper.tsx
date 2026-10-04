@@ -54,7 +54,7 @@ export function WorkflowStepper({ activeStep, linkContext, exportSearch }: Workf
                 search = projectSearch
                 break
               case 'iterations':
-                href = '/iterations'
+                href = '/iterations-v2'
                 search = domainSearch
                 break
               case 'tasks':

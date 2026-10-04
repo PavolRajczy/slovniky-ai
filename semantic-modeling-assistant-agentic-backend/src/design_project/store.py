@@ -219,7 +219,8 @@ class FileSystemDesignProjectStore(DesignProjectStore):
             "expertKnowledgeBase": [doc.id for doc in project.expertKnowledgeBase],
             "keyKnowledgeDocument": project.keyKnowledgeDocument.id if project.keyKnowledgeDocument else None,
             "modeledKnowledgeDomain": self._knowledge_domain_to_dict(project.modeledKnowledgeDomain) if project.modeledKnowledgeDomain else None,
-            "designedOntology": project.designedOntology.uri if project.designedOntology else None
+            "designedOntology": project.designedOntology.uri if project.designedOntology else None,
+            "dataspecerPackageIri": project.dataspecerPackageIri,
         }
 
     def _design_project_from_dict(self, data: Dict[str, Any]) -> DesignProject:
@@ -274,7 +275,8 @@ class FileSystemDesignProjectStore(DesignProjectStore):
             expertKnowledgeBase=[KnowledgeDocument(id=doc_id, title=None, content=None, contentSummary=None) for doc_id in data["expertKnowledgeBase"]],
             keyKnowledgeDocument=KnowledgeDocument(id=data["keyKnowledgeDocument"], title=None, content=None, contentSummary=None) if data.get("keyKnowledgeDocument") else None,
             modeledKnowledgeDomain=modeled_knowledge_domain,
-            designedOntology=designed_ontology
+            designedOntology=designed_ontology,
+            dataspecerPackageIri=data.get("dataspecerPackageIri"),
         )
         return project
 

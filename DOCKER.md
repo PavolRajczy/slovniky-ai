@@ -34,9 +34,18 @@ Otvor `.env` a nastav:
 
 ```env
 OPENAI_API_KEY=
+OPENAI_BASE_URL=
 ```
 
 Bez úvodzoviek, bez medzier okolo `=`. Kľúč si každý dá vlastný — do gitu ho nedávaj.
+
+`OPENAI_BASE_URL` je adresa OpenAI-kompatibilného API. Nechaj ju prázdnu pre oficiálne `https://api.openai.com/v1`. Pre e-INFRA CZ:
+
+```env
+OPENAI_BASE_URL=https://llm.ai.e-infra.cz/v1/
+```
+
+Po zmene `.env` kontajner znova postav: `docker compose up --build`. V logu backendu je riadok `LLM API base URL`.
 
 ---
 
