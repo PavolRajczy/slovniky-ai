@@ -1,0 +1,6 @@
+export { WorkflowStepper } from '@/components/workflow/WorkflowStepper'
+export { WorkflowContextCapsule } from '@/components/workflow/WorkflowContextCapsule'
+export { NextActionBanner } from '@/components/workflow/NextActionBanner'
+export type { WorkflowStepId } from '@/components/workflow/workflowTypes'
+export { resolveWorkflowContext } from '@/components/workflow/WorkflowSearchContext'
+export type { WorkflowLinkContext } from '@/components/workflow/WorkflowSearchContext'

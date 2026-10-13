@@ -18,7 +18,7 @@ def main():
     legal_act_number = law[0]
     legal_act_year = law[1]
     legal_act_valid_from_date = law[2]
-    legal_act_url = f"https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/{legal_act_year}/{legal_act_number}/{legal_act_valid_from_date}"
+    legal_act_url = f"https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/{legal_act_year}/{legal_act_number}/{legal_act_valid_from_date}"
     prepareLegalText(legal_act_number, legal_act_year,
                      legal_act_valid_from_date, legal_act_url)
     classExtraction(legal_act_number, legal_act_year,

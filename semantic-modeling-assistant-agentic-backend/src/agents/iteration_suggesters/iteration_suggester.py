@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, KnowledgeDomainArea
 from ontology.domain import Ontology
 
@@ -11,7 +11,7 @@ class IterationSuggesterAgent:
     def __init__(self, model_name: str):
         ...
 
-    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str) -> List[DesignIteration]:
+    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str, goal: Optional[str] = None, subarea_class_uris: Optional[List[str]] = None) -> List[DesignIteration]:
         """
         Suggests new design iterations for the given design project.
         If the user instruction is specified, the agent suggestsions are guided by it.
@@ -21,6 +21,8 @@ class IterationSuggesterAgent:
             focused_area (KnowledgeDomainArea): The knowledge domain area to focus the suggestions on.
             k (int): The number of iterations to suggest.
             user_instruction (str): Instructions from the user to guide the suggestions.
+            goal (str, optional): Planning objective that replaces the default open-ended suggestion strategy.
+            subarea_class_uris (List[str], optional): Classes of the designed ontology the suggestions must stay within.
 
         Returns:
             List[DesignIteration]: A list of suggested design iterations.
@@ -36,7 +38,7 @@ class IterationSuggesterAgentFake(IterationSuggesterAgent):
     def __init__(self, model_name: str = "fake"):
         self.model_name = model_name
 
-    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str) -> List[DesignIteration]:
+    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str, goal: Optional[str] = None, subarea_class_uris: Optional[List[str]] = None) -> List[DesignIteration]:
         return [
             DesignIteration(
                 id=f"fake-{i+1}",

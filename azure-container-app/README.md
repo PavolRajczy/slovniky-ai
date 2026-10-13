@@ -98,14 +98,19 @@ $env:CONTAINER_REGISTRY_PASSWORD=
 
 ## Sestavení a publikace Docker image
 
+Původní kořenový `Dockerfile` skládal starý frontend a backend do jednoho image
+(`semantic-modeling-assistant-frontend` + `semantic-modeling-assistant-backend`).
+Tyto adresáře v repozitáři už nejsou.
+
+Aktuální lokální běh (mock UI + agentic backend) je `docker compose` z kořene
+repozitáře, viz [`DOCKER.md`](../DOCKER.md):
+
 ```shell
-# Začneme přihlášením se do ACR.
-az acr login --name $env:CONTAINER_REGISTRY
-# Sestavení.
-docker build -t "$env:CONTAINER_REGISTRY.azurecr.io/semantic-modeling-assistant:latest" ./
-# Publikace do ACR.
-docker push "$env:CONTAINER_REGISTRY.azurecr.io/semantic-modeling-assistant:latest"
+docker compose up --build
 ```
+
+Nasazení do Azure Container Apps z tohoto starého jedno-image postupu zatím
+není aktualizované.
 
 ## Příprava Azure Storage
 

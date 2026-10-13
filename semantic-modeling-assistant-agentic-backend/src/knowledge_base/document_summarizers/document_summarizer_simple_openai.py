@@ -2,8 +2,10 @@ import os
 import json
 from pathlib import Path
 from typing import Optional
-from openai import OpenAI
 from dotenv import load_dotenv
+
+from agents.model_config import get_mini_model
+from llm.provider import invoke_chat
 
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.store import KnowledgeDocumentSummarizer
@@ -41,14 +43,12 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
     to summarize only the subtree of elements whose id contains that string.
     Use comma-separated values for multiple parts (e.g. "cast_1,cast_2" for Part 1 and Part 2).
     """
-    def __init__(self, model: str = "gpt-4.1", only_element_id_contains: Optional[str] = None):
-        self.model = model
+    def __init__(self, model: Optional[str] = None, only_element_id_contains: Optional[str] = None):
+        self.model = model or get_mini_model()
         raw = only_element_id_contains or os.getenv("SUMMARIZE_ONLY_ELEMENT_ID_CONTAINS")
         self._only_contains_list = [s.strip() for s in (raw or "").split(",") if s.strip()] or None
-        self.open_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.open_api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY not found in environment variables")
-        self.client = OpenAI(api_key=self.open_api_key)
 
     def summarize_document(self, document: KnowledgeDocument) -> None:
         """
@@ -115,12 +115,4 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
             {"role": "system", "content": summarization_system_prompt},
             {"role": "user", "content": f"Summarize the following text:\n{text}"}
         ]
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=600,
-            temperature=0.3
-        )
-        if response.choices:
-            return response.choices[0].message.content.strip()
-        return ""
+        return invoke_chat(messages, self.model, temperature=0.3, max_tokens=600)

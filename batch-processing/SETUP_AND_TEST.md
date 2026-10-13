@@ -61,7 +61,7 @@ You can now switch LLM providers without changing code:
 ### Option 1: Environment Variables
 ```bash
 export LLM_PROVIDER=openai
-export LLM_MODEL_NAME=gpt-4o
+export LLM_MODEL_NAME=gpt-4o-mini
 export OPENAI_API_KEY=your-key
 ```
 

@@ -77,6 +77,40 @@ class UpdateOntologyRequest(BaseModel):
     ontology_description: Optional[str] = None
 
 
+class ImportOntologyFromUrlRequest(BaseModel):
+    """Request to import ontology from OWL/Turtle URL."""
+    url: str
+    external_vocabulary_urls: Optional[List[str]] = None
+
+
+class ExportOntologyToDataSpecerRequest(BaseModel):
+    """Request to export ontology to DataSpecer (PUT simplified-semantic-model)."""
+    ontology_uri: str
+    put_url: str
+
+
+class ExportOntologyToOfnRequest(BaseModel):
+    """Request to export ontology as OFN Slovníky JSON."""
+    ontology_uri: str
+    vocabulary_iri: Optional[str] = None
+
+
+class ImportOntologyFromDataSpecerRequest(BaseModel):
+    """Request to import ontology from DataSpecer simplified-semantic-model URL."""
+    url: str
+    base_uri: str
+
+
+class GenerateOperationsRequest(BaseModel):
+    """Request to generate ontology edit operations from a free-form instruction."""
+    user_instruction: str
+
+
+class ApplyProjectOperationsRequest(BaseModel):
+    """Request to apply operations directly to project ontology (no iteration)."""
+    operations: List["OntologyOperationModel"]
+
+
 # ============================================================================
 # Knowledge Base Models
 # ============================================================================
@@ -146,6 +180,11 @@ class CreateProjectRequest(BaseModel):
     knowledge_domain_description: Optional[str] = None
 
 
+class OpenFromDataspecerRequest(BaseModel):
+    """Open the app project linked to a Dataspecer vocabulary, creating it when missing."""
+    package_iri: str
+
+
 class UpdateProjectRequest(BaseModel):
     """Request to update project metadata."""
     name: Optional[str] = None
@@ -163,6 +202,7 @@ class ProjectSummary(BaseModel):
     updated_at: str
     domain_areas_count: int
     iterations_count: int
+    dataspecer_package_iri: Optional[str] = None
 
 
 class KnowledgeDomainAreaModel(BaseModel):
@@ -219,6 +259,8 @@ class DesignIterationModel(BaseModel):
     total_tasks: int = 0
     planned_tasks_count: int = 0
     finished_tasks_count: int = 0
+    goal: Optional[str] = None
+    subarea_class_uris: List[str] = Field(default_factory=list)
 
 
 class CreateIterationRequest(BaseModel):
@@ -226,6 +268,8 @@ class CreateIterationRequest(BaseModel):
     name: str
     specification: str
     focused_area_id: str
+    goal: Optional[str] = None
+    subarea_class_uris: List[str] = Field(default_factory=list)
 
 
 class UpdateIterationRequest(BaseModel):
@@ -240,6 +284,8 @@ class SuggestIterationsRequest(BaseModel):
     focused_area_id: str
     count: int = Field(default=5, ge=1, le=20)
     user_instruction: Optional[str] = None
+    goal: Optional[str] = None  # Planning objective that replaces the default open-ended suggestion prompt
+    subarea_class_uris: List[str] = Field(default_factory=list)  # Restrict suggestions, tasks and operations to these classes
 
 
 class ReorderIterationsRequest(BaseModel):
@@ -299,6 +345,7 @@ class OntologyOperationModel(BaseModel):
     id: str  # Unique identifier for this operation instance
     operation_type: Literal["create", "update", "delete"]
     target_type: Literal["class", "attribute", "relationship"]
+    created_from_task_id: Optional[str] = None
     
     # Required for all operations
     uri: str
@@ -377,6 +424,96 @@ class ProjectModel(BaseModel):
     planned_iterations: List[DesignIterationModel] = Field(default_factory=list)
     current_iteration: Optional[DesignIterationModel] = None
     finished_iterations: List[DesignIterationModel] = Field(default_factory=list)
+    dataspecer_package_iri: Optional[str] = None
+
+
+# ============================================================================
+# Project Guidance (Human-in-the-Loop)
+# ============================================================================
+
+class ProjectGuidanceItemModel(BaseModel):
+    """Project-scoped guidance item for human-in-the-loop."""
+    id: str
+    project_id: str
+    type: Literal["instruction", "correction", "preference", "constraint"]
+    content: str
+    created_at: Optional[str] = None
+    source: Optional[Literal["manual", "correction", "saved_from_request"]] = None
+
+
+class CreateProjectGuidanceItemRequest(BaseModel):
+    """Request to add a project guidance item."""
+    content: str
+    type: Literal["instruction", "correction", "preference", "constraint"] = "instruction"
+    source: Optional[Literal["manual", "correction", "saved_from_request"]] = None
+
+
+class UpdateProjectGuidanceItemRequest(BaseModel):
+    """Request to update a project guidance item."""
+    content: Optional[str] = None
+    type: Optional[Literal["instruction", "correction", "preference", "constraint"]] = None
+
+
+class ProjectGuidanceListResponse(BaseModel):
+    """Response with list of project guidance items."""
+    items: List[ProjectGuidanceItemModel]
+
+
+ProjectActivityEventTypeLiteral = Literal[
+    "guidance_added",
+    "guidance_updated",
+    "guidance_deleted",
+    "domain_areas_generated",
+    "iterations_suggested",
+    "tasks_planned",
+    "operations_generated",
+    "iteration_prepared",
+    "iteration_applied",
+    "operation_approved",
+    "operation_rejected",
+    "ontology_exported",
+]
+
+
+class ProjectActivityEventModel(BaseModel):
+    """A single entry in the project activity log."""
+    id: str
+    project_id: str
+    type: ProjectActivityEventTypeLiteral
+    actor: Literal["user", "assistant"]
+    summary: str
+    at: str
+    iteration_id: Optional[str] = None
+    task_id: Optional[str] = None
+    operation_id: Optional[str] = None
+    detail: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectActivityListResponse(BaseModel):
+    """Response with the project activity timeline, newest first."""
+    events: List[ProjectActivityEventModel]
+    approved_count: int = 0
+    rejected_count: int = 0
+
+
+class RecordOperationDecisionsRequest(BaseModel):
+    """Request to record the keep/reject decisions taken during an operations review."""
+    iteration_id: Optional[str] = None
+    task_id: Optional[str] = None
+    task_name: Optional[str] = None
+    approved: List["OperationDecisionModel"] = Field(default_factory=list)
+    rejected: List["OperationDecisionModel"] = Field(default_factory=list)
+
+
+class OperationDecisionModel(BaseModel):
+    """A single keep/reject decision on one proposed operation."""
+    operation_id: Optional[str] = None
+    label: str
+    reason: Optional[str] = None
+    saved_as_guidance: bool = False
+
+
+RecordOperationDecisionsRequest.model_rebuild()
 
 
 # ============================================================================
@@ -410,6 +547,18 @@ class IterationAppliedResponse(BaseModel):
     applied_operations_count: int
     ontology_changes: Dict[str, int]
     updated_ontology: OntologyModel
+    ofn_saved: bool = False
+    ofn_path: Optional[str] = None
+    ofn_absolute_path: Optional[str] = None
+    ofn_pojmy_count: Optional[int] = None
+    ofn_overwrote_existing: Optional[bool] = None
+    dataspecer_synced: Optional[bool] = None  # None when the project is not linked to Dataspecer
+    dataspecer_sync_error: Optional[str] = None
+
+
+class DataspecerSyncResponse(BaseModel):
+    """Response after sending the project ontology to its linked Dataspecer vocabulary."""
+    synced: bool
 
 
 class IterationsListResponse(BaseModel):
@@ -435,3 +584,7 @@ class KnowledgeBaseResponse(BaseModel):
     """Response with knowledge base documents."""
     legal_documents: List[KnowledgeDocumentSummary]
     expert_documents: List[KnowledgeDocumentSummary]
+
+
+# Resolve forward reference for ApplyProjectOperationsRequest
+ApplyProjectOperationsRequest.model_rebuild()

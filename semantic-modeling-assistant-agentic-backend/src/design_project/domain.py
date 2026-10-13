@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from enum import Enum
 
 from ontology.domain import Ontology, OntologyAttribute, OntologyClass, OntologyRelationship
@@ -47,6 +47,73 @@ class DesignTaskStatus(str, Enum):
     # When in finishedTasks:
     COMPLETED = "completed"                         # Task successfully completed
 
+class ProjectGuidanceItemType(str, Enum):
+    """Type of a human-in-the-loop guidance item for a project."""
+    INSTRUCTION = "instruction"
+    CORRECTION = "correction"
+    PREFERENCE = "preference"
+    CONSTRAINT = "constraint"
+
+class ProjectGuidanceItemSource(str, Enum):
+    """Source of a guidance item."""
+    MANUAL = "manual"
+    CORRECTION = "correction"
+    SAVED_FROM_REQUEST = "saved_from_request"
+
+@dataclass
+class ProjectGuidanceItem:
+    """
+    A single human-in-the-loop guidance item bound to a design project.
+    Stored in data/projects/{project_id}/guidance.json and injected into agent prompts.
+    """
+    id: str
+    project_id: str
+    type: ProjectGuidanceItemType
+    content: str
+    created_at: Optional[str] = None
+    source: Optional[ProjectGuidanceItemSource] = None
+
+class ProjectActivityActor(str, Enum):
+    """Who caused a recorded activity event."""
+    USER = "user"
+    ASSISTANT = "assistant"
+
+class ProjectActivityEventType(str, Enum):
+    """Type of a recorded project activity event."""
+    GUIDANCE_ADDED = "guidance_added"
+    GUIDANCE_UPDATED = "guidance_updated"
+    GUIDANCE_DELETED = "guidance_deleted"
+    DOMAIN_AREAS_GENERATED = "domain_areas_generated"
+    ITERATIONS_SUGGESTED = "iterations_suggested"
+    TASKS_PLANNED = "tasks_planned"
+    OPERATIONS_GENERATED = "operations_generated"
+    ITERATION_PREPARED = "iteration_prepared"
+    ITERATION_APPLIED = "iteration_applied"
+    OPERATION_APPROVED = "operation_approved"
+    OPERATION_REJECTED = "operation_rejected"
+    ONTOLOGY_EXPORTED = "ontology_exported"
+    DATASPECER_SYNCED = "dataspecer_synced"
+    DATASPECER_SYNC_FAILED = "dataspecer_sync_failed"
+
+@dataclass
+class ProjectActivityEvent:
+    """
+    A single immutable entry in a project's activity log.
+
+    Events are appended to data/projects/{project_id}/events.jsonl and never modified,
+    so the log is a faithful record of what the user and the assistant did.
+    """
+    id: str
+    project_id: str
+    type: ProjectActivityEventType
+    actor: ProjectActivityActor
+    summary: str
+    at: str
+    iteration_id: Optional[str] = None
+    task_id: Optional[str] = None
+    operation_id: Optional[str] = None
+    detail: Dict[str, Any] = field(default_factory=dict)
+
 @dataclass
 class IdentifiedOperation:
     """
@@ -74,6 +141,7 @@ class DesignProject:
     keyKnowledgeDocument: Optional[KnowledgeDocument]       # The key knowledge document that structures the knowledge domain and its areas.
     modeledKnowledgeDomain: Optional[KnowledgeDomain]       # The knowledge domain for which we design an ontology in the design project.
     designedOntology: Ontology                              # The ontology that is being designed.
+    dataspecerPackageIri: Optional[str] = None              # Dataspecer vocabulary package this project was opened from. Absent on older projects.
 
 @dataclass
 class DesignIteration:
@@ -86,12 +154,15 @@ class DesignIteration:
     currentTask: Optional[DesignTask]                       # The design task we are currently working on within the design iteration.
     plannedTasks: List[DesignTask]                          # The list of planned design tasks within the design iteration.
     focusedArea: KnowledgeDomainArea                        # The knowledge domain area that the design iteration is focused on.
-    plannedOperations: Optional[List[IdentifiedOperation]] # The list of planned ontology edit operations generated during prepare phase. Stored for traceability and review.
-                                                            #   Set to None initially, populated by prepare_planned_iteration(), cleared after apply_current_iteration_changes().
+    plannedOperations: Optional[List[IdentifiedOperation]] # Proposed operations generated during prepare. Stored for review.
+                                                            #   Not applied to designedOntology until the user finalizes.
+                                                            #   Set to None initially, populated by prepare, cleared after apply_current_iteration_changes().
                                                             #   Each operation has a unique ID for CRUD management.
     designedOntologyChangesSpecification: Optional[str]     # A structured textual description of the changes made to the designed ontology as a result of performing the design iteration.
                                                             #   It is a compilation of all designed ontology changes made by executed tasks during the design iteration.
                                                             #   It is compiled after the design iteration is completed.
+    goal: Optional[str] = None                              # The user's stated objective the iteration was planned toward. Guides task planning and modeling.
+    subareaClassUris: List[str] = field(default_factory=list)  # Class URIs the user restricted the iteration to. Empty means the whole ontology is in scope.
 
 @dataclass
 class DesignTask:

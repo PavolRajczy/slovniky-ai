@@ -31,7 +31,7 @@ For specific providers (optional):
 ```json
 {
   "provider": "openai",
-  "model_name": "gpt-4o",
+  "model_name": "gpt-4o-mini",
   "temperature": 0.0,
   "api_key": null,
   "extra_params": {}
@@ -51,7 +51,7 @@ Set these environment variables:
 
 ```bash
 export LLM_PROVIDER=openai          # or "anthropic", "google"
-export LLM_MODEL_NAME=gpt-4o        # model name for the provider
+export LLM_MODEL_NAME=gpt-4o-mini        # model name for the provider
 export LLM_TEMPERATURE=0.0          # optional, defaults to 0.0
 export OPENAI_API_KEY=your_key      # provider-specific API key
 ```
@@ -78,7 +78,7 @@ from llm_provider import LLMFactory, LLMProvider
 
 llm = LLMFactory.create_default_llm(
     provider=LLMProvider.OPENAI,
-    model_name="gpt-4o",
+    model_name="gpt-4o-mini",
     temperature=0.0
 )
 ```

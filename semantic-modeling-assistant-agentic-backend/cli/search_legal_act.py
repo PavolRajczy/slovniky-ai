@@ -36,7 +36,7 @@ from knowledge_base_index.indexers.faiss_fulltext_openai_indexer import FAISSFul
 from knowledge_base_index.indexers.faiss_summary_openai_indexer import FAISSSummaryOpenAIKnowledgeDocumentIndexer
 
 # Constants
-ESEL_IRI_PREFIX = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/"
+ESEL_IRI_PREFIX = "https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/"
 
 
 class NoOpSummarizer(KnowledgeDocumentSummarizer):
@@ -57,7 +57,7 @@ def build_full_legal_act_id(local_part: str) -> str:
         local_part: The local part of the legal act ID (e.g., "2001/56/2025-07-01")
         
     Returns:
-        The full IRI (e.g., "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01")
+        The full IRI (e.g., "https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01")
     """
     return ESEL_IRI_PREFIX + local_part
 
@@ -74,7 +74,7 @@ def truncate_element_id(element_id, legal_act_local_id):
         Truncated element ID showing only the unique part
     """
     # Build the expected prefix
-    prefix = f"https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/{legal_act_local_id}/dokument/norma/"
+    prefix = f"https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/{legal_act_local_id}/dokument/norma/"
     
     if element_id.startswith(prefix):
         return element_id[len(prefix):]
@@ -424,13 +424,13 @@ Interactive controls:
     
     parser.add_argument(
         'legal_act_local_id', 
-        help='The local part of the legal act ID (e.g., "2001/56/2025-07-01"). Will be prefixed with "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/"'
+        help='The local part of the legal act ID (e.g., "2001/56/2025-07-01"). Will be prefixed with "https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/"'
     )
     
     parser.add_argument(
         '--endpoint',
-        default='https://opendata.eselpoint.cz/sparql',
-        help='SPARQL endpoint URL (default: https://opendata.eselpoint.cz/sparql)'
+        default='https://opendata.eselpoint.gov.cz/sparql',
+        help='SPARQL endpoint URL (default: https://opendata.eselpoint.gov.cz/sparql)'
     )
     
     parser.add_argument(
