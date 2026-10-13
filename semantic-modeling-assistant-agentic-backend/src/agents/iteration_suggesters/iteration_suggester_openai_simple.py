@@ -4,7 +4,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
-from agents.model_config import create_openai_client, get_model
+from agents.model_config import get_model
+from llm.provider import parse_structured
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, KnowledgeDomainArea
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
@@ -47,11 +48,8 @@ class IterationSuggesterAgent_Simple_OpenAI(IterationSuggesterAgent):
         self.model_name = model_name or get_model()
         self.language = "Czech"
 
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        self.client = create_openai_client(api_key)
 
     def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str) -> List[DesignIteration]:
         """
@@ -160,22 +158,9 @@ Specification: Focus on spacecrafts and their space missions and refine in detai
         ]
 
         try:
-            response = self.client.responses.parse(
-                model=self.model_name,
-                input=input,
-                text={
-                    "verbosity": "medium"
-                },
-                reasoning={
-                    "effort": "low"
-                },
-                text_format=IterationsOutput,
-            )
-            
+            iterations_output = parse_structured(input, IterationsOutput, self.model_name)
         except Exception as e:
             raise RuntimeError(f"OpenAI API call failed: {str(e)}")
-
-        iterations_output: IterationsOutput = response.output_parsed
 
         iterations: List[DesignIteration] = []
         if iterations_output and iterations_output.iterations:

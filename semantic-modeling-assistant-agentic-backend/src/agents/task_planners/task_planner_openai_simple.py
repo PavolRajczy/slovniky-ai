@@ -6,7 +6,8 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
-from agents.model_config import create_openai_client, get_model
+from agents.model_config import get_model
+from llm.provider import parse_structured
 from agents.task_planners.task_planner import TaskPlannerAgent
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, DesignTask, DesignTaskStatus, KnowledgeDomainArea
@@ -15,6 +16,22 @@ from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
 from ontology.domain import Ontology
 import uuid
+
+
+def _match_pattern(patterns: List[Any], pattern_name: str):
+    """Find a design-task pattern even when the model changes spacing or case."""
+    wanted = " ".join(pattern_name.split()).casefold()
+    if not wanted:
+        return None
+    for pattern in patterns:
+        if " ".join(pattern.name.split()).casefold() == wanted:
+            return pattern
+    for pattern in patterns:
+        current = " ".join(pattern.name.split()).casefold()
+        if wanted in current or current in wanted:
+            return pattern
+    return None
+
 
 class DesignTaskOutput(BaseModel):
     """
@@ -81,11 +98,8 @@ class TaskPlannerAgent_Simple_OpenAI(TaskPlannerAgent):
         self.model_name = model_name or get_model()
         self.language = "Czech"
 
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        self.client = create_openai_client(api_key)
 
     def build_iteration_plan(self, design_project: DesignProject, iteration: DesignIteration, user_instruction: str = "") -> List[DesignTask]:
         """
@@ -191,17 +205,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
         all_search_outputs = []
 
         def _call_model_to_prepare_search(msgs):
-            return self.client.responses.parse(
-                model=self.model_name,
-                input=msgs,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "minimal"
-                },
-                text_format=SearchQueriesDefinitionOutput,
-            )
+            return parse_structured(msgs, SearchQueriesDefinitionOutput, self.model_name)
 
         try:
             response = _call_model_to_prepare_search(messages_prepare_search)
@@ -209,7 +213,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
                 search_iteration += 1
                 current_iteration_outputs = []
 
-                for item in response.output_parsed.queries:
+                for item in response.queries:
                     query = item.query if hasattr(item, 'query') else None
                     max_results_val = item.max_results if hasattr(item, 'max_results') else 10
                     offset_val = item.offset if hasattr(item, 'offset') else 0
@@ -366,26 +370,24 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             })
 
         try:
-            response = self.client.responses.parse(
-                model=self.model_name,
-                input=input_generate_tasks,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "low"
-                },
-                text_format=DesignTasksOutput,
+            design_tasks_output = parse_structured(
+                input_generate_tasks,
+                DesignTasksOutput,
+                self.model_name,
             )
-
-            design_tasks_output = response.output_parsed
 
         except Exception as e:
             raise RuntimeError(f"OpenAI API call with tool loop failed: {str(e)}")
 
         planned_tasks: List[DesignTask] = []
         for design_task_output in design_tasks_output.tasks:
-            pattern_obj = next((p for p in design_project.patterns if p.name == design_task_output.followedPatternName), None)
+            pattern_obj = _match_pattern(design_project.patterns, design_task_output.followedPatternName)
+            if pattern_obj is None:
+                print(
+                    f"Skipping planned task '{design_task_output.name}': "
+                    f"unknown pattern '{design_task_output.followedPatternName}'"
+                )
+                continue
             task = DesignTask(
                 id=str(uuid.uuid4()),
                 name=design_task_output.name,

@@ -672,19 +672,25 @@ class DesignProjectService:
                     self.store.store_project(project)
                     raise e
 
-                # Status transition for task: GENERATING_OPERATIONS -> OPERATIONS_GENERATED
-                task.status = DesignTaskStatus.OPERATIONS_GENERATED
+                # A task with no proposals is still waiting to be prepared.
+                task.status = (
+                    DesignTaskStatus.OPERATIONS_GENERATED
+                    if edit_operations
+                    else DesignTaskStatus.PLANNED
+                )
                 iteration.plannedTasks.append(task)
                 iteration.currentTask = None
 
                 print(f" ... generated operations for task {task.id}")
 
-            # Status transition: GENERATING_OPERATIONS -> OPERATIONS_GENERATED
-            # Location: remains in currentIteration
-            iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
-            
-            # Store the operations in the iteration for traceability and review
-            iteration.plannedOperations = all_operations
+            # Store the operations in the iteration for traceability and review.
+            # With nothing proposed, the iteration stays ready to prepare.
+            iteration.plannedOperations = all_operations or None
+            iteration.status = (
+                DesignIterationStatus.OPERATIONS_GENERATED
+                if iteration.plannedOperations
+                else DesignIterationStatus.TASKS_PLANNED
+            )
             
             self.store.store_project(project)
             
@@ -765,10 +771,18 @@ class DesignProjectService:
                 for operation in edit_operations
             ]
 
-            task.status = DesignTaskStatus.OPERATIONS_GENERATED
             iteration.currentTask = None
-            iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
-            iteration.plannedOperations = [*(iteration.plannedOperations or []), *identified_operations]
+            if identified_operations:
+                task.status = DesignTaskStatus.OPERATIONS_GENERATED
+                iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
+                iteration.plannedOperations = [*(iteration.plannedOperations or []), *identified_operations]
+            else:
+                task.status = DesignTaskStatus.PLANNED
+                iteration.status = (
+                    DesignIterationStatus.OPERATIONS_GENERATED
+                    if iteration.plannedOperations
+                    else DesignIterationStatus.TASKS_PLANNED
+                )
 
             self.store.store_project(project)
             return identified_operations
@@ -930,6 +944,14 @@ class DesignProjectService:
                     for identified_op in persisted_operations
                     if identified_op.created_from_task_id not in applied_task_ids
                 ] or None
+                tasks_with_operations = {
+                    identified_op.created_from_task_id
+                    for identified_op in (iteration.plannedOperations or [])
+                    if identified_op.created_from_task_id
+                }
+                for task in remaining_tasks:
+                    if task.id not in tasks_with_operations:
+                        task.status = DesignTaskStatus.PLANNED
 
                 if iteration.plannedTasks:
                     iteration.status = (
@@ -984,6 +1006,28 @@ class DesignProjectService:
             raise e
         
         return project.designedOntology
+
+    def release_tasks_without_proposals(self, project: DesignProject, iteration: DesignIteration) -> bool:
+        """Return work items marked ready for review to the prepare column when they have no proposals."""
+        task_ids_with_operations = {
+            identified_op.created_from_task_id
+            for identified_op in (iteration.plannedOperations or [])
+            if identified_op.created_from_task_id
+        }
+        changed = False
+        for task in iteration.plannedTasks:
+            if task.status == DesignTaskStatus.OPERATIONS_GENERATED and task.id not in task_ids_with_operations:
+                task.status = DesignTaskStatus.PLANNED
+                changed = True
+        if (
+            changed
+            and not iteration.plannedOperations
+            and iteration.status == DesignIterationStatus.OPERATIONS_GENERATED
+        ):
+            iteration.status = DesignIterationStatus.TASKS_PLANNED
+        if changed:
+            self.store.store_project(project)
+        return changed
 
     def save_project(self, project: DesignProject) -> None:
         """

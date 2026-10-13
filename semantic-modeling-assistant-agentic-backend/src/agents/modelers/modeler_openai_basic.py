@@ -4,7 +4,8 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 from rdflib import URIRef
 
-from agents.model_config import create_openai_client, get_mini_model
+from agents.model_config import get_mini_model
+from llm.provider import parse_structured
 from agents.modelers.modeler import ModelerAgent
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
@@ -221,11 +222,8 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
         self.model_name = model_name or get_mini_model()
         self.language = "Czech"
 
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY environment variable is not set")
-        self.client = create_openai_client(api_key)
 
     def get_operations_for_design_task(self, design_project: DesignProject, current_ontology: Ontology, iteration: DesignIteration, task: DesignTask, project_guidance_text: Optional[str] = None) -> List[OntologyEditOperation]:
         """
@@ -282,14 +280,7 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
         ]
 
         try:
-            response = self.client.responses.parse(
-                model=self.model_name,
-                input=messages,
-                text={"verbosity": "low"},
-                reasoning={"effort": "minimal"},
-                text_format=EditOperationsOutput,
-            )
-            operations_output = response.output_parsed
+            operations_output = parse_structured(messages, EditOperationsOutput, self.model_name)
         except Exception as e:
             print(f"Error generating operations from instruction: {e}")
             return []
@@ -349,17 +340,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
         all_search_outputs = []
 
         def _call_model_to_prepare_search(msgs):
-            return self.client.responses.parse(
-                model=self.model_name,
-                input=msgs,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "minimal"
-                },
-                text_format=SearchQueriesDefinitionOutput
-            )
+            return parse_structured(msgs, SearchQueriesDefinitionOutput, self.model_name)
 
         try:
             response = _call_model_to_prepare_search(messages_prepare_search)
@@ -367,7 +348,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
                 search_iteration += 1
                 current_iteration_outputs = []
 
-                for item in response.output_parsed.queries:
+                for item in response.queries:
                     query = item.query if hasattr(item, 'query') else None
                     max_results_val = item.max_results if hasattr(item, 'max_results') else 10
                     offset_val = item.offset if hasattr(item, 'offset') else 0
@@ -767,19 +748,11 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 
         # Generate edit operations
         try:
-            response = self.client.responses.parse(
-                model=self.model_name,
-                input=input_generate_operations,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "minimal"
-                },
-                text_format=EditOperationsOutput
+            operations_output = parse_structured(
+                input_generate_operations,
+                EditOperationsOutput,
+                self.model_name,
             )
-            
-            operations_output = response.output_parsed
         except Exception as e:
             print(f"Error generating edit operations: {e}")
             return []

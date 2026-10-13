@@ -3,7 +3,8 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgent
-from agents.model_config import create_openai_client, get_mini_model
+from agents.model_config import get_mini_model
+from llm.provider import parse_structured
 from design_project.domain import DesignProject, KnowledgeDomain, KnowledgeDomainArea
 from knowledge_base.domain import KnowledgeDocument
 from knowledge_base.service import KnowledgeBaseService
@@ -55,12 +56,8 @@ class KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(KnowledgeDomainAreaAnalyzer
         self.model_name = model_name or get_mini_model()
         self.language = "Czech"
 
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OpenAI API key must be provided as OPENAI_API_KEY environment variable")
-
-        self.openai_client = create_openai_client(api_key)
 
     def identify_domain_areas(self, knowledge_domain: KnowledgeDomain, knowledge_document: KnowledgeDocument, consider_existing_areas: bool = False, user_instruction: str = "") -> List[KnowledgeDomainArea]:
         """
@@ -115,19 +112,7 @@ class KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(KnowledgeDomainAreaAnalyzer
             {"role": "user", "content": user_prompt}
         ]
 
-        response = self.openai_client.responses.parse(
-            model=self.model_name,
-            input=input,
-            text={
-                "verbosity": "medium"
-            },
-            reasoning={
-                "effort": "medium"
-            },
-            text_format=KnowledgeDomainOutput
-        )
-
-        knowledge_domain_output: KnowledgeDomainOutput = response.output_parsed
+        knowledge_domain_output = parse_structured(input, KnowledgeDomainOutput, self.model_name)
 
         areas = []
         for area_output in knowledge_domain_output.areas:

@@ -90,6 +90,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             currentTask=None,
             plannedTasks=[],
             focusedArea=self.test_area,
+            plannedOperations=None,
             designedOntologyChangesSpecification=None
         )
         
@@ -124,7 +125,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             
             self.assertEqual(agent.knowledge_base_service, self.knowledge_base_service)
             self.assertEqual(agent.knowledge_base_index_service, self.knowledge_base_index_service)
-            self.assertEqual(agent.model_name, "gpt-4o")
+            self.assertEqual(agent.model_name, "mini")
     
     def test_initialization_missing_api_key(self):
         """Test that initialization fails without OpenAI API key."""
@@ -167,85 +168,56 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
         self.assertIn("owl:Ontology", result)
         self.assertIn("Test Ontology", result)
     
-    @patch('agents.model_config.OpenAI')
-    def test_do_design_task_success(self, mock_openai_class):
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_do_design_task_success(self, mock_parse):
         """Test successful execution of design task."""
-        # Mock OpenAI client and responses
-        mock_client = Mock()
-        mock_openai_class.return_value = mock_client
-        
-        # Mock search queries response
-        mock_search_response = Mock()
-        mock_search_response.choices = [Mock()]
-        mock_search_response.choices[0].message = Mock()
-        mock_search_response.choices[0].message.parsed = Mock()
-        mock_search_response.choices[0].message.parsed.queries = [
-            Mock(query="test query", max_results=10, offset=0)
-        ]
-        
-        # Mock edit operations response
-        mock_ops_response = Mock()
-        mock_ops_response.choices = [Mock()]
-        mock_ops_response.choices[0].message = Mock()
-        mock_ops_response.choices[0].message.parsed = Mock()
-        mock_ops_response.choices[0].message.parsed.class_operations = [
-            Mock(
-                operation_type="create",
-                uri="http://example.org/test-ontology#TestClass",
-                label="Test Class",
-                definition="A test class",
-                description="Description of test class",
-                generalization_uris=None
-            )
-        ]
-        mock_ops_response.choices[0].message.parsed.attribute_operations = []
-        mock_ops_response.choices[0].message.parsed.relationship_operations = []
-        
-        # Configure mock client to return our mock responses
-        mock_client.beta.chat.completions.parse.side_effect = [
-            mock_search_response, 
-            mock_ops_response
-        ]
-        
-        # Mock knowledge base search
-        self.knowledge_base_index_service.search_by_query.return_value = [
-            Mock(element=Mock(content="Test knowledge", source_document_id="doc1"), similarity_score=0.9)
-        ]
-        
-        # Re-initialize agent with mocked OpenAI
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            self.agent.client = mock_client
-        
-        # Execute the test
-        result = self.agent.get_operations_for_design_task(self.test_project, self.test_iteration, self.test_task)
-        
-        # Verify results
+        class_operation = Mock(
+            operation_type="create",
+            prefixed_name=":TestClass",
+            label="Test Class",
+            definition="A test class",
+            description="Description of test class",
+            generalizations_prefixed_names=None,
+            kind=None,
+            definition_references=None,
+            specification_references=None,
+            references=None,
+        )
+        mock_parse.return_value = Mock(
+            class_operations=[class_operation],
+            attribute_operations=[],
+            relationship_operations=[],
+        )
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], CreateClassOperation)
         self.assertEqual(str(result[0].uri), "http://example.org/test-ontology#TestClass")
         self.assertEqual(result[0].label, "Test Class")
 
-    def test_do_design_task_error_handling(self):
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_do_design_task_error_handling(self, mock_parse):
         """Test error handling in do_design_task method."""
-        # Mock knowledge base search to raise an exception
-        self.knowledge_base_index_service.search_by_query.side_effect = Exception("Search failed")
-        
-        # Mock OpenAI client that fails
-        with patch('agents.model_config.OpenAI') as mock_openai_class:
-            mock_client = Mock()
-            mock_openai_class.return_value = mock_client
-            mock_client.beta.chat.completions.parse.side_effect = Exception("OpenAI API failed")
-            
-            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-                self.agent.client = mock_client
-            
-            # Execute the test - should return empty list on error
-            result = self.agent.get_operations_for_design_task(self.test_project, self.test_iteration, self.test_task)
-            
-            # Should return empty list on error
-            self.assertIsInstance(result, list)
-            self.assertEqual(len(result), 0)
+        mock_parse.side_effect = Exception("OpenAI API failed")
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 0)
 
 
 if __name__ == '__main__':
