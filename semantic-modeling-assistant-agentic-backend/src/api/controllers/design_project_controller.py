@@ -4,7 +4,7 @@ Design Project Controller
 Main controller handling all design project operations and orchestrating the design workflow.
 """
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from urllib.parse import unquote
 import logging
@@ -31,7 +31,7 @@ from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
     DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
 )
-from knowledge_base.service import KnowledgeBaseService
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, KnowledgeBaseService
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
@@ -72,13 +72,13 @@ router = APIRouter()
 ontology_service = OntologyService()
 knowledge_base_service = KnowledgeBaseService(
     legal_knowledge_document_loader=ESELKnowledgeDocumentLoader(
-        sparql_endpoint="https://opendata.eselpoint.cz/sparql"
+        sparql_endpoint=ESEL_SPARQL_ENDPOINT
     ),
     expert_knowledge_document_loader=LocalKnowledgeDocumentLoader(),
     document_summarizer=SimpleOpenAIKnowledgeDocumentSummarizer()
 )
 knowledge_base_index_service = KnowledgeBaseIndexService(
-    indexer=FAISSSummaryOpenAIKnowledgeDocumentIndexer()
+    indexer_factory=FAISSSummaryOpenAIKnowledgeDocumentIndexer
 )
 
 guidance_store = FileSystemProjectGuidanceStore(base_dir="data/projects")
@@ -204,7 +204,7 @@ def _convert_task_to_model(task: DesignTask) -> DesignTaskModel:
         id=task.id,
         name=task.name or "",
         specification=task.specification or "",
-        followed_pattern_id=task.followedPattern.id,
+        followed_pattern_id=task.followedPattern.id if task.followedPattern else "",
         status=api_status
     )
 
@@ -1176,6 +1176,34 @@ async def remove_legal_document(project_id: str, document_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to remove legal document: {str(e)}"
         )
+
+
+@router.post("/projects/{project_id}/knowledge-base/expert/upload", response_model=SuccessResponse)
+async def upload_expert_document(project_id: str, file: UploadFile = File(...)):
+    """Store a structured PDF or DOCX and add it as an expert knowledge document.
+
+    The uploaded file can be set as the project key document. Markdown headings
+    produced from the file become its sections.
+    """
+    try:
+        if not file.filename:
+            raise ValueError("A file name is required.")
+        content = await file.read()
+        if not content:
+            raise ValueError("The file is empty.")
+        loader = knowledge_base_service.expert_knowledge_document_loader
+        if not isinstance(loader, LocalKnowledgeDocumentLoader):
+            raise ValueError("Expert document upload is not available.")
+        document_id = loader.store_uploaded_file(file.filename, content)
+        return await add_expert_documents(
+            project_id,
+            AddKnowledgeDocumentsRequest(document_ids=[document_id]),
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
 
 
 @router.post("/projects/{project_id}/knowledge-base/expert", response_model=SuccessResponse)
@@ -2164,7 +2192,9 @@ async def list_tasks(project_id: str, iteration_id: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Iteration with ID '{iteration_id}' not found"
             )
-        
+
+        design_project_service.release_tasks_without_proposals(project, iteration)
+
         return TasksListResponse(
             planned_tasks=[_convert_task_to_model(t) for t in iteration.plannedTasks],
             current_task=_convert_task_to_model(iteration.currentTask) if iteration.currentTask else None,
@@ -2952,11 +2982,19 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             "elements_updated": 0,
             "elements_deleted": 0
         }
-        
+
+        project_after = design_project_service.load_project(project_id)
+        open_iteration = project_after.currentIteration
+        iteration_status = (
+            _convert_iteration_to_model(open_iteration).status
+            if open_iteration and open_iteration.id == iteration_id
+            else "completed"
+        )
+
         return IterationAppliedResponse(
             success=True,
             iteration_id=iteration_id,
-            status="completed",
+            status=iteration_status,
             applied_operations_count=len(operations),
             ontology_changes=stats,
             updated_ontology=_convert_ontology_to_model(updated_ontology),
