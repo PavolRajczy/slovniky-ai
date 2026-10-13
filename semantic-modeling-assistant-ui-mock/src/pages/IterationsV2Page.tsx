@@ -333,6 +333,7 @@ export function IterationsV2Page() {
             projectId={projectId}
             emptyMessage="No reviewed directions yet."
             compact
+            showResult
           />
         </div>
       </section>
@@ -413,6 +414,7 @@ type DirectionColumnProps = {
   projectId: string
   emptyMessage: string
   compact?: boolean
+  showResult?: boolean
 }
 
 type DomainProgressEstimate = {
@@ -498,6 +500,7 @@ function DirectionColumn({
   projectId,
   emptyMessage,
   compact = false,
+  showResult = false,
 }: DirectionColumnProps) {
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
@@ -522,7 +525,26 @@ function DirectionColumn({
                 <p className="text-sm font-semibold text-slate-900">{item.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{area?.label ?? item.focused_area_id}</p>
                 <p className="mt-3 text-sm text-slate-700 line-clamp-4">{item.specification}</p>
-                <div className="mt-auto pt-4">
+                <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                  {showResult ? (
+                    <Link
+                      to="/export-result"
+                      search={{
+                        projectId,
+                        domainId: item.focused_area_id,
+                        iterationId: item.id,
+                        taskId: undefined,
+                        approved: undefined,
+                        pending: undefined,
+                        rejected: undefined,
+                        regenerated: undefined,
+                        guidanceUpdated: undefined,
+                      }}
+                      className="inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                    >
+                      View result &amp; export
+                    </Link>
+                  ) : null}
                   <Link
                     to="/tasks"
                     search={{
@@ -531,7 +553,11 @@ function DirectionColumn({
                       iterationId: item.id,
                       taskId: undefined,
                     }}
-                    className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                    className={
+                      showResult
+                        ? 'inline-flex rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                        : 'inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800'
+                    }
                   >
                     Explore this direction
                   </Link>

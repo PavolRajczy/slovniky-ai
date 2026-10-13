@@ -108,8 +108,8 @@ export function OperationsReviewPage() {
   })
 
   const allOperations = useMemo(
-    () => operationsQuery.data?.operations ?? [],
-    [operationsQuery.data],
+    () => (operationsQuery.isSuccess ? operationsQuery.data?.operations ?? [] : []),
+    [operationsQuery.isSuccess, operationsQuery.data],
   )
   const operations = useMemo(() => {
     if (!taskId) {
@@ -348,7 +348,22 @@ export function OperationsReviewPage() {
         setDraftReady(false)
       }
       await invalidateAll()
-      if (isScopedReview) {
+      if (data.status === 'completed') {
+        await navigate({
+          to: '/export-result',
+          search: {
+            projectId,
+            domainId,
+            iterationId,
+            taskId: undefined,
+            approved: undefined,
+            pending: undefined,
+            rejected: undefined,
+            regenerated: undefined,
+            guidanceUpdated: undefined,
+          },
+        })
+      } else {
         await navigate({
           to: '/tasks',
           search: {
@@ -358,24 +373,7 @@ export function OperationsReviewPage() {
             taskId: undefined,
           },
         })
-      } else {
-        await navigate({
-          to: '/export-result',
-          search: {
-            projectId,
-            domainId,
-            iterationId,
-            taskId,
-            approved: counts.approved,
-            pending: counts.pending,
-            rejected: counts.rejected,
-            regenerated: undefined,
-            guidanceUpdated: Object.keys(savedGuidanceIds).length > 0,
-          },
-        })
       }
-      // Touch returned data to satisfy unused-warning lint if any.
-      void data.applied_operations_count
     },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })

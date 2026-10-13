@@ -176,6 +176,64 @@ def test_later_prepare_sees_only_finalized_ontology_not_pending_ops():
         assert len(persisted.classes) == 1
 
 
+def test_listing_releases_ready_tasks_that_have_no_proposals():
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        service = _make_service(tmp_dir, RecordingModeler())
+        project = _seed_project(service, ["t-1"])
+        stored = service.store.load_project(project.id)
+        iteration = stored.plannedIterations[0]
+        iteration.plannedTasks[0].status = DesignTaskStatus.OPERATIONS_GENERATED
+        iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
+        stored.currentIteration = iteration
+        stored.plannedIterations = []
+        service.store.store_project(stored)
+
+        assert service.release_tasks_without_proposals(stored, iteration) is True
+
+        reloaded = service.store.load_project(project.id)
+        assert reloaded.currentIteration.plannedTasks[0].status == DesignTaskStatus.PLANNED
+        assert reloaded.currentIteration.status == DesignIterationStatus.TASKS_PLANNED
+
+
+def test_task_without_proposals_returns_to_prepare_after_finalize():
+    class SelectiveModeler:
+        def get_operations_for_design_task(
+            self, design_project, current_ontology, iteration, task, project_guidance_text=None
+        ):
+            if task.id == "t-2":
+                return []
+            return [
+                CreateClassOperation(
+                    uri=URIRef("http://test.example.org/ontology#Class1"),
+                    label="Class 1",
+                    kind=Kind.SUBJECT,
+                    definition="A test class.",
+                    description="A test class.",
+                )
+            ]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        service = _make_service(tmp_dir, SelectiveModeler())
+        project = _seed_project(service, ["t-1", "t-2"])
+
+        operations = service.prepare_planned_iteration(project.id, "it-1")
+
+        prepared = service.store.load_project(project.id)
+        by_id = {task.id: task for task in prepared.currentIteration.plannedTasks}
+        assert by_id["t-1"].status == DesignTaskStatus.OPERATIONS_GENERATED
+        assert by_id["t-2"].status == DesignTaskStatus.PLANNED
+        assert len(operations) == 1
+
+        service.apply_current_iteration_changes(project.id, operations)
+
+        after = service.store.load_project(project.id)
+        assert after.currentIteration.status == DesignIterationStatus.TASKS_PLANNED
+        assert after.currentIteration.plannedOperations is None
+        assert [task.id for task in after.currentIteration.plannedTasks] == ["t-2"]
+        assert after.currentIteration.plannedTasks[0].status == DesignTaskStatus.PLANNED
+        assert [task.id for task in after.currentIteration.finishedTasks] == ["t-1"]
+
+
 def test_bulk_prepare_does_not_apply_between_tasks():
     with tempfile.TemporaryDirectory() as tmp_dir:
         modeler = RecordingModeler()

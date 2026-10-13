@@ -16,3 +16,6 @@ venv.bak/
 # dotenv
 .env
 .env.*.local
+doc/thesis-research-proposal-AI-declaration.md
+doc/thesis-research-proposal.md
+doc/thesis-research-proposal.tex

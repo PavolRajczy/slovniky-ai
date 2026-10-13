@@ -23,6 +23,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the repo-root .env file}
       # Empty value keeps the official https://api.openai.com/v1 origin.
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-mini}
+      OPENAI_MODEL_MINI: ${OPENAI_MODEL_MINI:-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-qwen3-embedding-4b}
+      OPENAI_EMBEDDING_DIMENSION: ${OPENAI_EMBEDDING_DIMENSION:-2560}
     volumes:
       - ./semantic-modeling-assistant-agentic-backend/data:/opt/backend/data
     healthcheck:

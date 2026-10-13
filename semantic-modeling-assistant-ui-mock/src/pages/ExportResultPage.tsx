@@ -3,9 +3,16 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
-import { OfnExportPanel } from '@/components/OfnExportPanel'
+import { ActivitySummary } from '@/components/ActivitySummary'
+import {
+  OfnConceptStats,
+  OfnExportPanel,
+  countOfnConcepts,
+  type OfnConceptCounts,
+} from '@/components/OfnExportPanel'
 import { ApiError } from '@/api/client'
-import { getDataspecerExportUrl, getProject } from '@/api/projects'
+import { getDataspecerExportUrl, getProject, getProjectOfn } from '@/api/projects'
+import { listIterations } from '@/api/iterations'
 import { exportOntologyToDataspecer, getOntology } from '@/api/ontologies'
 
 const exportRouteApi = getRouteApi('/export-result')
@@ -21,6 +28,7 @@ export function ExportResultPage() {
     taskId: search.taskId,
   })
   const projectId = search.projectId
+  const iterationId = search.iterationId
 
   const projectQuery = useQuery({
     queryKey: ['project', projectId],
@@ -36,10 +44,29 @@ export function ExportResultPage() {
     enabled: Boolean(ontologyUri),
   })
 
+  const ofnQuery = useQuery({
+    queryKey: ['project-ofn', projectId],
+    queryFn: ({ signal }) => getProjectOfn(projectId!, signal),
+    enabled: Boolean(projectId),
+    retry: false,
+  })
+
+  const iterationsQuery = useQuery({
+    queryKey: ['project-iterations', projectId, 'all'],
+    queryFn: ({ signal }) => listIterations(projectId!, {}, signal),
+    enabled: Boolean(projectId),
+  })
+
+  const finishedIteration = useMemo(
+    () => iterationsQuery.data?.finished_iterations.find((it) => it.id === iterationId),
+    [iterationsQuery.data, iterationId],
+  )
+
   const [putUrl, setPutUrl] = useState('')
   const [putUrlTouched, setPutUrlTouched] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [linkedExportUrl, setLinkedExportUrl] = useState<string | null>(null)
+  const [dataspecerOpen, setDataspecerOpen] = useState(false)
   const autoExportStarted = useRef(false)
 
   const linkedToDataspecer = Boolean(projectQuery.data?.dataspecer_package_iri)
@@ -113,32 +140,18 @@ export function ExportResultPage() {
     exportMutation.mutate()
   }, [linkedExportUrl, ontologyUri, putUrl, exportMutation])
 
-  const counts = useMemo(() => {
-    const o = ontologyQuery.data
-    return {
-      classes: o?.classes.length ?? 0,
-      attributes: o?.attributes.length ?? 0,
-      relationships: o?.relationships.length ?? 0,
+  const conceptCounts = useMemo<OfnConceptCounts>(() => {
+    if (ofnQuery.data) {
+      return countOfnConcepts(ofnQuery.data.pojmy ?? [])
     }
-  }, [ontologyQuery.data])
+    const o = ontologyQuery.data
+    const classes = o?.classes.length ?? 0
+    const relations = o?.relationships.length ?? 0
+    const properties = o?.attributes.length ?? 0
+    return { total: classes + relations + properties, classes, relations, properties }
+  }, [ofnQuery.data, ontologyQuery.data])
 
-  const recap = {
-    approved: search.approved ?? 0,
-    pending: search.pending ?? 0,
-    rejected: search.rejected ?? 0,
-    regenerated: search.regenerated ?? 0,
-    guidanceUpdated: search.guidanceUpdated ?? false,
-    taskId: search.taskId,
-  }
-
-  const operationsSearch = {
-    projectId,
-    domainId: linkContext.domainId,
-    iterationId: linkContext.iterationId,
-    taskId: linkContext.taskId,
-  }
-
-  const iterationsSearch = {
+  const directionsSearch = {
     projectId,
     domainId: linkContext.domainId,
   }
@@ -172,170 +185,56 @@ export function ExportResultPage() {
 
   const exportSucceeded = exportMutation.isSuccess
   const exportPending = exportMutation.isPending
+  const dataspecerStatus = exportPending
+    ? 'Exporting to Dataspecer…'
+    : exportSucceeded
+      ? 'Exported to Dataspecer.'
+      : exportError
+        ? 'Dataspecer export failed.'
+        : 'Not exported to Dataspecer yet.'
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
-      <PageBackLink to="/operations" search={operationsSearch} label="review changes" />
+      <PageBackLink to="/iterations-v2" search={directionsSearch} label="directions" />
 
-      <section
-        className={`rounded-2xl border p-6 shadow-sm ${
-          exportSucceeded
-            ? 'border-emerald-200 bg-emerald-50/70'
-            : 'border-slate-200 bg-white'
-        }`}
-      >
-        <h2
-          className={`text-2xl font-semibold tracking-tight ${
-            exportSucceeded ? 'text-emerald-900' : 'text-slate-900'
-          }`}
-        >
-          {exportSucceeded ? 'Export completed' : 'Approved changes applied - ready to export'}
+      <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+          {finishedIteration ? 'Direction completed' : 'Project result'}
+        </p>
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-emerald-950">
+          {finishedIteration?.name ?? projectQuery.data?.name ?? 'Designed ontology'}
         </h2>
-        <p className={`mt-2 text-sm ${exportSucceeded ? 'text-emerald-900/90' : 'text-slate-600'}`}>
-          {exportSucceeded
-            ? 'The designed ontology was pushed to Dataspecer. Project OFN is updated automatically on finalize.'
-            : 'Approved changes are part of the designed ontology. Finalize already regenerates project OFN; Dataspecer export below is optional.'}
-        </p>
-
-        <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
-              Dataspecer export URL
-            </label>
-            <input
-              type="url"
-              value={putUrl}
-              onChange={(event) => {
-                setPutUrl(event.target.value)
-                setPutUrlTouched(true)
-              }}
-              placeholder="https://tool.dataspecer.com/api/simplified-semantic-model?iri=..."
-              className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              disabled={exportPending}
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              {linkedToDataspecer
-                ? 'Filled from the linked local Dataspecer vocabulary. Export runs on its own when this page opens.'
-                : 'Same URL convention as the import step (GET fetches, PUT replaces). The last value is remembered per project on this device.'}
-            </p>
-          </div>
-
-          {exportError ? (
-            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-              {exportError}
-            </p>
-          ) : null}
-          {exportSucceeded ? (
-            <p className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-900">
-              Last Dataspecer export succeeded. You can re-run it any time after the next direction.
-            </p>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="submit"
-              disabled={exportPending || !ontologyUri || putUrl.trim().length === 0}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {exportPending
-                ? 'Exporting…'
-                : exportSucceeded
-                ? 'Re-export to Dataspecer'
-                : 'Export to Dataspecer'}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <OfnExportPanel projectId={projectId} projectName={projectQuery.data?.name} />
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ontology snapshot</h3>
-        {projectQuery.isLoading || ontologyQuery.isLoading ? (
-          <p className="mt-2 text-sm text-slate-600">Loading ontology…</p>
-        ) : projectQuery.isError ? (
-          <p className="mt-2 text-sm text-rose-700">
-            Failed to load project: {(projectQuery.error as Error).message}
+        {finishedIteration ? (
+          <p className="mt-1 text-sm text-emerald-900/90">
+            {finishedIteration.finished_tasks_count} work item
+            {finishedIteration.finished_tasks_count === 1 ? '' : 's'} applied to the ontology.
           </p>
-        ) : ontologyQuery.isError ? (
-          <p className="mt-2 text-sm text-rose-700">
-            Failed to load ontology: {(ontologyQuery.error as Error).message}
+        ) : null}
+        {ontologyUri ? (
+          <p className="mt-1 truncate font-mono text-[11px] text-emerald-900/70" title={ontologyUri}>
+            {ontologyUri}
           </p>
-        ) : (
-          <>
-            <p className="mt-2 text-sm text-slate-600">Live counts read from the backend store.</p>
-            <ul className="mt-4 space-y-2 text-sm text-slate-800">
-              <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <span className="text-slate-600">Project</span>
-                <span className="max-w-[55%] text-right font-semibold text-slate-900">
-                  {projectQuery.data?.name ?? '—'}
-                </span>
-              </li>
-              <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <span className="text-slate-600">Ontology IRI</span>
-                <span className="max-w-[60%] truncate text-right font-mono text-xs text-slate-700">
-                  {ontologyUri}
-                </span>
-              </li>
-              <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <span className="text-slate-600">Classes</span>
-                <span className="font-semibold tabular-nums">{counts.classes}</span>
-              </li>
-              <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-                <span className="text-slate-600">Attributes</span>
-                <span className="font-semibold tabular-nums">{counts.attributes}</span>
-              </li>
-              <li className="flex justify-between gap-4 pt-1">
-                <span className="text-slate-600">Relationships</span>
-                <span className="font-semibold tabular-nums">{counts.relationships}</span>
-              </li>
-            </ul>
-          </>
-        )}
-      </section>
+        ) : null}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Session recap</h3>
-        <p className="mt-2 text-sm text-slate-600">
-          Snapshot of the review state passed from review changes via URL search params.
-        </p>
-        <ul className="mt-4 space-y-2 text-sm text-slate-800">
-          {recap.taskId ? (
-            <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-              <span className="text-slate-600">Task</span>
-              <span className="max-w-[60%] truncate text-right font-mono text-xs text-slate-700">
-                {recap.taskId}
-              </span>
-            </li>
-          ) : null}
-          <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-            <span className="text-slate-600">Changes approved</span>
-            <span className="font-semibold tabular-nums">{recap.approved}</span>
-          </li>
-          <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-            <span className="text-slate-600">Still pending review</span>
-            <span className="font-semibold tabular-nums">{recap.pending}</span>
-          </li>
-          <li className="flex justify-between gap-4 border-b border-slate-100 pb-2">
-            <span className="text-slate-600">Rejected</span>
-            <span className="font-semibold tabular-nums">{recap.rejected}</span>
-          </li>
-          <li className="flex justify-between gap-4 pt-1">
-            <span className="text-slate-600">Guidance updated this session</span>
-            <span className="font-semibold">{recap.guidanceUpdated ? 'Yes' : 'No'}</span>
-          </li>
-        </ul>
-      </section>
+        <div className="mt-4">
+          {ofnQuery.isLoading || ontologyQuery.isLoading ? (
+            <p className="text-sm text-slate-600">Loading ontology…</p>
+          ) : (
+            <OfnConceptStats counts={conceptCounts} />
+          )}
+        </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Next steps</h3>
+        <div className="mt-4">
+          <ActivitySummary projectId={projectId} iterationId={iterationId} />
+        </div>
+
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             to="/iterations-v2"
-            search={iterationsSearch}
+            search={directionsSearch}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
           >
-            Start next direction
+            Back to directions
           </Link>
           <Link
             to="/guidance"
@@ -346,6 +245,89 @@ export function ExportResultPage() {
           </Link>
         </div>
       </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dataspecer export</p>
+            <p
+              className={`mt-1 text-sm ${
+                exportError && !exportPending
+                  ? 'text-rose-700'
+                  : exportSucceeded
+                    ? 'text-emerald-800'
+                    : 'text-slate-600'
+              }`}
+            >
+              {dataspecerStatus}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDataspecerOpen((open) => !open)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {dataspecerOpen ? 'Hide' : 'Show export'}
+          </button>
+        </div>
+
+        {dataspecerOpen ? (
+          <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+            <p className="text-sm text-slate-600">
+              Approved changes are part of the designed ontology. Finalize already regenerates project OFN;
+              Dataspecer export is optional.
+            </p>
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
+                Dataspecer export URL
+              </label>
+              <input
+                type="url"
+                value={putUrl}
+                onChange={(event) => {
+                  setPutUrl(event.target.value)
+                  setPutUrlTouched(true)
+                }}
+                placeholder="https://tool.dataspecer.com/api/simplified-semantic-model?iri=..."
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                disabled={exportPending}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                {linkedToDataspecer
+                  ? 'Filled from the linked local Dataspecer vocabulary. Export runs on its own when this page opens.'
+                  : 'Same URL convention as the import step (GET fetches, PUT replaces). The last value is remembered per project on this device.'}
+              </p>
+            </div>
+
+            {exportError ? (
+              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                {exportError}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                disabled={exportPending || !ontologyUri || putUrl.trim().length === 0}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {exportPending
+                  ? 'Exporting…'
+                  : exportSucceeded
+                    ? 'Re-export to Dataspecer'
+                    : 'Export to Dataspecer'}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
+
+      <OfnExportPanel
+        projectId={projectId}
+        projectName={projectQuery.data?.name}
+        showStats={false}
+        defaultExpanded={false}
+      />
     </div>
   )
 }
