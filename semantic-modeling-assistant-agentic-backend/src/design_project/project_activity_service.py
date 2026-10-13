@@ -98,7 +98,9 @@ class ProjectActivityService:
         if task_id is not None:
             events = [e for e in events if e.task_id == task_id]
 
-        events.sort(key=lambda e: e.at, reverse=True)
+        # Timestamps can collide (coarse clock on Windows); the log is append-ordered,
+        # so reversing first keeps equal-time events newest first under the stable sort.
+        events = sorted(reversed(events), key=lambda e: e.at, reverse=True)
 
         if limit is not None and limit >= 0:
             return events[:limit]

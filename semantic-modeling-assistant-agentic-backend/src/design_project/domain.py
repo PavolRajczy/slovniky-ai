@@ -92,6 +92,8 @@ class ProjectActivityEventType(str, Enum):
     OPERATION_APPROVED = "operation_approved"
     OPERATION_REJECTED = "operation_rejected"
     ONTOLOGY_EXPORTED = "ontology_exported"
+    DATASPECER_SYNCED = "dataspecer_synced"
+    DATASPECER_SYNC_FAILED = "dataspecer_sync_failed"
 
 @dataclass
 class ProjectActivityEvent:
@@ -159,6 +161,8 @@ class DesignIteration:
     designedOntologyChangesSpecification: Optional[str]     # A structured textual description of the changes made to the designed ontology as a result of performing the design iteration.
                                                             #   It is a compilation of all designed ontology changes made by executed tasks during the design iteration.
                                                             #   It is compiled after the design iteration is completed.
+    goal: Optional[str] = None                              # The user's stated objective the iteration was planned toward. Guides task planning and modeling.
+    subareaClassUris: List[str] = field(default_factory=list)  # Class URIs the user restricted the iteration to. Empty means the whole ontology is in scope.
 
 @dataclass
 class DesignTask:
