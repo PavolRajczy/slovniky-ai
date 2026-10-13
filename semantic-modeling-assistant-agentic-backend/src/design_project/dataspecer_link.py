@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 import requests
 from dotenv import load_dotenv
 
-from ontology.dataspecer_simplified import simplified_to_ontology
+from ontology.dataspecer_simplified import ontology_to_simplified, simplified_to_ontology
 from ontology.domain import Ontology
 
 SEMANTIC_MODEL_TYPE = "http://dataspecer.com/resources/local/semantic-model"
@@ -40,6 +40,16 @@ def export_url_for_package(package_iri: str) -> str:
         )
     query = urlencode({"iri": semantic_model["iri"]})
     return f"{dataspecer_backend_url()}/simplified-semantic-model?{query}"
+
+
+def push_vocabulary(package_iri: str, ontology: Ontology) -> None:
+    """Replace the vocabulary's semantic model in Dataspecer with the given ontology."""
+    url = export_url_for_package(package_iri)
+    try:
+        response = requests.put(url, json=ontology_to_simplified(ontology), timeout=30)
+        response.raise_for_status()
+    except requests.RequestException as error:
+        raise DataspecerLinkError(f"Failed to update Dataspecer at {url}: {error}") from error
 
 
 def dataspecer_backend_url() -> str:

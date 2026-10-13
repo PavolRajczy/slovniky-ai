@@ -1,9 +1,10 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
 import { ActivitySummary } from '@/components/ActivitySummary'
+import { DataspecerSyncNotice } from '@/components/DataspecerSyncNotice'
 import {
   OfnConceptStats,
   OfnExportPanel,
@@ -11,7 +12,7 @@ import {
   type OfnConceptCounts,
 } from '@/components/OfnExportPanel'
 import { ApiError } from '@/api/client'
-import { getDataspecerExportUrl, getProject, getProjectOfn } from '@/api/projects'
+import { getProject, getProjectOfn } from '@/api/projects'
 import { listIterations } from '@/api/iterations'
 import { exportOntologyToDataspecer, getOntology } from '@/api/ontologies'
 
@@ -65,9 +66,7 @@ export function ExportResultPage() {
   const [putUrl, setPutUrl] = useState('')
   const [putUrlTouched, setPutUrlTouched] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
-  const [linkedExportUrl, setLinkedExportUrl] = useState<string | null>(null)
   const [dataspecerOpen, setDataspecerOpen] = useState(false)
-  const autoExportStarted = useRef(false)
 
   const linkedToDataspecer = Boolean(projectQuery.data?.dataspecer_package_iri)
 
@@ -79,35 +78,11 @@ export function ExportResultPage() {
       const stored = window.localStorage.getItem(putUrlStorageKey(projectId))
       if (stored && stored.length > 0) {
         setPutUrl(stored)
-        return
       }
     } catch {
       // localStorage may be unavailable; safe to ignore.
     }
-    if (!linkedToDataspecer) {
-      return
-    }
-    let cancelled = false
-    getDataspecerExportUrl(projectId)
-      .then((result) => {
-        if (cancelled) {
-          return
-        }
-        setLinkedExportUrl(result.put_url)
-        setPutUrl(result.put_url)
-      })
-      .catch((error: unknown) => {
-        if (cancelled) {
-          return
-        }
-        if (error instanceof ApiError) setExportError(error.message)
-        else if (error instanceof Error) setExportError(error.message)
-        else setExportError('Could not resolve the local Dataspecer export URL.')
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [projectId, putUrlTouched, linkedToDataspecer])
+  }, [projectId, putUrlTouched])
 
   const exportMutation = useMutation({
     mutationFn: () =>
@@ -131,14 +106,6 @@ export function ExportResultPage() {
       else setExportError('Export failed.')
     },
   })
-
-  useEffect(() => {
-    if (!linkedExportUrl || !ontologyUri || putUrl !== linkedExportUrl || autoExportStarted.current) {
-      return
-    }
-    autoExportStarted.current = true
-    exportMutation.mutate()
-  }, [linkedExportUrl, ontologyUri, putUrl, exportMutation])
 
   const conceptCounts = useMemo<OfnConceptCounts>(() => {
     if (ofnQuery.data) {
@@ -246,81 +213,84 @@ export function ExportResultPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dataspecer export</p>
-            <p
-              className={`mt-1 text-sm ${
-                exportError && !exportPending
-                  ? 'text-rose-700'
-                  : exportSucceeded
-                    ? 'text-emerald-800'
-                    : 'text-slate-600'
-              }`}
-            >
-              {dataspecerStatus}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setDataspecerOpen((open) => !open)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            {dataspecerOpen ? 'Hide' : 'Show export'}
-          </button>
-        </div>
-
-        {dataspecerOpen ? (
-          <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-            <p className="text-sm text-slate-600">
-              Approved changes are part of the designed ontology. Finalize already regenerates project OFN;
-              Dataspecer export is optional.
-            </p>
+      {linkedToDataspecer ? (
+        <DataspecerSyncNotice projectId={projectId} linked showWithoutFeedback />
+      ) : (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
-                Dataspecer export URL
-              </label>
-              <input
-                type="url"
-                value={putUrl}
-                onChange={(event) => {
-                  setPutUrl(event.target.value)
-                  setPutUrlTouched(true)
-                }}
-                placeholder="https://tool.dataspecer.com/api/simplified-semantic-model?iri=..."
-                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                disabled={exportPending}
-              />
-              <p className="mt-1 text-[11px] text-slate-500">
-                {linkedToDataspecer
-                  ? 'Filled from the linked local Dataspecer vocabulary. Export runs on its own when this page opens.'
-                  : 'Same URL convention as the import step (GET fetches, PUT replaces). The last value is remembered per project on this device.'}
-              </p>
-            </div>
-
-            {exportError ? (
-              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
-                {exportError}
-              </p>
-            ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="submit"
-                disabled={exportPending || !ontologyUri || putUrl.trim().length === 0}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dataspecer export</p>
+              <p
+                className={`mt-1 text-sm ${
+                  exportError && !exportPending
+                    ? 'text-rose-700'
+                    : exportSucceeded
+                      ? 'text-emerald-800'
+                      : 'text-slate-600'
+                }`}
               >
-                {exportPending
-                  ? 'Exporting…'
-                  : exportSucceeded
-                    ? 'Re-export to Dataspecer'
-                    : 'Export to Dataspecer'}
-              </button>
+                {dataspecerStatus}
+              </p>
             </div>
-          </form>
-        ) : null}
-      </section>
+            <button
+              type="button"
+              onClick={() => setDataspecerOpen((open) => !open)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {dataspecerOpen ? 'Hide' : 'Show export'}
+            </button>
+          </div>
+
+          {dataspecerOpen ? (
+            <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
+              <p className="text-sm text-slate-600">
+                Approved changes are part of the designed ontology. Finalize already regenerates project OFN;
+                Dataspecer export is optional.
+              </p>
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
+                  Dataspecer export URL
+                </label>
+                <input
+                  type="url"
+                  value={putUrl}
+                  onChange={(event) => {
+                    setPutUrl(event.target.value)
+                    setPutUrlTouched(true)
+                  }}
+                  placeholder="https://tool.dataspecer.com/api/simplified-semantic-model?iri=..."
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-xs text-slate-800 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  disabled={exportPending}
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Same URL convention as the import step (GET fetches, PUT replaces). The last value is remembered per
+                  project on this device.
+                </p>
+              </div>
+
+              {exportError ? (
+                <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                  {exportError}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={exportPending || !ontologyUri || putUrl.trim().length === 0}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {exportPending
+                    ? 'Exporting…'
+                    : exportSucceeded
+                      ? 'Re-export to Dataspecer'
+                      : 'Export to Dataspecer'}
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+      )}
 
       <OfnExportPanel
         projectId={projectId}

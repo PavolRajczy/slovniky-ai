@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import type {
   CreateProjectRequest,
+  DataspecerSyncResponse,
   OfnDocument,
   ProjectModel,
   ProjectSummary,
@@ -22,6 +23,10 @@ export function createProject(body: CreateProjectRequest): Promise<ProjectModel>
 
 export function getDataspecerExportUrl(projectId: string): Promise<{ put_url: string }> {
   return apiFetch<{ put_url: string }>(`/projects/${projectId}/dataspecer-export-url`)
+}
+
+export function syncProjectToDataspecer(projectId: string): Promise<DataspecerSyncResponse> {
+  return apiFetch<DataspecerSyncResponse>(`/projects/${projectId}/dataspecer-sync`, { method: 'POST' })
 }
 
 export function openProjectFromDataspecer(packageIri: string): Promise<ProjectModel> {

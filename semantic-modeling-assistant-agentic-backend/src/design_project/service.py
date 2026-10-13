@@ -8,7 +8,7 @@ from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAg
 from agents.modelers.modeler import ModelerAgent
 from agents.task_planners.task_planner import TaskPlannerAgent
 
-from design_project.dataspecer_link import DataspecerLinkError, import_vocabulary
+from design_project.dataspecer_link import DataspecerLinkError, import_vocabulary, push_vocabulary
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskPattern, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.project_guidance_service import ProjectGuidanceService
@@ -309,6 +309,21 @@ class DesignProjectService:
                 dataspecer_package_iri=package_iri,
             )
 
+    def push_ontology_to_dataspecer(self, project_id: str) -> bool:
+        """
+        Send the project's designed ontology to its linked Dataspecer vocabulary.
+
+        Returns False when the project is not linked to Dataspecer.
+
+        Raises:
+            DataspecerLinkError: When Dataspecer cannot be reached or rejects the update.
+        """
+        project = self.store.load_project(project_id)
+        if not project.dataspecerPackageIri:
+            return False
+        push_vocabulary(project.dataspecerPackageIri, project.designedOntology)
+        return True
+
     def find_by_dataspecer_package_iri(self, package_iri: str) -> Optional[DesignProject]:
         """Return the project linked to this Dataspecer vocabulary, if one was stored."""
         for project in self.list_all_projects():
@@ -491,7 +506,25 @@ class DesignProjectService:
         
         return areas
 
-    def suggest_iterations(self, project_id: str, focused_area_id: str, k: int, user_instruction: str) -> List[DesignIteration]:
+    def validate_subarea_class_uris(self, project: DesignProject, class_uris: Optional[List[str]]) -> List[str]:
+        """
+        Return the subarea class URIs stripped and de-duplicated, keeping the user's order.
+
+        Raises:
+            ValueError: If a URI is not a class of the project's designed ontology.
+        """
+        known = {str(uri) for uri in project.designedOntology.classes}
+        cleaned: List[str] = []
+        for uri in class_uris or []:
+            stripped = uri.strip()
+            if stripped and stripped not in cleaned:
+                cleaned.append(stripped)
+        unknown = [uri for uri in cleaned if uri not in known]
+        if unknown:
+            raise ValueError(f"Subarea classes not found in the project ontology: {', '.join(unknown)}")
+        return cleaned
+
+    def suggest_iterations(self, project_id: str, focused_area_id: str, k: int, user_instruction: str, goal: Optional[str] = None, subarea_class_uris: Optional[List[str]] = None) -> List[DesignIteration]:
         """
         Suggests new design iterations for the given project focusing on the given knowledge domain area.
         If the user instruction is specified, the suggestions are guided by it.
@@ -501,19 +534,31 @@ class DesignProjectService:
             focused_area_id (str): The ID of the knowledge domain area to focus the suggestions on.
             k (int): The number of suggestions to return.
             user_instruction (str): Instructions from the user to guide the suggestions.
+            goal (str, optional): Planning objective the iterations must work toward.
+            subarea_class_uris (List[str], optional): Classes of the designed ontology the iterations are restricted to.
 
         Returns:
-            List[DesignIteration]: A list of k suggested design iterations.
+            List[DesignIteration]: A list of k suggested design iterations, each carrying the goal and subarea.
+
+        Raises:
+            ValueError: If the focused area or a subarea class does not exist.
         """
         project = self.store.load_project(project_id)
         focused_area = next((area for area in project.modeledKnowledgeDomain.areas if area.id == focused_area_id), None)
         if not focused_area:
             raise ValueError(f"Focused area not found: {focused_area_id}")
+        subarea = self.validate_subarea_class_uris(project, subarea_class_uris)
+        goal = (goal or "").strip() or None
 
         print(f"Suggesting {k} iterations for project {project.name} and knowledge domain area {focused_area.label} ...")
 
         effective = self._effective_user_instruction(project_id, user_instruction)
-        iterations = self.iteration_suggester_agent.suggest_iterations(project, focused_area, k, effective)
+        iterations = self.iteration_suggester_agent.suggest_iterations(
+            project, focused_area, k, effective, goal=goal, subarea_class_uris=subarea
+        )
+        for iteration in iterations:
+            iteration.goal = goal
+            iteration.subareaClassUris = list(subarea)
         project.plannedIterations.extend(iterations)
         self.store.store_project(project)
         print(f"... suggested {len(iterations)} iterations.")
@@ -604,11 +649,10 @@ class DesignProjectService:
         """
         project = self.store.load_project(project_id)
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
-        if iteration:
+        is_planned = iteration is not None
+        if is_planned:
             if project.currentIteration and project.currentIteration.id != iteration_id:
                 raise ValueError("Another iteration is already being prepared.")
-            project.plannedIterations.remove(iteration)
-            project.currentIteration = iteration
         else:
             iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
         if not iteration:
@@ -623,6 +667,11 @@ class DesignProjectService:
         plannedTasksToProcess = [task for task in iteration.plannedTasks if task.status == DesignTaskStatus.PLANNED]
         if len(plannedTasksToProcess) == 0:
             raise ValueError(f"Iteration has no planned tasks: {iteration_id}")
+
+        # The store caches loaded projects, so the iteration moves only after validation passes.
+        if is_planned:
+            project.plannedIterations.remove(iteration)
+            project.currentIteration = iteration
 
         # Status transition: PLANNED/TASKS_PLANNED -> GENERATING_OPERATIONS
         # Location transition: plannedIterations -> currentIteration

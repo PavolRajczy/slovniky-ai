@@ -10,6 +10,7 @@ import { PageBackLink } from '@/components/PageBackLink'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getProject } from '@/api/projects'
 import { saveOfnSaveFeedback } from '@/utils/ofnSaveFeedback'
+import { saveDataspecerSyncFeedback } from '@/utils/dataspecerSyncFeedback'
 import {
   applyIteration,
   buildDiffSummary,
@@ -309,6 +310,14 @@ export function OperationsReviewPage() {
           pojmyCount: data.ofn_pojmy_count ?? 0,
           overwroteExisting: Boolean(data.ofn_overwrote_existing),
           savedAt: new Date().toISOString(),
+        })
+      }
+      if (projectId && data.dataspecer_synced != null) {
+        saveDataspecerSyncFeedback({
+          projectId,
+          synced: data.dataspecer_synced,
+          error: data.dataspecer_sync_error ?? null,
+          at: new Date().toISOString(),
         })
       }
       const rejectedOperations = operations.filter(

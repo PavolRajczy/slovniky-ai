@@ -140,7 +140,7 @@ class FileSystemDesignProjectStore(DesignProjectStore):
         It also updates knowledge document elements in design tasks' knowledgeResources.
         
         Args:
-            project_id (str): The ID of the project to update.
+            project (DesignProject): The previously loaded project to update.
             legal_knowledge_base (List[KnowledgeDocument]): Complete legal knowledge documents.
             expert_knowledge_base (List[KnowledgeDocument]): Complete expert knowledge documents.
             
@@ -157,12 +157,13 @@ class FileSystemDesignProjectStore(DesignProjectStore):
         all_docs = legal_knowledge_base + expert_knowledge_base
         docs_by_id = {doc.id: doc for doc in all_docs}
         
-        # Collect all document elements for lookup
+        # Collect all document elements, at any depth, for lookup
         elements_by_id = {}
-        for doc in all_docs:
-            if hasattr(doc, 'elements') and doc.elements:
-                for element in doc.elements:
-                    elements_by_id[element.id] = element
+        pending_elements = [child for doc in all_docs for child in doc.childElements]
+        while pending_elements:
+            element = pending_elements.pop()
+            elements_by_id[element.id] = element
+            pending_elements.extend(element.childElements)
         
         # Replace placeholder legal knowledge base documents
         project.legalKnowledgeBase = [
@@ -292,6 +293,8 @@ class FileSystemDesignProjectStore(DesignProjectStore):
             "focusedArea": iteration.focusedArea.id if iteration.focusedArea else None,
             "plannedOperations": [self._identified_operation_to_dict(op) for op in iteration.plannedOperations] if iteration.plannedOperations else None,
             "designedOntologyChangesSpecification": iteration.designedOntologyChangesSpecification,
+            "goal": iteration.goal,
+            "subareaClassUris": list(iteration.subareaClassUris),
         }
 
     def _design_iteration_from_dict(self, data: Dict[str, Any], modeled_knowledge_domain: KnowledgeDomain, patterns_by_id: Dict[str, DesignTaskPattern]) -> DesignIteration:
@@ -338,6 +341,8 @@ class FileSystemDesignProjectStore(DesignProjectStore):
             focusedArea=focused_area,
             plannedOperations=planned_operations,
             designedOntologyChangesSpecification=data["designedOntologyChangesSpecification"],
+            goal=data.get("goal"),
+            subareaClassUris=list(data.get("subareaClassUris") or []),
         )
 
     def _design_task_to_dict(self, task: DesignTask) -> Dict[str, Any]:

@@ -7,6 +7,7 @@ import { ActivitySummary } from '@/components/ActivitySummary'
 import { actionButton, CardActions } from '@/components/ActionButtons'
 import { AppliedReviewSummaryModal, buildModalReviewGroups } from '@/components/AppliedReviewSummaryModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DataspecerSyncNotice } from '@/components/DataspecerSyncNotice'
 import { getProject } from '@/api/projects'
 import { listIterations } from '@/api/iterations'
 import { listTaskPatterns } from '@/api/patterns'
@@ -343,6 +344,8 @@ export function TasksPage() {
       />
 
       <ActivitySummary projectId={projectId} iterationId={activeIterationId} />
+
+      <DataspecerSyncNotice projectId={projectId} linked={Boolean(projectQuery.data?.dataspecer_package_iri)} />
 
       {ofnFeedback ? (
         <section className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-sky-950 shadow-sm">

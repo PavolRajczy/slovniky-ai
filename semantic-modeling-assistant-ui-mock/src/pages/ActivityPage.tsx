@@ -20,6 +20,8 @@ const eventLabels: Record<ProjectActivityEventType, string> = {
   operation_approved: 'Change kept',
   operation_rejected: 'Change rejected',
   ontology_exported: 'Ontology exported',
+  dataspecer_synced: 'Dataspecer updated',
+  dataspecer_sync_failed: 'Dataspecer sync failed',
 }
 
 const eventStyles: Record<ProjectActivityEventType, string> = {
@@ -35,6 +37,8 @@ const eventStyles: Record<ProjectActivityEventType, string> = {
   operation_approved: 'bg-emerald-50 text-emerald-900',
   operation_rejected: 'bg-rose-50 text-rose-900',
   ontology_exported: 'bg-amber-50 text-amber-950',
+  dataspecer_synced: 'bg-amber-50 text-amber-950',
+  dataspecer_sync_failed: 'bg-rose-50 text-rose-900',
 }
 
 type FilterId = 'all' | 'assistant' | 'decisions' | 'guidance' | 'applied'
@@ -65,7 +69,7 @@ const filters: { id: FilterId; label: string; types?: ProjectActivityEventType[]
   {
     id: 'applied',
     label: 'Applied & exported',
-    types: ['iteration_applied', 'ontology_exported'],
+    types: ['iteration_applied', 'ontology_exported', 'dataspecer_synced', 'dataspecer_sync_failed'],
   },
 ]
 
@@ -214,10 +218,13 @@ function EventDetail({ event }: { event: ProjectActivityEventModel }) {
   const reason = readString(event.detail.reason)
   const content = readString(event.detail.content)
   const instruction = readString(event.detail.userInstruction)
+  const goal = readString(event.detail.goal)
+  const subarea = readStringArray(event.detail.subareaClassUris)
+  const error = readString(event.detail.error)
   const names = readStringArray(event.detail.names)
   const savedAsGuidance = event.detail.savedAsGuidance === true
 
-  const hasDetail = reason || content || instruction || names.length > 0
+  const hasDetail = reason || content || instruction || goal || subarea.length > 0 || error || names.length > 0
   if (!hasDetail) {
     return null
   }
@@ -242,6 +249,21 @@ function EventDetail({ event }: { event: ProjectActivityEventModel }) {
       {instruction ? (
         <p>
           <span className="font-medium text-slate-700">Your instruction:</span> {instruction}
+        </p>
+      ) : null}
+      {goal ? (
+        <p>
+          <span className="font-medium text-slate-700">Goal:</span> {goal}
+        </p>
+      ) : null}
+      {subarea.length > 0 ? (
+        <p className="break-all">
+          <span className="font-medium text-slate-700">Limited to:</span> {subarea.join(' · ')}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="break-words">
+          <span className="font-medium text-slate-700">Error:</span> {error}
         </p>
       ) : null}
       {names.length > 0 ? (
