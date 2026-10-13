@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/client'
 import { PageBackLink } from '@/components/PageBackLink'
+import { ActivitySummary } from '@/components/ActivitySummary'
 import { actionButton, CardActions } from '@/components/ActionButtons'
 import { AppliedReviewSummaryModal, buildModalReviewGroups } from '@/components/AppliedReviewSummaryModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { DataspecerSyncNotice } from '@/components/DataspecerSyncNotice'
 import { getProject } from '@/api/projects'
 import { listIterations } from '@/api/iterations'
 import { listTaskPatterns } from '@/api/patterns'
@@ -41,12 +43,12 @@ const COLUMNS: Array<{ id: DesignTaskStatus; label: string; description: string 
   {
     id: 'generating',
     label: 'Ready to review',
-    description: 'AI is generating changes, or changes are prepared and waiting for review.',
+    description: 'Proposed changes are ready to review. The ontology is unchanged until you finalize.',
   },
   {
     id: 'completed',
     label: 'Applied',
-    description: 'Work items whose approved changes were applied.',
+    description: 'Work items whose kept changes were written into the ontology on finalize.',
   },
 ]
 
@@ -148,6 +150,7 @@ export function TasksPage() {
       queryClient.invalidateQueries({ queryKey: ['iteration-tasks', projectId, activeIterationId] }),
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] }),
     ])
   }
 
@@ -230,7 +233,7 @@ export function TasksPage() {
       <div className="mx-auto max-w-3xl space-y-4">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Open the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
+          <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
             project setup page
           </Link>{' '}
           first.
@@ -325,8 +328,8 @@ export function TasksPage() {
   const handlePrepare = (targetTaskId?: string, openReview = true) => {
     const ok = window.confirm(
       targetTaskId
-        ? `Prepare changes for this work item? AI will prepare changes for the selected direction, then this item should move to Ready to review.`
-        : `Prepare changes for "${activeIteration?.name ?? ''}"? AI will generate proposed ontology changes for each work item. This may take a few minutes.`,
+        ? `Prepare proposed changes for this work item? The ontology stays unchanged until you review and finalize.`
+        : `Prepare proposed changes for "${activeIteration?.name ?? ''}"? AI will generate proposals for each work item from the current finalized ontology. The ontology stays unchanged until you finalize. This may take a few minutes.`,
     )
     if (!ok) return
     prepareMutation.mutate({ targetTaskId, openReview })
@@ -339,6 +342,10 @@ export function TasksPage() {
         search={{ projectId, domainId: activeIteration?.focused_area_id ?? domainId }}
         label="next directions"
       />
+
+      <ActivitySummary projectId={projectId} iterationId={activeIterationId} />
+
+      <DataspecerSyncNotice projectId={projectId} linked={Boolean(projectQuery.data?.dataspecer_package_iri)} />
 
       {ofnFeedback ? (
         <section className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-sky-950 shadow-sm">
@@ -416,11 +423,11 @@ export function TasksPage() {
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Prepare changes</h2>
         <p className="mt-1 text-sm text-slate-600">
           Break the selected direction into concrete work items, then let the assistant prepare proposed
-          ontology changes for review.
+          ontology changes for review. The designed ontology changes only when you finalize kept changes.
         </p>
         <p className="mt-2 text-xs text-slate-500">
-          For a lighter review, use the arrow on a work item card to move it into Ready to review, then
-          review only that item.
+          For a lighter review, prepare one work item, finalize it, then prepare the next if it depends on
+          those new elements.
         </p>
       </div>
 
@@ -896,7 +903,7 @@ function DirectionWorkPanel({
             </div>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            Next step: move one work item to Ready to review with the arrow, then review just that item.
+            Next step: prepare one work item, review it, then finalize. The ontology updates only after finalize.
           </p>
         </div>
       </div>

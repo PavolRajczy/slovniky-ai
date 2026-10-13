@@ -18,7 +18,7 @@ class ModelerAgent:
 
         Args:
             design_project (DesignProject): The design project containing the iteration.
-            current_ontology (Ontology): The current ontology being modified. This ontology should reflect all changes made by previously executed tasks in the same iteration. We cannot work with the original ontology from the design_project as this needs to remain unchanged until the final list of operations for all tasks in the iteration is ready and approved.
+            current_ontology (Ontology): The finalized designed ontology. This must not include unreviewed proposals from other tasks; those stay pending until the user finalizes.
             iteration (DesignIteration): The iteration in which the task is to be performed.
             task (DesignTask): The design task to be executed.
             project_guidance_text (str, optional): Project-scoped human-in-the-loop guidance to inject into the prompt.

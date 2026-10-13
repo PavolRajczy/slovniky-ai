@@ -36,13 +36,13 @@ export function WorkflowContextCapsule({ linkContext, goal = mockWorkflowContext
         <div className="flex shrink-0 flex-wrap gap-2">
           <Link
             to="/domain-areas"
-            search={{ projectId: linkContext.projectId }}
+            search={{ projectId: linkContext.projectId, packageIri: undefined }}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
             Domain map
           </Link>
           <Link
-            to="/iterations"
+            to="/iterations-v2"
             search={{ projectId: linkContext.projectId, domainId: linkContext.domainId }}
             className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >

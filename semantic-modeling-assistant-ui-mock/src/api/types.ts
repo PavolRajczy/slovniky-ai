@@ -132,6 +132,7 @@ export type ProjectSummary = {
   updated_at: string
   domain_areas_count: number
   iterations_count: number
+  dataspecer_package_iri?: string | null
 }
 
 export type KnowledgeDomainAreaModel = {
@@ -157,6 +158,8 @@ export type DesignIterationModel = {
   total_tasks: number
   planned_tasks_count: number
   finished_tasks_count: number
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type DesignTaskStatus = 'planned' | 'generating' | 'completed'
@@ -212,6 +215,7 @@ export type ProjectModel = {
   planned_iterations: DesignIterationModel[]
   current_iteration?: DesignIterationModel | null
   finished_iterations: DesignIterationModel[]
+  dataspecer_package_iri?: string | null
 }
 
 export type GuidanceItemType = 'instruction' | 'correction' | 'preference' | 'constraint'
@@ -228,6 +232,58 @@ export type ProjectGuidanceItemModel = {
 
 export type ProjectGuidanceListResponse = {
   items: ProjectGuidanceItemModel[]
+}
+
+export type ProjectActivityEventType =
+  | 'guidance_added'
+  | 'guidance_updated'
+  | 'guidance_deleted'
+  | 'domain_areas_generated'
+  | 'iterations_suggested'
+  | 'tasks_planned'
+  | 'operations_generated'
+  | 'iteration_prepared'
+  | 'iteration_applied'
+  | 'operation_approved'
+  | 'operation_rejected'
+  | 'ontology_exported'
+  | 'dataspecer_synced'
+  | 'dataspecer_sync_failed'
+
+export type ProjectActivityActor = 'user' | 'assistant'
+
+export type ProjectActivityEventModel = {
+  id: string
+  project_id: string
+  type: ProjectActivityEventType
+  actor: ProjectActivityActor
+  summary: string
+  at: string
+  iteration_id?: string | null
+  task_id?: string | null
+  operation_id?: string | null
+  detail: Record<string, unknown>
+}
+
+export type ProjectActivityListResponse = {
+  events: ProjectActivityEventModel[]
+  approved_count: number
+  rejected_count: number
+}
+
+export type OperationDecisionModel = {
+  operation_id?: string | null
+  label: string
+  reason?: string | null
+  saved_as_guidance?: boolean
+}
+
+export type RecordOperationDecisionsRequest = {
+  iteration_id?: string | null
+  task_id?: string | null
+  task_name?: string | null
+  approved?: OperationDecisionModel[]
+  rejected?: OperationDecisionModel[]
 }
 
 export type KnowledgeDocumentSummary = {
@@ -276,6 +332,13 @@ export type IterationAppliedResponse = {
   ofn_absolute_path?: string | null
   ofn_pojmy_count?: number | null
   ofn_overwrote_existing?: boolean | null
+  /** Null when the project is not linked to a Dataspecer vocabulary. */
+  dataspecer_synced?: boolean | null
+  dataspecer_sync_error?: string | null
+}
+
+export type DataspecerSyncResponse = {
+  synced: boolean
 }
 
 export type SuccessResponse = {
@@ -328,12 +391,16 @@ export type SuggestIterationsRequest = {
   focused_area_id: string
   count?: number
   user_instruction?: string | null
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type CreateIterationRequest = {
   name: string
   specification: string
   focused_area_id: string
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type UpdateIterationRequest = {
@@ -369,6 +436,7 @@ export type AddKnowledgeDocumentsRequest = {
 export type CreateProjectGuidanceItemRequest = {
   content: string
   type?: GuidanceItemType
+  source?: GuidanceItemSource
 }
 
 export type UpdateProjectGuidanceItemRequest = {

@@ -15,7 +15,10 @@ OFN_VERSION = "2026-02-26"
 OFN_CONTEXT = f"https://ofn.gov.cz/slovníky/{OFN_VERSION}/kompletní/kontext.jsonld"
 VOCABULARY_TYPES = ["Slovník", "Tezaurus", "Konceptuální model"]
 DEFAULT_XSD_RANGE = "xsd:string"
-ELI_PREFIX = "https://opendata.eselpoint.cz/"
+ELI_PREFIXES = (
+    "https://opendata.eselpoint.gov.cz/",
+    "https://opendata.eselpoint.cz/",
+)
 
 
 def ontology_to_ofn(
@@ -190,8 +193,8 @@ def _legal_reference_fields(
     specification_references: Optional[List[str]],
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {}
-    defining = [ref for ref in (definition_references or []) if ref.startswith(ELI_PREFIX)]
-    related = [ref for ref in (specification_references or []) if ref.startswith(ELI_PREFIX)]
+    defining = [ref for ref in (definition_references or []) if ref.startswith(ELI_PREFIXES)]
+    related = [ref for ref in (specification_references or []) if ref.startswith(ELI_PREFIXES)]
     if defining:
         result["definující-ustanovení-právního-předpisu"] = defining
     if related:

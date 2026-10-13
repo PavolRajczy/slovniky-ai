@@ -4,13 +4,20 @@ Design Project Controller
 Main controller handling all design project operations and orchestrating the design workflow.
 """
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from urllib.parse import unquote
 import logging
 import uuid
 
-from design_project.domain import ProjectGuidanceItemType
+from design_project.domain import (
+    ProjectActivityActor,
+    ProjectActivityEventType,
+    ProjectGuidanceItemSource,
+    ProjectGuidanceItemType,
+)
+from design_project.project_activity_service import ProjectActivityService
+from design_project.project_activity_store import FileSystemProjectActivityStore
 from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.project_guidance_store import FileSystemProjectGuidanceStore
 from design_project.service import DesignProjectService
@@ -24,7 +31,7 @@ from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
     DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
 )
-from knowledge_base.service import KnowledgeBaseService
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, KnowledgeBaseService
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
@@ -37,8 +44,9 @@ from agents.iteration_suggesters.iteration_suggester_openai_simple import Iterat
 from agents.task_planners.task_planner_openai_simple import TaskPlannerAgent_Simple_OpenAI
 from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
 
+from design_project.dataspecer_link import DataspecerLinkError, export_url_for_package
 from api.models import (
-    CreateProjectRequest, UpdateProjectRequest, ProjectSummary, ProjectModel,
+    CreateProjectRequest, OpenFromDataspecerRequest, UpdateProjectRequest, ProjectSummary, ProjectModel,
     KnowledgeDomainAreaModel, CreateDomainAreaRequest, UpdateDomainAreaRequest,
     ReidentifyDomainAreasRequest, SetKeyDocumentRequest, GenerateDomainAreasRequest,
     DesignIterationModel, CreateIterationRequest,
@@ -51,7 +59,8 @@ from api.models import (
     KnowledgeDocumentSummary, OntologyModel,
     ProjectGuidanceItemModel, CreateProjectGuidanceItemRequest, UpdateProjectGuidanceItemRequest,
     ProjectGuidanceListResponse,
-    GenerateOperationsRequest, ApplyProjectOperationsRequest,
+    ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
+    GenerateOperationsRequest, ApplyProjectOperationsRequest, DataspecerSyncResponse,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -63,17 +72,20 @@ router = APIRouter()
 ontology_service = OntologyService()
 knowledge_base_service = KnowledgeBaseService(
     legal_knowledge_document_loader=ESELKnowledgeDocumentLoader(
-        sparql_endpoint="https://opendata.eselpoint.cz/sparql"
+        sparql_endpoint=ESEL_SPARQL_ENDPOINT
     ),
     expert_knowledge_document_loader=LocalKnowledgeDocumentLoader(),
     document_summarizer=SimpleOpenAIKnowledgeDocumentSummarizer()
 )
 knowledge_base_index_service = KnowledgeBaseIndexService(
-    indexer=FAISSSummaryOpenAIKnowledgeDocumentIndexer()
+    indexer_factory=FAISSSummaryOpenAIKnowledgeDocumentIndexer
 )
 
 guidance_store = FileSystemProjectGuidanceStore(base_dir="data/projects")
 guidance_service = ProjectGuidanceService(store=guidance_store)
+
+activity_store = FileSystemProjectActivityStore(base_dir="data/projects")
+activity_service = ProjectActivityService(store=activity_store)
 
 design_project_service = DesignProjectService(
     store=FileSystemDesignProjectStore(ontology_service=ontology_service),
@@ -127,6 +139,38 @@ def _ensure_project_documents_indexed(project: DesignProject) -> None:
                 logger.warning(f"Failed to index document {doc.id} for project {project.id}: {e}")
 
 
+def _sync_project_to_dataspecer(project_id: str, iteration_id: Optional[str] = None) -> tuple[Optional[bool], Optional[str]]:
+    """
+    Push the project ontology to its linked Dataspecer vocabulary and log the outcome.
+
+    Returns (None, None) for projects without a Dataspecer link, otherwise (synced, error).
+    A failed push never raises, so callers that already changed the ontology still succeed.
+    """
+    try:
+        if not design_project_service.push_ontology_to_dataspecer(project_id):
+            return None, None
+    except DataspecerLinkError as error:
+        logger.warning("Dataspecer sync failed for project %s: %s", project_id, error)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.DATASPECER_SYNC_FAILED,
+            actor=ProjectActivityActor.USER,
+            summary="Could not update the linked Dataspecer vocabulary",
+            iteration_id=iteration_id,
+            detail={"error": str(error)},
+        )
+        return False, str(error)
+
+    activity_service.record(
+        project_id=project_id,
+        type=ProjectActivityEventType.DATASPECER_SYNCED,
+        actor=ProjectActivityActor.USER,
+        summary="Updated the linked Dataspecer vocabulary",
+        iteration_id=iteration_id,
+    )
+    return True, None
+
+
 def _convert_domain_area_to_model(area: KnowledgeDomainArea) -> KnowledgeDomainAreaModel:
     """Convert domain KnowledgeDomainArea to API model."""
     return KnowledgeDomainAreaModel(
@@ -171,7 +215,9 @@ def _convert_iteration_to_model(iteration: DesignIteration) -> DesignIterationMo
         status=api_status,
         total_tasks=total_count,
         planned_tasks_count=planned_count,
-        finished_tasks_count=finished_count
+        finished_tasks_count=finished_count,
+        goal=iteration.goal,
+        subarea_class_uris=list(iteration.subareaClassUris),
     )
 
 
@@ -192,7 +238,7 @@ def _convert_task_to_model(task: DesignTask) -> DesignTaskModel:
         id=task.id,
         name=task.name or "",
         specification=task.specification or "",
-        followed_pattern_id=task.followedPattern.id,
+        followed_pattern_id=task.followedPattern.id if task.followedPattern else "",
         status=api_status
     )
 
@@ -538,7 +584,8 @@ def _convert_project_to_summary(project: DesignProject) -> ProjectSummary:
         created_at="",  # Not tracked in current domain model
         updated_at="",  # Not tracked in current domain model
         domain_areas_count=len(project.modeledKnowledgeDomain.areas) if project.modeledKnowledgeDomain else 0,
-        iterations_count=len(project.plannedIterations) + len(project.finishedIterations) + (1 if project.currentIteration else 0)
+        iterations_count=len(project.plannedIterations) + len(project.finishedIterations) + (1 if project.currentIteration else 0),
+        dataspecer_package_iri=project.dataspecerPackageIri,
     )
 
 
@@ -556,7 +603,8 @@ def _convert_project_to_model(project: DesignProject) -> ProjectModel:
         domain_areas=[_convert_domain_area_to_model(area) for area in (project.modeledKnowledgeDomain.areas if project.modeledKnowledgeDomain else [])],
         planned_iterations=[_convert_iteration_to_model(it) for it in project.plannedIterations],
         current_iteration=_convert_iteration_to_model(project.currentIteration) if project.currentIteration else None,
-        finished_iterations=[_convert_iteration_to_model(it) for it in project.finishedIterations]
+        finished_iterations=[_convert_iteration_to_model(it) for it in project.finishedIterations],
+        dataspecer_package_iri=project.dataspecerPackageIri,
     )
 
 
@@ -600,6 +648,70 @@ async def create_project(request: CreateProjectRequest):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create project: {str(e)}"
+        )
+
+
+@router.get("/projects/{project_id}/dataspecer-export-url")
+async def dataspecer_export_url(project_id: str):
+    """
+    URL that receives this project's ontology on the configured Dataspecer backend.
+    """
+    try:
+        project = design_project_service.load_project(project_id)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+
+    if not project.dataspecerPackageIri:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This project is not linked to a Dataspecer vocabulary.",
+        )
+    try:
+        return {"put_url": export_url_for_package(project.dataspecerPackageIri)}
+    except DataspecerLinkError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error))
+
+
+@router.post("/projects/{project_id}/dataspecer-sync", response_model=DataspecerSyncResponse)
+async def sync_project_to_dataspecer(project_id: str):
+    """
+    Send the current project ontology to the linked Dataspecer vocabulary again.
+
+    Used to retry after an apply whose automatic sync failed.
+    """
+    try:
+        design_project_service.load_project(project_id)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+
+    synced, error = _sync_project_to_dataspecer(project_id)
+    if synced is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This project is not linked to a Dataspecer vocabulary.",
+        )
+    if not synced:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=error)
+    return DataspecerSyncResponse(synced=True)
+
+
+@router.post("/projects/open-from-dataspecer", response_model=ProjectModel)
+async def open_project_from_dataspecer(request: OpenFromDataspecerRequest):
+    """
+    Open the project linked to a Dataspecer vocabulary.
+
+    Creates the project and imports the vocabulary semantic model when this package id is not stored yet.
+    """
+    try:
+        project = design_project_service.open_from_dataspecer(request.package_iri)
+        return _convert_project_to_model(project)
+    except DataspecerLinkError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error))
+    except Exception as error:
+        logger.error(f"Error opening project from Dataspecer: {error}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to open project from Dataspecer: {str(error)}",
         )
 
 
@@ -761,16 +873,39 @@ async def add_project_guidance(project_id: str, request: CreateProjectGuidanceIt
     try:
         design_project_service.load_project(project_id)
         item_type = ProjectGuidanceItemType(request.type)
+        item_source = (
+            ProjectGuidanceItemSource(request.source)
+            if request.source
+            else ProjectGuidanceItemSource.MANUAL
+        )
         item = guidance_service.add_item(
             project_id=project_id,
             content=request.content,
             type=item_type,
+            source=item_source,
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_ADDED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Added {item.type.value} guidance",
+            detail={
+                "guidanceId": item.id,
+                "guidanceType": item.type.value,
+                "source": item.source.value if item.source else None,
+                "content": item.content,
+            },
         )
         return _guidance_item_to_model(item)
     except FileNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
         )
     except Exception as e:
         logger.error(f"Error adding project guidance: {e}")
@@ -794,6 +929,18 @@ async def update_project_guidance(project_id: str, item_id: str, request: Update
         content = request.content if request.content is not None else existing.content
         item_type = ProjectGuidanceItemType(request.type) if request.type is not None else existing.type
         item = guidance_service.update_item(project_id, item_id, content, item_type)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_UPDATED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Edited {item.type.value} guidance",
+            detail={
+                "guidanceId": item.id,
+                "guidanceType": item.type.value,
+                "content": item.content,
+                "previousContent": existing.content,
+            },
+        )
         return _guidance_item_to_model(item)
     except FileNotFoundError:
         raise HTTPException(
@@ -802,6 +949,11 @@ async def update_project_guidance(project_id: str, item_id: str, request: Update
         )
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
         logger.error(f"Error updating project guidance: {e}")
         raise HTTPException(
@@ -815,12 +967,25 @@ async def delete_project_guidance(project_id: str, item_id: str):
     """Remove a guidance item. The agent will no longer follow it."""
     try:
         design_project_service.load_project(project_id)
+        # Read the item before deleting it so the activity log can keep its content.
+        existing = guidance_service.get_item(project_id, item_id)
         removed = guidance_service.delete_item(project_id, item_id)
         if not removed:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Guidance item '{item_id}' not found"
             )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.GUIDANCE_DELETED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Removed {existing.type.value} guidance" if existing else "Removed guidance",
+            detail={
+                "guidanceId": item_id,
+                "guidanceType": existing.type.value if existing else None,
+                "content": existing.content if existing else None,
+            },
+        )
         return DeleteResponse(success=True, message="Guidance item deleted")
     except FileNotFoundError:
         raise HTTPException(
@@ -831,6 +996,147 @@ async def delete_project_guidance(project_id: str, item_id: str):
         raise
     except Exception as e:
         logger.error(f"Error deleting project guidance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+# ============================================================================
+# Project Activity Log Endpoints
+# ============================================================================
+
+def _activity_event_to_model(event) -> ProjectActivityEventModel:
+    """Convert a domain ProjectActivityEvent to its API model."""
+    return ProjectActivityEventModel(
+        id=event.id,
+        project_id=event.project_id,
+        type=event.type.value,
+        actor=event.actor.value,
+        summary=event.summary,
+        at=event.at,
+        iteration_id=event.iteration_id,
+        task_id=event.task_id,
+        operation_id=event.operation_id,
+        detail=event.detail,
+    )
+
+
+@router.get("/projects/{project_id}/activity", response_model=ProjectActivityListResponse)
+async def list_project_activity(
+    project_id: str,
+    type: Optional[List[str]] = Query(None, description="Filter by event type; repeat for several types"),
+    iteration_id: Optional[str] = Query(None, description="Only events for this iteration"),
+    task_id: Optional[str] = Query(None, description="Only events for this task"),
+    limit: Optional[int] = Query(None, ge=0, description="Return only the most recent N events"),
+):
+    """
+    Return the project activity timeline, newest first, with keep/reject totals.
+
+    This is the append-only record of what the user and the assistant did: guidance
+    changes, generated proposals, per-operation decisions, applies and exports.
+    """
+    try:
+        design_project_service.load_project(project_id)
+
+        event_types = None
+        if type:
+            try:
+                event_types = [ProjectActivityEventType(t) for t in type]
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unknown activity event type: {e}",
+                )
+
+        events = activity_service.list_events(
+            project_id,
+            types=event_types,
+            iteration_id=iteration_id,
+            task_id=task_id,
+            limit=limit,
+        )
+        counts = activity_service.get_decision_counts(project_id, iteration_id=iteration_id)
+
+        return ProjectActivityListResponse(
+            events=[_activity_event_to_model(e) for e in events],
+            approved_count=counts["approved"],
+            rejected_count=counts["rejected"],
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing project activity: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.post("/projects/{project_id}/activity/decisions", response_model=ProjectActivityListResponse, status_code=status.HTTP_201_CREATED)
+async def record_operation_decisions(project_id: str, request: RecordOperationDecisionsRequest):
+    """
+    Record the keep/reject decisions taken during an operations review.
+
+    The review UI sends the decisions once the user finalises a task, so that the
+    reasons behind each rejection survive beyond the browser session.
+    """
+    try:
+        design_project_service.load_project(project_id)
+
+        recorded = []
+        for decision in request.approved:
+            event = activity_service.record(
+                project_id=project_id,
+                type=ProjectActivityEventType.OPERATION_APPROVED,
+                actor=ProjectActivityActor.USER,
+                summary=f"Kept {decision.label}",
+                iteration_id=request.iteration_id,
+                task_id=request.task_id,
+                operation_id=decision.operation_id,
+                detail={"taskName": request.task_name} if request.task_name else {},
+            )
+            if event:
+                recorded.append(event)
+
+        for decision in request.rejected:
+            detail: Dict[str, Any] = {"savedAsGuidance": decision.saved_as_guidance}
+            if decision.reason:
+                detail["reason"] = decision.reason
+            if request.task_name:
+                detail["taskName"] = request.task_name
+
+            event = activity_service.record(
+                project_id=project_id,
+                type=ProjectActivityEventType.OPERATION_REJECTED,
+                actor=ProjectActivityActor.USER,
+                summary=f"Rejected {decision.label}",
+                iteration_id=request.iteration_id,
+                task_id=request.task_id,
+                operation_id=decision.operation_id,
+                detail=detail,
+            )
+            if event:
+                recorded.append(event)
+
+        counts = activity_service.get_decision_counts(project_id)
+        return ProjectActivityListResponse(
+            events=[_activity_event_to_model(e) for e in recorded],
+            approved_count=counts["approved"],
+            rejected_count=counts["rejected"],
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except Exception as e:
+        logger.error(f"Error recording operation decisions: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
@@ -927,6 +1233,34 @@ async def remove_legal_document(project_id: str, document_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to remove legal document: {str(e)}"
         )
+
+
+@router.post("/projects/{project_id}/knowledge-base/expert/upload", response_model=SuccessResponse)
+async def upload_expert_document(project_id: str, file: UploadFile = File(...)):
+    """Store a structured PDF or DOCX and add it as an expert knowledge document.
+
+    The uploaded file can be set as the project key document. Markdown headings
+    produced from the file become its sections.
+    """
+    try:
+        if not file.filename:
+            raise ValueError("A file name is required.")
+        content = await file.read()
+        if not content:
+            raise ValueError("The file is empty.")
+        loader = knowledge_base_service.expert_knowledge_document_loader
+        if not isinstance(loader, LocalKnowledgeDocumentLoader):
+            raise ValueError("Expert document upload is not available.")
+        document_id = loader.store_uploaded_file(file.filename, content)
+        return await add_expert_documents(
+            project_id,
+            AddKnowledgeDocumentsRequest(document_ids=[document_id]),
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
 
 
 @router.post("/projects/{project_id}/knowledge-base/expert", response_model=SuccessResponse)
@@ -1205,6 +1539,16 @@ async def generate_domain_areas(project_id: str, request: GenerateDomainAreasReq
         areas = design_project_service.generate_domain_areas(
             project_id=project_id,
             user_instruction=request.user_instruction or ""
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.DOMAIN_AREAS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Identified {len(areas)} domain area(s)",
+            detail={
+                "count": len(areas),
+                "userInstruction": request.user_instruction or None,
+            },
         )
         
         return [_convert_domain_area_to_model(area) for area in areas]
@@ -1643,7 +1987,23 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
             project_id=project_id,
             focused_area_id=request.focused_area_id,
             k=request.count,
-            user_instruction=request.user_instruction or ""
+            user_instruction=request.user_instruction or "",
+            goal=request.goal,
+            subarea_class_uris=request.subarea_class_uris,
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATIONS_SUGGESTED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Suggested {len(iterations)} iteration(s)",
+            detail={
+                "count": len(iterations),
+                "focusedAreaId": request.focused_area_id,
+                "names": [it.name for it in iterations if it.name],
+                "userInstruction": request.user_instruction or None,
+                "goal": request.goal or None,
+                "subareaClassUris": request.subarea_class_uris or None,
+            },
         )
         
         return [_convert_iteration_to_model(it) for it in iterations]
@@ -1653,6 +2013,8 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error suggesting iterations: {e}")
         raise HTTPException(
@@ -1682,6 +2044,11 @@ async def create_iteration(project_id: str, request: CreateIterationRequest):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Domain area with ID '{request.focused_area_id}' not found"
             )
+
+        try:
+            subarea_class_uris = design_project_service.validate_subarea_class_uris(project, request.subarea_class_uris)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         
         # Create new iteration
         new_iteration = DesignIteration(
@@ -1694,7 +2061,9 @@ async def create_iteration(project_id: str, request: CreateIterationRequest):
             plannedTasks=[],
             focusedArea=area,
             plannedOperations=None,  # No operations initially
-            designedOntologyChangesSpecification=None
+            designedOntologyChangesSpecification=None,
+            goal=(request.goal or "").strip() or None,
+            subareaClassUris=subarea_class_uris,
         )
         
         project.plannedIterations.append(new_iteration)
@@ -1893,7 +2262,9 @@ async def list_tasks(project_id: str, iteration_id: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Iteration with ID '{iteration_id}' not found"
             )
-        
+
+        design_project_service.release_tasks_without_proposals(project, iteration)
+
         return TasksListResponse(
             planned_tasks=[_convert_task_to_model(t) for t in iteration.plannedTasks],
             current_task=_convert_task_to_model(iteration.currentTask) if iteration.currentTask else None,
@@ -1935,6 +2306,18 @@ async def plan_tasks(project_id: str, iteration_id: str, request: PlanTasksReque
             project_id=project_id,
             iteration_id=iteration_id,
             user_instruction=request.user_instruction or ""
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.TASKS_PLANNED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Planned {len(tasks)} task(s)",
+            iteration_id=iteration_id,
+            detail={
+                "count": len(tasks),
+                "names": [t.name for t in tasks if t.name],
+                "userInstruction": request.user_instruction or None,
+            },
         )
         
         return [_convert_task_to_model(t) for t in tasks]
@@ -2200,6 +2583,14 @@ async def prepare_iteration(project_id: str, iteration_id: str):
             project_id=project_id,
             iteration_id=iteration_id
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATION_PREPARED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(operations)} operation(s) for review",
+            iteration_id=iteration_id,
+            detail={"operationCount": len(operations)},
+        )
         
         return IterationPreparedResponse(
             iteration_id=iteration_id,
@@ -2240,6 +2631,15 @@ async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: st
             project_id=project_id,
             iteration_id=iteration_id,
             task_id=task_id
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.OPERATIONS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(operations)} operation(s) for one task",
+            iteration_id=iteration_id,
+            task_id=task_id,
+            detail={"operationCount": len(operations)},
         )
 
         return IterationPreparedResponse(
@@ -2508,6 +2908,41 @@ async def delete_operation(project_id: str, iteration_id: str, operation_id: str
         )
 
 
+def _iteration_already_applied_response(
+    project_id: str,
+    iteration_id: str,
+    iteration: DesignIteration,
+    project: DesignProject,
+) -> IterationAppliedResponse:
+    """Return the saved ontology when apply already finished this iteration."""
+    updated_ontology = project.designedOntology
+    ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
+    stats = {
+        "classes_added": len(updated_ontology.classes),
+        "attributes_added": len(updated_ontology.attributes),
+        "relationships_added": len(updated_ontology.relationships),
+        "elements_updated": 0,
+        "elements_deleted": 0,
+    }
+    logger.info(
+        "Iteration %s was already applied; returning the saved ontology",
+        iteration_id,
+    )
+    return IterationAppliedResponse(
+        success=True,
+        iteration_id=iteration_id,
+        status="completed",
+        applied_operations_count=len(iteration.finishedTasks),
+        ontology_changes=stats,
+        updated_ontology=_convert_ontology_to_model(updated_ontology),
+        ofn_saved=True,
+        ofn_path=ofn_result["path"],
+        ofn_absolute_path=ofn_result["absolute_path"],
+        ofn_pojmy_count=ofn_result["pojmy_count"],
+        ofn_overwrote_existing=ofn_result["overwrote_existing"],
+    )
+
+
 @router.post("/projects/{project_id}/iterations/{iteration_id}/apply", response_model=IterationAppliedResponse)
 async def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOperationsRequest):
     """
@@ -2529,9 +2964,17 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
         
         # Load project and validate
         project = design_project_service.load_project(project_id)
-        
-        # Validate there is a current iteration
+
+        # Apply clears currentIteration on the cached project before this handler
+        # builds the response. A retry after that successful write has nothing left
+        # to apply, so return the already saved result.
         if not project.currentIteration:
+            finished = next(
+                (it for it in project.finishedIterations if it.id == iteration_id),
+                None,
+            )
+            if finished and finished.status == DesignIterationStatus.COMPLETED:
+                return _iteration_already_applied_response(project_id, iteration_id, finished, project)
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="No current iteration to apply. Prepare an iteration first."
@@ -2570,7 +3013,11 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             logger.info(f"Using {len(operations)} persisted operations from prepare step")
         
         logger.info(f"Applying {len(operations)} operations to iteration {iteration_id}")
-        
+
+        # Apply moves the iteration to finished and clears currentIteration on the
+        # same cached project object, so the name must be read before that call.
+        iteration_name = project.currentIteration.name or iteration_id
+
         # Apply the operations
         updated_ontology = design_project_service.apply_current_iteration_changes(
             project_id=project_id,
@@ -2584,6 +3031,19 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_result["pojmy_count"],
             ofn_result["overwrote_existing"],
         )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ITERATION_APPLIED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Applied {len(operations)} operation(s) to the ontology",
+            iteration_id=iteration_id,
+            detail={
+                "operationCount": len(operations),
+                "iterationName": iteration_name,
+                "clientModifiedOperations": request.operations is not None,
+            },
+        )
+        dataspecer_synced, dataspecer_sync_error = _sync_project_to_dataspecer(project_id, iteration_id)
         
         # Calculate statistics (simplified)
         stats = {
@@ -2593,11 +3053,19 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             "elements_updated": 0,
             "elements_deleted": 0
         }
-        
+
+        project_after = design_project_service.load_project(project_id)
+        open_iteration = project_after.currentIteration
+        iteration_status = (
+            _convert_iteration_to_model(open_iteration).status
+            if open_iteration and open_iteration.id == iteration_id
+            else "completed"
+        )
+
         return IterationAppliedResponse(
             success=True,
             iteration_id=iteration_id,
-            status="completed",
+            status=iteration_status,
             applied_operations_count=len(operations),
             ontology_changes=stats,
             updated_ontology=_convert_ontology_to_model(updated_ontology),
@@ -2606,8 +3074,12 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_absolute_path=ofn_result["absolute_path"],
             ofn_pojmy_count=ofn_result["pojmy_count"],
             ofn_overwrote_existing=ofn_result["overwrote_existing"],
+            dataspecer_synced=dataspecer_synced,
+            dataspecer_sync_error=dataspecer_sync_error,
         )
-    
+
+    except HTTPException:
+        raise
     except FileNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -2770,6 +3242,17 @@ async def regenerate_project_ofn_endpoint(project_id: str):
     try:
         project = design_project_service.load_project(project_id)
         result = regenerate_and_save_project_ofn(project_id, project.designedOntology)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.ONTOLOGY_EXPORTED,
+            actor=ProjectActivityActor.USER,
+            summary=f"Exported OFN with {result['pojmy_count']} concept(s)",
+            detail={
+                "pojmyCount": result["pojmy_count"],
+                "path": result["path"],
+                "overwroteExisting": result["overwrote_existing"],
+            },
+        )
         return {
             "success": True,
             "ofn_path": result["path"],
@@ -2812,6 +3295,16 @@ async def generate_operations_from_instruction(project_id: str, request: Generat
             IdentifiedOperation(id=str(uuid.uuid4()), operation=op, created_from_task_id=None)
             for op in operations
         ]
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.OPERATIONS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(identified)} operation(s) from your instruction",
+            detail={
+                "operationCount": len(identified),
+                "userInstruction": request.user_instruction,
+            },
+        )
         return [_convert_operation_to_model(io) for io in identified]
     except FileNotFoundError:
         raise HTTPException(
@@ -2844,6 +3337,7 @@ async def apply_operations_to_project_ontology_endpoint(project_id: str, request
             ofn_result["pojmy_count"],
             ofn_result["overwrote_existing"],
         )
+        _sync_project_to_dataspecer(project_id)
         return _convert_ontology_to_model(updated_ontology)
     except FileNotFoundError:
         raise HTTPException(

@@ -8,7 +8,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, HTTPException, status, Query
 import logging
 
-from knowledge_base.service import KnowledgeBaseService
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, KnowledgeBaseService
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
@@ -26,7 +26,7 @@ router = APIRouter()
 # Initialize service
 knowledge_base_service = KnowledgeBaseService(
     legal_knowledge_document_loader=ESELKnowledgeDocumentLoader(
-        sparql_endpoint="https://opendata.eselpoint.cz/sparql"
+        sparql_endpoint=ESEL_SPARQL_ENDPOINT
     ),
     expert_knowledge_document_loader=LocalKnowledgeDocumentLoader(),
     document_summarizer=SimpleOpenAIKnowledgeDocumentSummarizer()

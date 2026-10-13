@@ -7,11 +7,11 @@ import {
 import { AppShell } from '@/shell/AppShell'
 import { ProjectSetupPage } from '@/pages/ProjectSetupPage'
 import { DomainAreasPage } from '@/pages/DomainAreasPage'
-import { IterationsPage } from '@/pages/IterationsPage'
 import { IterationsV2Page } from '@/pages/IterationsV2Page'
 import { TasksPage } from '@/pages/TasksPage'
 import { OperationsReviewPage } from '@/pages/OperationsReviewPage'
 import { GuidancePage } from '@/pages/GuidancePage'
+import { ActivityPage } from '@/pages/ActivityPage'
 import { ExportResultPage } from '@/pages/ExportResultPage'
 
 function readString(value: unknown): string | undefined {
@@ -25,7 +25,7 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <Navigate to="/project" replace search={{ projectId: undefined }} />,
+  component: () => <Navigate to="/project" replace search={{ projectId: undefined, packageIri: undefined }} />,
 })
 
 const projectRoute = createRoute({
@@ -33,6 +33,7 @@ const projectRoute = createRoute({
   path: '/project',
   validateSearch: (search: Record<string, unknown>) => ({
     projectId: readString(search.projectId),
+    packageIri: readString(search.packageIri) ?? readString(search['package-iri']),
   }),
   component: ProjectSetupPage,
 })
@@ -42,18 +43,9 @@ const domainAreasRoute = createRoute({
   path: '/domain-areas',
   validateSearch: (search: Record<string, unknown>) => ({
     projectId: readString(search.projectId),
+    packageIri: readString(search.packageIri) ?? readString(search['package-iri']),
   }),
   component: DomainAreasPage,
-})
-
-const iterationsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/iterations',
-  validateSearch: (search: Record<string, unknown>) => ({
-    projectId: readString(search.projectId),
-    domainId: readString(search.domainId),
-  }),
-  component: IterationsPage,
 })
 
 const iterationsV2Route = createRoute({
@@ -99,6 +91,15 @@ const guidanceRoute = createRoute({
   component: GuidancePage,
 })
 
+const activityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activity',
+  validateSearch: (search: Record<string, unknown>) => ({
+    projectId: readString(search.projectId),
+  }),
+  component: ActivityPage,
+})
+
 function parseOptionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined
@@ -138,11 +139,11 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   projectRoute,
   domainAreasRoute,
-  iterationsRoute,
   iterationsV2Route,
   tasksRoute,
   operationsRoute,
   guidanceRoute,
+  activityRoute,
   exportResultRoute,
 ])
 

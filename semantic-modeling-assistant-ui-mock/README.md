@@ -34,8 +34,8 @@ UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backe
 |------|-----------|
 | `/` | Redirects to `/project` |
 | `/project` | Project & knowledge base setup |
-| `/domain-areas` | Domain areas |
-| `/iterations` | Iterations (subarea + goal) |
+| `/domain-areas` | Domain map (Modeling) |
+| `/iterations-v2` | Iterations |
 | `/operations` | Operations review + preview panel |
 | `/tasks` | Task list and task detail flow |
 | `/guidance` | Project guidance (Type B HITL) |

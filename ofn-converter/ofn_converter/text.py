@@ -34,4 +34,7 @@ def legal_reference_fields(
 
 
 def _is_eli_iri(value: str) -> bool:
-    return bool(value) and value.startswith("https://opendata.eselpoint.cz/")
+    return bool(value) and value.startswith((
+        "https://opendata.eselpoint.gov.cz/",
+        "https://opendata.eselpoint.cz/",
+    ))

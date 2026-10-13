@@ -1,9 +1,10 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/client'
 import {
   addExpertDocuments,
   addLegalDocuments,
+  uploadExpertDocument,
   getProjectKnowledgeBase,
   removeExpertDocument,
   removeLegalDocument,
@@ -13,7 +14,7 @@ import { getProject } from '@/api/projects'
 import type { KnowledgeDocumentSummary } from '@/api/types'
 
 const EXAMPLE_LEGAL_URL =
-  'https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01'
+  'https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01'
 
 type Props = {
   projectId: string
@@ -43,6 +44,8 @@ export function KnowledgeBaseSection({ projectId }: Props) {
 
   const [legalUrl, setLegalUrl] = useState('')
   const [expertId, setExpertId] = useState('')
+  const [expertFile, setExpertFile] = useState<File | null>(null)
+  const expertFileInputRef = useRef<HTMLInputElement>(null)
   const [legalError, setLegalError] = useState<string | null>(null)
   const [expertError, setExpertError] = useState<string | null>(null)
   const [keyError, setKeyError] = useState<string | null>(null)
@@ -62,6 +65,19 @@ export function KnowledgeBaseSection({ projectId }: Props) {
     mutationFn: (documentId: string) => removeLegalDocument(projectId, documentId),
     onSuccess: invalidateKb,
     onError: (error: unknown) => setLegalError(toErrorMessage(error)),
+  })
+
+  const uploadExpertMutation = useMutation({
+    mutationFn: (file: File) => uploadExpertDocument(projectId, file),
+    onSuccess: async () => {
+      setExpertError(null)
+      setExpertFile(null)
+      if (expertFileInputRef.current) {
+        expertFileInputRef.current.value = ''
+      }
+      await invalidateKb()
+    },
+    onError: (error: unknown) => setExpertError(toErrorMessage(error)),
   })
 
   const addExpertMutation = useMutation({
@@ -101,6 +117,15 @@ export function KnowledgeBaseSection({ projectId }: Props) {
     addLegalMutation.mutate(value)
   }
 
+  const handleUploadExpert = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!expertFile) {
+      setExpertError('Choose a PDF or DOCX file.')
+      return
+    }
+    uploadExpertMutation.mutate(expertFile)
+  }
+
   const handleAddExpert = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const value = expertId.trim()
@@ -132,9 +157,9 @@ export function KnowledgeBaseSection({ projectId }: Props) {
         {kbQuery.isFetching ? <span className="text-xs text-slate-500">refreshing…</span> : null}
       </div>
       <p className="mt-1 text-sm text-slate-600">
-        Attach the legal act that defines the domain and supplementary expert documents. Each document is
-        loaded, summarized and indexed by the backend; pick one legal act as the <strong>key document</strong>{' '}
-        used for domain-area analysis.
+        Attach a legal act or another structured document. Each document is loaded, summarized and
+        indexed by the backend. Use <strong>Set as key</strong> on the document that defines the domain,
+        including a PDF whose headings are the structure.
       </p>
 
       {kbQuery.isError ? (
@@ -231,17 +256,43 @@ export function KnowledgeBaseSection({ projectId }: Props) {
         <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h4 className="text-sm font-semibold text-slate-900">Domain-expert documents</h4>
+              <h4 className="text-sm font-semibold text-slate-900">Other documents</h4>
               <p className="mt-1 text-xs text-slate-600">
-                Optional supplementary references for retrieval and task context. Provide a stable document ID
-                (URL or identifier known to the backend expert loader).
+                Upload a structured PDF or DOCX that is not a statute. Headings become sections. After it is
+                summarized, <strong>Set as key</strong> makes it the source for domain-area analysis.
               </p>
             </div>
           </div>
 
+          <form onSubmit={handleUploadExpert} className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
+            <label className="text-xs font-medium text-slate-700" htmlFor="expert-doc-file">
+              PDF or DOCX
+            </label>
+            <input
+              id="expert-doc-file"
+              ref={expertFileInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(event) => setExpertFile(event.target.files?.[0] ?? null)}
+              className="block w-full text-xs text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-medium file:text-slate-800"
+            />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={uploadExpertMutation.isPending || !expertFile}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+              >
+                {uploadExpertMutation.isPending ? 'Reading + summarizing…' : 'Upload document'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              The first upload summarizes every section, same as a legal act.
+            </p>
+          </form>
+
           <form onSubmit={handleAddExpert} className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
             <label className="text-xs font-medium text-slate-700" htmlFor="expert-doc-id">
-              Expert document ID
+              Or an existing document ID
             </label>
             <input
               id="expert-doc-id"
@@ -271,7 +322,7 @@ export function KnowledgeBaseSection({ projectId }: Props) {
             {kbQuery.isLoading ? (
               <li className="px-3 py-2 text-xs text-slate-500">Loading documents…</li>
             ) : expertDocuments.length === 0 ? (
-              <li className="px-3 py-2 text-xs text-slate-500">No expert documents yet.</li>
+              <li className="px-3 py-2 text-xs text-slate-500">No other documents yet.</li>
             ) : (
               expertDocuments.map((doc) => (
                 <DocumentRow
@@ -310,8 +361,8 @@ export function KnowledgeBaseSection({ projectId }: Props) {
           </div>
         ) : (
           <p className="mt-2 text-xs text-slate-600">
-            No key document set. Use the <em>Set as key</em> button next to a legal or expert document to pick
-            one — it becomes the primary source for domain-area analysis.
+            No key document set. Use <em>Set as key</em> on a legal act or an uploaded document. That document
+            becomes the primary source for domain-area analysis.
           </p>
         )}
       </div>

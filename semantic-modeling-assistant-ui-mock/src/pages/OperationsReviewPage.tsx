@@ -10,6 +10,7 @@ import { PageBackLink } from '@/components/PageBackLink'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getProject } from '@/api/projects'
 import { saveOfnSaveFeedback } from '@/utils/ofnSaveFeedback'
+import { saveDataspecerSyncFeedback } from '@/utils/dataspecerSyncFeedback'
 import {
   applyIteration,
   buildDiffSummary,
@@ -31,6 +32,9 @@ import {
   saveReviewDraft,
 } from '@/utils/reviewDraftStorage'
 import { saveAppliedReviewSummary } from '@/utils/appliedReviewStorage'
+import { recordOperationDecisions } from '@/api/activity'
+import { ActivitySummary } from '@/components/ActivitySummary'
+import type { OperationDecisionModel } from '@/api/types'
 
 const operationsRouteApi = getRouteApi('/operations')
 
@@ -105,8 +109,8 @@ export function OperationsReviewPage() {
   })
 
   const allOperations = useMemo(
-    () => operationsQuery.data?.operations ?? [],
-    [operationsQuery.data],
+    () => (operationsQuery.isSuccess ? operationsQuery.data?.operations ?? [] : []),
+    [operationsQuery.isSuccess, operationsQuery.data],
   )
   const operations = useMemo(() => {
     if (!taskId) {
@@ -151,7 +155,9 @@ export function OperationsReviewPage() {
       : null
 
   useEffect(() => {
-    setSaveRejectReasonAsGuidance(false)
+    if (rejectModalOpId) {
+      setSaveRejectReasonAsGuidance(true)
+    }
   }, [rejectModalOpId])
 
   useEffect(() => {
@@ -222,6 +228,15 @@ export function OperationsReviewPage() {
   const reviewOf = (id: string): ReviewState => reviewById[id] ?? 'pending'
   const setReview = (id: string, next: ReviewState) =>
     setReviewById((prev) => ({ ...prev, [id]: next }))
+  const acceptAll = () => {
+    setReviewById((prev) => {
+      const next = { ...prev }
+      for (const op of operations) {
+        next[op.id] = 'approved'
+      }
+      return next
+    })
+  }
 
   const counts = useMemo(() => {
     let approved = 0
@@ -253,6 +268,9 @@ export function OperationsReviewPage() {
       queryClient.invalidateQueries({ queryKey: ['iteration-tasks', projectId, iterationId] }),
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-ontology', projectId] }),
     ])
   }
 
@@ -261,9 +279,11 @@ export function OperationsReviewPage() {
       addProjectGuidance(projectId!, {
         content: reason,
         type: 'correction',
+        source: 'correction',
       }).then((item) => ({ operationId, item })),
     onSuccess: ({ operationId, item }) => {
       setSavedGuidanceIds((prev) => ({ ...prev, [operationId]: item.id }))
+      void queryClient.invalidateQueries({ queryKey: ['project-guidance', projectId] })
     },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
@@ -292,26 +312,67 @@ export function OperationsReviewPage() {
           savedAt: new Date().toISOString(),
         })
       }
+      if (projectId && data.dataspecer_synced != null) {
+        saveDataspecerSyncFeedback({
+          projectId,
+          synced: data.dataspecer_synced,
+          error: data.dataspecer_sync_error ?? null,
+          at: new Date().toISOString(),
+        })
+      }
+      const rejectedOperations = operations.filter(
+        (op) => (reviewById[op.id] ?? 'pending') === 'rejected',
+      )
+
+      if (projectId) {
+        // Persist the decisions server-side so the reasons outlive this browser.
+        await recordOperationDecisions(projectId, {
+          iteration_id: iterationId,
+          task_id: taskId,
+          task_name: activeTask?.name ?? null,
+          approved: approvedOperations.map(toDecision),
+          rejected: rejectedOperations.map((op) => ({
+            ...toDecision(op),
+            reason: rejectionReasonById[op.id]?.trim() || null,
+            saved_as_guidance: Boolean(savedGuidanceIds[op.id]),
+          })),
+        }).catch(() => {
+          // The ontology change already succeeded; a failed audit write must not block it.
+        })
+      }
+
       if (isScopedReview && projectId && iterationId && taskId) {
-        const rejected = operations
-          .filter((op) => (reviewById[op.id] ?? 'pending') === 'rejected')
-          .map((op) => ({
-            ...op,
-            rejectionReason: rejectionReasonById[op.id]?.trim() || undefined,
-          }))
         saveAppliedReviewSummary(projectId, iterationId, {
           taskId,
           taskName: activeTask?.name ?? 'Work item',
           finalizedAt: new Date().toISOString(),
           kept: approvedOperations,
-          rejected,
+          rejected: rejectedOperations.map((op) => ({
+            ...op,
+            rejectionReason: rejectionReasonById[op.id]?.trim() || undefined,
+          })),
         })
         clearReviewDraft(projectId, iterationId, taskId)
         hydratedDraftKeyRef.current = null
         setDraftReady(false)
       }
       await invalidateAll()
-      if (isScopedReview) {
+      if (data.status === 'completed') {
+        await navigate({
+          to: '/export-result',
+          search: {
+            projectId,
+            domainId,
+            iterationId,
+            taskId: undefined,
+            approved: undefined,
+            pending: undefined,
+            rejected: undefined,
+            regenerated: undefined,
+            guidanceUpdated: undefined,
+          },
+        })
+      } else {
         await navigate({
           to: '/tasks',
           search: {
@@ -321,24 +382,7 @@ export function OperationsReviewPage() {
             taskId: undefined,
           },
         })
-      } else {
-        await navigate({
-          to: '/export-result',
-          search: {
-            projectId,
-            domainId,
-            iterationId,
-            taskId,
-            approved: counts.approved,
-            pending: counts.pending,
-            rejected: counts.rejected,
-            regenerated: undefined,
-            guidanceUpdated: Object.keys(savedGuidanceIds).length > 0,
-          },
-        })
       }
-      // Touch returned data to satisfy unused-warning lint if any.
-      void data.applied_operations_count
     },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
@@ -401,13 +445,9 @@ export function OperationsReviewPage() {
     }
   }
 
-  const applyButtonLabel = isScopedReview
-    ? applyMutation.isPending
-      ? 'Finalizing…'
-      : `Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
-    : applyMutation.isPending
-      ? 'Applying…'
-      : `Apply ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
+  const applyButtonLabel = applyMutation.isPending
+    ? 'Finalizing…'
+    : `Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
 
   const applyButtonTitle = !isPrepared
     ? 'Direction is not ready for review yet.'
@@ -415,17 +455,12 @@ export function OperationsReviewPage() {
       ? 'Keep at least one change first.'
       : isScopedReview && counts.pending > 0
         ? `Decide ${counts.pending} pending change${counts.pending === 1 ? '' : 's'} first.`
-        : isScopedReview
-          ? 'Finalize the kept changes for this work item.'
-          : 'Apply the kept changes to the ontology.'
+        : 'Finalize the kept changes. The ontology is updated only after this step.'
 
   const handleApplyClick = () => {
-    if (isScopedReview) {
-      if (!canFinalize) return
-      setFinalizeConfirmOpen(true)
-      return
-    }
-    applyMutation.mutate()
+    if (isScopedReview && !canFinalize) return
+    if (!isScopedReview && (!isPrepared || approvedOperations.length === 0)) return
+    setFinalizeConfirmOpen(true)
   }
 
   return (
@@ -515,12 +550,12 @@ export function OperationsReviewPage() {
       {!isScopedReview ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
           This is the full prepared set. For less context at once, go back to prepare changes and review one
-          work item at a time. Apply sends only kept changes to the backend.
+          work item at a time. Finalize writes only kept changes into the ontology.
         </p>
       ) : (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-          Decide each change once. Finalize writes kept changes to the backend and you will not be able
-          to change them here again; rejected changes stay out of the ontology.
+          Decide each change once. Finalize writes kept changes into the ontology; until then the ontology
+          stays unchanged. Rejected changes stay out.
         </p>
       )}
 
@@ -532,19 +567,33 @@ export function OperationsReviewPage() {
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Proposed changes
-            </p>
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-              {isScopedReview ? 'Review this work item' : 'Review changes'}
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              {isScopedReview
-                ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize the kept set.'
-                : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then apply the kept set.'}
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Proposed changes
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+                {isScopedReview ? 'Review this work item' : 'Review changes'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {isScopedReview
+                  ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'
+                  : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'}
+              </p>
+            </div>
+            {hasOperations ? (
+              <button
+                type="button"
+                onClick={acceptAll}
+                disabled={counts.approved === counts.total}
+                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100 disabled:cursor-default disabled:opacity-60"
+              >
+                Accept all
+              </button>
+            ) : null}
           </div>
+
+          <ActivitySummary projectId={projectId} iterationId={iterationId} />
 
           {operationsQuery.isLoading ? (
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600">
@@ -790,11 +839,11 @@ export function OperationsReviewPage() {
         </aside>
       </div>
 
-      {finalizeConfirmOpen && isScopedReview ? (
+      {finalizeConfirmOpen ? (
         <ConfirmDialog
           tone="primary"
           title={`Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}?`}
-          description="Kept changes are written into the project ontology and the project OFN file is regenerated (overwrites data/projects/{id}/ofn.json if it already exists). Pending changes are not applied."
+          description="Kept changes are written into the project ontology and the project OFN file is regenerated (overwrites data/projects/{id}/ofn.json if it already exists). Until you confirm, the ontology stays unchanged. Pending changes are not applied."
           confirmLabel="Finalize & save OFN"
           isConfirmPending={applyMutation.isPending}
           onConfirm={() => applyMutation.mutate()}
@@ -1089,4 +1138,12 @@ function toErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message
   if (error instanceof Error) return error.message
   return 'Request failed.'
+}
+
+function toDecision(operation: OntologyOperationModel): OperationDecisionModel {
+  const name = operation.label ?? operation.uri.split(/[#/]/).pop() ?? operation.uri
+  return {
+    operation_id: operation.id,
+    label: `${operationLabels[operation.operation_type].toLowerCase()} ${operation.target_type} ${name}`,
+  }
 }
