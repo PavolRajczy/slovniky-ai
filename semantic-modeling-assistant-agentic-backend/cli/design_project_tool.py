@@ -70,8 +70,8 @@ from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
 
 # Constants for configured knowledge bases
 LEGISLATION_IDS = [
-    "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01",
-    "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2014/343/2025-07-01",
+    "https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01",
+    "https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/2014/343/2025-07-01",
 ]
 KEY_KNOWLEDGE_DOCUMENT_ID = LEGISLATION_IDS[0]
 EXPERT_LOCAL_IDS = [
@@ -80,7 +80,7 @@ EXPERT_LOCAL_IDS = [
 
 DEFAULT_PROJECT_ID = "f8dabe47-9c1d-4b86-b54e-e4cdcdb98cb9"
 
-ESEL_SPARQL_ENDPOINT = "https://opendata.eselpoint.cz/sparql"
+ESEL_SPARQL_ENDPOINT = "https://opendata.eselpoint.gov.cz/sparql"
 ESEL_BASE_DIR = "data/knowledge_base/esel"
 LOCAL_BASE_DIR = "data/knowledge_base/local"
 PROJECTS_BASE_DIR = "data/projects"

@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 
+from agents.model_config import get_base_url
 from api.controllers.ontology_controller import router as ontology_router
 from api.controllers.knowledge_base_controller import router as knowledge_base_router
 from api.controllers.design_project_controller import router as design_project_router
@@ -18,6 +19,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+logger.info("LLM API base URL: %s", get_base_url())
 
 # Reduce verbosity of httpx (OpenAI API client) logs
 # Set to WARNING to only show errors, or ERROR to hide everything except errors

@@ -296,7 +296,7 @@ class KnowledgeBaseIndexService:
         """
         Search across all knowledge documents in the collection.
         
-        This is an alias for the search_with_pagination method to maintain backward compatibility.
+        This is an alias for the search method to maintain backward compatibility.
         
         Args:
             query_text: The text to search for.
@@ -309,7 +309,7 @@ class KnowledgeBaseIndexService:
         Raises:
             Exception: If the search operation fails.
         """
-        return self.search_with_pagination(query_text, max_results, offset)
+        return self.search(query_text, max_results, offset)
 
     def has_document(self, document_id: str) -> bool:
         """

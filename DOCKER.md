@@ -34,9 +34,18 @@ Otvor `.env` a nastav:
 
 ```env
 OPENAI_API_KEY=
+OPENAI_BASE_URL=https://llm.ai.e-infra.cz/v1/
+OPENAI_MODEL=mini
+OPENAI_MODEL_MINI=mini
+OPENAI_EMBEDDING_MODEL=qwen3-embedding-4b
+OPENAI_EMBEDDING_DIMENSION=2560
 ```
 
-Bez úvodzoviek, bez medzier okolo `=`. Kľúč si každý dá vlastný — do gitu ho nedávaj.
+Bez úvodzoviek, bez medzier okolo `=`. Kľúč je z chat.ai.e-infra.cz (Účet → API keys), nie z OpenAI cloudu, a do gitu ho nedávaj.
+
+`OPENAI_MODEL` a `OPENAI_MODEL_MINI` sú názvy z katalógu e-INFRA. Predvolený alias `mini` dnes ukazuje na `gpt-oss-120b`. Dá sa zmeniť na `kimi`, `deepseek`, `glm`, `coder` alebo na presný názov modelu. `OPENAI_EMBEDDING_MODEL` je embedding na tom istom endpointe.
+
+Po zmene `.env` kontajner znova postav: `docker compose up --build`. V logu backendu je riadok `LLM API base URL`.
 
 ---
 

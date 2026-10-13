@@ -7,17 +7,37 @@ import { BigAutopilotModal } from '../components/BigAutopilotModal'
 import { ElementCoveragePanel } from '../components/ElementCoveragePanel'
 import { useOperationsStore } from '@/store/operationsStore'
 
+function readDataspecerContext() {
+  const params = new URLSearchParams(window.location.search)
+  const packageFromUrl = params.get('package-iri')
+  const modelFromUrl = params.get('model-iri')
+  if (packageFromUrl) sessionStorage.setItem('slovniky.packageIri', packageFromUrl)
+  if (modelFromUrl) sessionStorage.setItem('slovniky.modelIri', modelFromUrl)
+  return {
+    packageIri: packageFromUrl ?? sessionStorage.getItem('slovniky.packageIri'),
+    modelIri: modelFromUrl ?? sessionStorage.getItem('slovniky.modelIri'),
+  }
+}
+
 export function AppShell({ children }: PropsWithChildren) {
   const [rightOpen, setRightOpen] = useState(true)
   const [bottomOpen, setBottomOpen] = useState(false)
   const [showAutopilotModal, setShowAutopilotModal] = useState(false)
+  const [dataspecer] = useState(readDataspecerContext)
   const route = useRouterState()
   const ops = useOperationsStore()
 
   return (
     <div className="h-full grid grid-rows-[auto,1fr,auto]">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white shadow">
+      <div>
+        {dataspecer.packageIri && (
+          <div className="px-4 py-1 text-xs bg-sky-50 text-sky-900 border-b border-sky-100 truncate">
+            Dataspecer package: {dataspecer.packageIri}
+            {dataspecer.modelIri ? ` · assistant: ${dataspecer.modelIri}` : ''}
+          </div>
+        )}
+        {/* Top Bar */}
+        <div className="flex items-center justify-between px-4 py-2 bg-white shadow">
         <div className="flex items-center gap-3">
           <ProjectSelector />
           <span className="text-gray-300">|</span>
@@ -57,6 +77,7 @@ export function AppShell({ children }: PropsWithChildren) {
               🤖 Autopilot
             </button>
           )}
+        </div>
         </div>
       </div>
       {/* Body */}

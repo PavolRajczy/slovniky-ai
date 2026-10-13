@@ -1,4 +1,3 @@
-import os
 import uuid
 import json
 import pickle
@@ -6,11 +5,11 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import numpy as np
 import faiss
-from openai import OpenAI
-
+from llm.provider import create_embeddings, get_embedding_dimension, get_embedding_model
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base_index.indexer import KnowledgeDocumentIndexer
 from ..domain import IndexDocument, TextChunk, SearchQuery, SearchResult, ChunkMatch
+from ..faiss_paths import read_faiss_index, write_faiss_index
 from ..chunkers.semchunk_chunker import SemchunkIndexDocumentChunker
 
 
@@ -25,8 +24,8 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
     def __init__(self,
                  target_model: str = "gpt-4.1",
                  chunk_size: int = 500,
-                 embedding_model: str = "text-embedding-3-large",
-                 embedding_dimension: int = 3072
+                 embedding_model: Optional[str] = None,
+                 embedding_dimension: Optional[int] = None
                  ):
         """
         Initialize the FAISS-based knowledge document indexer.
@@ -34,19 +33,15 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         Args:
             target_model: Target LLM model the chunks are optimized for.
             chunk_size: Size of text chunks to create.
-            embedding_model: OpenAI embedding model to use.
-            embedding_dimension: Dimension of the embedding vectors.
+            embedding_model: Embedding model name. Defaults to OPENAI_EMBEDDING_MODEL.
+            embedding_dimension: Dimension of the embedding vectors. Defaults to OPENAI_EMBEDDING_DIMENSION.
 
         """
-        self.embedding_model = embedding_model
-        self.embedding_dimension = embedding_dimension
-
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OpenAI API key must be provided as OPENAI_API_KEY environment variable")
-
-        self.openai_client = OpenAI(api_key=api_key)
+        self.embedding_model = embedding_model or get_embedding_model()
+        self.embedding_dimension = (
+            embedding_dimension if embedding_dimension is not None else get_embedding_dimension()
+        )
+        self.embeddings = create_embeddings(self.embedding_model)
         
         # Initialize chunker
         self.chunker = SemchunkIndexDocumentChunker(chunk_size=chunk_size, chunk_overlap=0, target_model=target_model)
@@ -260,7 +255,7 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         
         # Store FAISS index
         faiss_file = index_dir / "faiss.index"
-        faiss.write_index(self.faiss_index, str(faiss_file))
+        write_faiss_index(self.faiss_index, faiss_file)
         
         # Store chunk metadata (using pickle for numpy arrays)
         metadata_file = index_dir / "chunks.pkl"
@@ -354,7 +349,7 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
                 return False
             
             # Load FAISS index
-            self.faiss_index = faiss.read_index(str(faiss_file))
+            self.faiss_index = read_faiss_index(faiss_file)
             
             # Load chunk metadata
             with open(metadata_file, 'rb') as f:
@@ -445,10 +440,7 @@ class FAISSFullTextOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         Returns:
             NumPy array of embeddings
         """
-        response = self.openai_client.embeddings.create(
-            model=self.embedding_model,
-            input=texts
-        )
-        
-        embeddings = np.array([item.embedding for item in response.data])
-        return embeddings
+        if not texts:
+            return np.array([]).reshape(0, self.embedding_dimension)
+        vectors = self.embeddings.embed_documents(texts)
+        return np.array(vectors)

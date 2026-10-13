@@ -5,6 +5,7 @@ import {
   WorkflowStepper,
   resolveWorkflowContext,
 } from '@/components/workflow'
+import { ActivitySummary } from '@/components/ActivitySummary'
 import { ApiError } from '@/api/client'
 import { listDomainAreas } from '@/api/domainAreas'
 import {
@@ -83,6 +84,7 @@ export function IterationsV2Page() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['project-iterations', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-activity', projectId] }),
     ])
   }
 
@@ -91,7 +93,8 @@ export function IterationsV2Page() {
       suggestIterations(projectId!, {
         focused_area_id: effectiveAreaId,
         count: suggestForm.count,
-        user_instruction: composeDirectionInstruction(suggestForm) || null,
+        goal: suggestForm.goal.trim() || null,
+        subarea_class_uris: parseClassUris(suggestForm.classUris),
       }),
     onSuccess: async () => {
       setSuggestError(null)
@@ -148,7 +151,7 @@ export function IterationsV2Page() {
         <WorkflowStepper activeStep="iterations" linkContext={linkContext} />
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
           No project selected. Open the{' '}
-          <Link to="/project" search={{ projectId: undefined }} className="font-medium underline">
+          <Link to="/project" search={{ projectId: undefined, packageIri: undefined }} className="font-medium underline">
             project setup page
           </Link>{' '}
           first.
@@ -160,6 +163,7 @@ export function IterationsV2Page() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <WorkflowStepper activeStep="iterations" linkContext={linkContext} />
+      <ActivitySummary projectId={projectId} />
       <DomainFeedbackPanel
         domain={currentDomain}
         progress={domainProgress}
@@ -240,7 +244,8 @@ export function IterationsV2Page() {
             <div className="border-t border-slate-200 px-4 pb-4 pt-3">
               <p className="text-xs text-slate-600">
                 Use this only when you already know how many suggestions you want or which ontology classes
-                should constrain the next direction.
+                should constrain the next direction. Limited classes also bound the tasks and proposed changes of
+                that direction.
               </p>
               <div className="mt-3 grid gap-4 md:grid-cols-[12rem_1fr]">
                 <div>
@@ -330,6 +335,7 @@ export function IterationsV2Page() {
             projectId={projectId}
             emptyMessage="No reviewed directions yet."
             compact
+            showResult
           />
         </div>
       </section>
@@ -410,6 +416,7 @@ type DirectionColumnProps = {
   projectId: string
   emptyMessage: string
   compact?: boolean
+  showResult?: boolean
 }
 
 type DomainProgressEstimate = {
@@ -477,7 +484,7 @@ function DomainFeedbackPanel({ domain, progress, projectId }: DomainFeedbackPane
       <div className="mt-4 flex justify-end">
         <Link
           to="/domain-areas"
-          search={{ projectId }}
+          search={{ projectId, packageIri: undefined }}
           className="text-xs font-medium text-emerald-700 hover:underline"
         >
           Choose a different domain
@@ -495,6 +502,7 @@ function DirectionColumn({
   projectId,
   emptyMessage,
   compact = false,
+  showResult = false,
 }: DirectionColumnProps) {
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
@@ -519,7 +527,27 @@ function DirectionColumn({
                 <p className="text-sm font-semibold text-slate-900">{item.name}</p>
                 <p className="mt-1 text-xs text-slate-500">{area?.label ?? item.focused_area_id}</p>
                 <p className="mt-3 text-sm text-slate-700 line-clamp-4">{item.specification}</p>
-                <div className="mt-auto pt-4">
+                <DirectionScope goal={item.goal} classUris={item.subarea_class_uris ?? []} />
+                <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                  {showResult ? (
+                    <Link
+                      to="/export-result"
+                      search={{
+                        projectId,
+                        domainId: item.focused_area_id,
+                        iterationId: item.id,
+                        taskId: undefined,
+                        approved: undefined,
+                        pending: undefined,
+                        rejected: undefined,
+                        regenerated: undefined,
+                        guidanceUpdated: undefined,
+                      }}
+                      className="inline-flex rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700"
+                    >
+                      View result &amp; export
+                    </Link>
+                  ) : null}
                   <Link
                     to="/tasks"
                     search={{
@@ -528,7 +556,11 @@ function DirectionColumn({
                       iterationId: item.id,
                       taskId: undefined,
                     }}
-                    className="inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+                    className={
+                      showResult
+                        ? 'inline-flex rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                        : 'inline-flex rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800'
+                    }
                   >
                     Explore this direction
                   </Link>
@@ -540,6 +572,42 @@ function DirectionColumn({
       )}
     </section>
   )
+}
+
+function DirectionScope({ goal, classUris }: { goal?: string | null; classUris: string[] }) {
+  if (!goal && classUris.length === 0) {
+    return null
+  }
+  return (
+    <div className="mt-3 space-y-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
+      {goal ? (
+        <p>
+          <span className="font-semibold text-slate-900">Goal:</span> {goal}
+        </p>
+      ) : null}
+      {classUris.length > 0 ? (
+        <div>
+          <span className="font-semibold text-slate-900">Limited to:</span>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {classUris.map((uri) => (
+              <span
+                key={uri}
+                title={uri}
+                className="max-w-full truncate rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-700"
+              >
+                {shortUri(uri)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function shortUri(uri: string): string {
+  const cut = Math.max(uri.lastIndexOf('#'), uri.lastIndexOf('/'))
+  return cut >= 0 && cut < uri.length - 1 ? uri.slice(cut + 1) : uri
 }
 
 function estimateDomainProgress(input: {
@@ -576,25 +644,11 @@ function estimateDomainProgress(input: {
   }
 }
 
-function composeDirectionInstruction(form: SuggestFormState): string {
-  const lines: string[] = []
-  const goal = form.goal.trim()
-  const classUris = form.classUris
+function parseClassUris(text: string): string[] {
+  return text
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
-
-  if (goal) {
-    lines.push(`Goal: ${goal}`)
-  }
-  if (classUris.length > 0) {
-    lines.push('Restrict next direction suggestions to these classes:')
-    for (const uri of classUris) {
-      lines.push(`- ${uri}`)
-    }
-  }
-
-  return lines.join('\n')
 }
 
 function toErrorMessage(error: unknown): string {

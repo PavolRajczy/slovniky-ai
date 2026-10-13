@@ -67,10 +67,18 @@ function stripMeta(document: ProjectOfnDocument): OfnDocument {
 type OfnExportPanelProps = {
   projectId?: string | null
   projectName?: string
+  showStats?: boolean
+  defaultExpanded?: boolean
 }
 
-export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) {
+export function OfnExportPanel({
+  projectId,
+  projectName,
+  showStats = true,
+  defaultExpanded = true,
+}: OfnExportPanelProps) {
   const queryClient = useQueryClient()
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const [filter, setFilter] = useState<PojemKind>('all')
   const [query, setQuery] = useState('')
   const [selectedIri, setSelectedIri] = useState<string | null>(null)
@@ -125,14 +133,7 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
   const pojmy = document?.pojmy ?? []
   const missingOfn = ofnQuery.isError && (ofnQuery.error as ApiError)?.status === 404
 
-  const counts = useMemo(() => {
-    return {
-      total: pojmy.length,
-      classes: pojmy.filter((p) => p.typ.includes('Třída')).length,
-      relations: pojmy.filter((p) => p.typ.includes('Vztah')).length,
-      properties: pojmy.filter((p) => p.typ.includes('Vlastnost')).length,
-    }
-  }, [pojmy])
+  const counts = useMemo(() => countOfnConcepts(pojmy), [pojmy])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -221,6 +222,64 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
     ? `semantic-modeling-assistant-agentic-backend/data/projects/${projectId}/ofn.json and ofn.ttl`
     : null
 
+  const collapsible = !defaultExpanded
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setExportFormat('json')}
+          className={`px-3 py-2 text-sm font-medium ${
+            exportFormat === 'json' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
+          }`}
+          title="Export as JSON-LD"
+        >
+          JSON
+        </button>
+        <button
+          type="button"
+          onClick={() => setExportFormat('turtle')}
+          className={`border-l border-slate-200 px-3 py-2 text-sm font-medium ${
+            exportFormat === 'turtle' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
+          }`}
+          title="Export as RDF/Turtle"
+        >
+          Turtle
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => projectId && regenerateMutation.mutate()}
+        disabled={!projectId || regenerateMutation.isPending}
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+      >
+        {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate & overwrite' : 'Generate OFN'}
+      </button>
+      <button
+        type="button"
+        onClick={() => void copyExport()}
+        disabled={!exportReady}
+        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+      >
+        {copyState === 'copied'
+          ? 'Copied'
+          : copyState === 'failed'
+            ? 'Copy failed'
+            : exportFormat === 'turtle'
+              ? 'Copy Turtle'
+              : 'Copy JSON'}
+      </button>
+      <button
+        type="button"
+        onClick={downloadExport}
+        disabled={!exportReady}
+        className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
+      >
+        {exportFormat === 'turtle' ? 'Download .ttl' : 'Download .json'}
+      </button>
+    </div>
+  )
+
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-linear-to-br from-slate-50 via-white to-sky-50/60 px-6 py-5">
@@ -232,68 +291,27 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
             <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
               {document ? textCs(document.název) || 'Project OFN' : 'Project OFN'}
             </h3>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              Finalize writes approved changes into the ontology and regenerates OFN as JSON-LD
-              and Turtle. Choose a format the same way as on the ontology page, then copy or download.
-            </p>
+            {expanded ? (
+              <p className="mt-1 max-w-2xl text-sm text-slate-600">
+                Finalize writes approved changes into the ontology and regenerates OFN as JSON-LD
+                and Turtle. Choose a format the same way as on the ontology page, then copy or download.
+              </p>
+            ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <button
-                type="button"
-                onClick={() => setExportFormat('json')}
-                className={`px-3 py-2 text-sm font-medium ${
-                  exportFormat === 'json' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-                title="Export as JSON-LD"
-              >
-                JSON
-              </button>
-              <button
-                type="button"
-                onClick={() => setExportFormat('turtle')}
-                className={`border-l border-slate-200 px-3 py-2 text-sm font-medium ${
-                  exportFormat === 'turtle' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-                title="Export as RDF/Turtle"
-              >
-                Turtle
-              </button>
-            </div>
+          {collapsible ? (
             <button
               type="button"
-              onClick={() => projectId && regenerateMutation.mutate()}
-              disabled={!projectId || regenerateMutation.isPending}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              onClick={() => setExpanded((value) => !value)}
+              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate & overwrite' : 'Generate OFN'}
+              {expanded ? 'Hide' : 'Show OFN file'}
             </button>
-            <button
-              type="button"
-              onClick={() => void copyExport()}
-              disabled={!exportReady}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {copyState === 'copied'
-                ? 'Copied'
-                : copyState === 'failed'
-                  ? 'Copy failed'
-                  : exportFormat === 'turtle'
-                    ? 'Copy Turtle'
-                    : 'Copy JSON'}
-            </button>
-            <button
-              type="button"
-              onClick={downloadExport}
-              disabled={!exportReady}
-              className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
-            >
-              {exportFormat === 'turtle' ? 'Download .ttl' : 'Download .json'}
-            </button>
-          </div>
+          ) : null}
+          {!collapsible ? actions : null}
         </div>
+        {collapsible && expanded ? <div className="mt-4">{actions}</div> : null}
 
-        {storageHint ? (
+        {expanded && storageHint ? (
           <div className="mt-4 rounded-xl border border-sky-200 bg-white/80 px-3 py-2 text-xs text-sky-950">
             <p className="font-semibold uppercase tracking-wide text-sky-800">Saved location</p>
             <p className="mt-1 break-all font-mono text-[11px]">{storageHint}</p>
@@ -322,7 +340,7 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
           </div>
         ) : null}
 
-        {document ? (
+        {expanded && document ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {(document.typ ?? []).map((typ) => (
               <span
@@ -338,26 +356,14 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            { label: 'Concepts', value: counts.total },
-            { label: 'Classes', value: counts.classes },
-            { label: 'Relations', value: counts.relations },
-            { label: 'Properties', value: counts.properties },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2"
-            >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-                {stat.label}
-              </p>
-              <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">{stat.value}</p>
-            </div>
-          ))}
-        </div>
+        {expanded && showStats ? (
+          <div className="mt-4">
+            <OfnConceptStats counts={counts} />
+          </div>
+        ) : null}
       </div>
 
+      {expanded ? (
       <div className="px-6 py-5">
         {!projectId ? (
           <p className="text-sm text-slate-600">Select a project to manage its OFN file.</p>
@@ -488,7 +494,47 @@ export function OfnExportPanel({ projectId, projectName }: OfnExportPanelProps) 
           </div>
         ) : null}
       </div>
+      ) : null}
     </section>
+  )
+}
+
+export type OfnConceptCounts = {
+  total: number
+  classes: number
+  relations: number
+  properties: number
+}
+
+export function countOfnConcepts(pojmy: OfnPojem[]): OfnConceptCounts {
+  return {
+    total: pojmy.length,
+    classes: pojmy.filter((p) => p.typ.includes('Třída')).length,
+    relations: pojmy.filter((p) => p.typ.includes('Vztah')).length,
+    properties: pojmy.filter((p) => p.typ.includes('Vlastnost')).length,
+  }
+}
+
+export function OfnConceptStats({ counts }: { counts: OfnConceptCounts }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {[
+        { label: 'Concepts', value: counts.total },
+        { label: 'Classes', value: counts.classes },
+        { label: 'Relations', value: counts.relations },
+        { label: 'Properties', value: counts.properties },
+      ].map((stat) => (
+        <div
+          key={stat.label}
+          className="rounded-xl border border-slate-200/80 bg-white/70 px-3 py-2"
+        >
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+            {stat.label}
+          </p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-slate-900">{stat.value}</p>
+        </div>
+      ))}
+    </div>
   )
 }
 

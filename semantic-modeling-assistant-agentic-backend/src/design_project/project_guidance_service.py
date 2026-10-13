@@ -37,12 +37,15 @@ class ProjectGuidanceService:
         source: Optional[ProjectGuidanceItemSource] = ProjectGuidanceItemSource.MANUAL,
     ) -> ProjectGuidanceItem:
         """Add a new guidance item and return it."""
+        stripped = content.strip()
+        if not stripped:
+            raise ValueError("Guidance content must not be empty")
         now = datetime.now(timezone.utc).isoformat()
         item = ProjectGuidanceItem(
             id=str(uuid.uuid4()),
             project_id=project_id,
             type=type,
-            content=content.strip(),
+            content=stripped,
             created_at=now,
             source=source,
         )
@@ -57,7 +60,10 @@ class ProjectGuidanceService:
         type: ProjectGuidanceItemType,
     ) -> ProjectGuidanceItem:
         """Update an existing item. Raises ValueError if not found."""
-        return self.store.update_item(project_id, item_id, content.strip(), type)
+        stripped = content.strip()
+        if not stripped:
+            raise ValueError("Guidance content must not be empty")
+        return self.store.update_item(project_id, item_id, stripped, type)
 
     def delete_item(self, project_id: str, item_id: str) -> bool:
         """Remove a guidance item. Returns True if removed."""

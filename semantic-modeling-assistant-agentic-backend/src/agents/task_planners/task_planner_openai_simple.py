@@ -5,9 +5,10 @@ import re
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
-from openai import OpenAI
-
+from agents.iteration_scope_prompt import render_iteration_scope
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
+from agents.model_config import get_model
+from llm.provider import parse_structured
 from agents.task_planners.task_planner import TaskPlannerAgent
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, DesignTask, DesignTaskStatus, KnowledgeDomainArea
@@ -16,6 +17,22 @@ from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
 from ontology.domain import Ontology
 import uuid
+
+
+def _match_pattern(patterns: List[Any], pattern_name: str):
+    """Find a design-task pattern even when the model changes spacing or case."""
+    wanted = " ".join(pattern_name.split()).casefold()
+    if not wanted:
+        return None
+    for pattern in patterns:
+        if " ".join(pattern.name.split()).casefold() == wanted:
+            return pattern
+    for pattern in patterns:
+        current = " ".join(pattern.name.split()).casefold()
+        if wanted in current or current in wanted:
+            return pattern
+    return None
+
 
 class DesignTaskOutput(BaseModel):
     """
@@ -68,25 +85,22 @@ class TaskPlannerAgent_Simple_OpenAI(TaskPlannerAgent):
     A simple implementation of TaskPlannerAgent using OpenAI.
     """
 
-    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: str = "gpt-5"):
+    def __init__(self, knowledge_base_service: KnowledgeBaseService, knowledge_base_index_service: KnowledgeBaseIndexService, model_name: Optional[str] = None):
         """
         Initialize the simple task planner agent.
 
         Args:
             knowledge_base_service (KnowledgeBaseService): The knowledge base service instance for loading and accessing knowledge documents.
             knowledge_base_index_service (KnowledgeBaseIndexService): The knowledge base index service instance for searching in the knowledge base.
-            model_name (str): The name of the model (defaults to "gpt-4.1").
+            model_name (str, optional): Overrides the model; defaults to the OPENAI_MODEL environment variable.
         """
         self.knowledge_base_service = knowledge_base_service
         self.knowledge_base_index_service = knowledge_base_index_service
-        self.model_name = "gpt-5"
+        self.model_name = model_name or get_model()
         self.language = "Czech"
 
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
-        self.client = OpenAI(api_key=api_key)
 
     def build_iteration_plan(self, design_project: DesignProject, iteration: DesignIteration, user_instruction: str = "") -> List[DesignTask]:
         """
@@ -132,6 +146,7 @@ You are working in iterations, the next planned iteration is "{iteration.name}" 
 The domain is separated into multiple areas, and the next iteration focuses on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 The key concepts of the focused area are: {', '.join(iteration.focusedArea.keyConcepts) if iteration.focusedArea.keyConcepts else 'None'}.
 </GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}
 
 <KNOWLEDGE_BASE>
 As a source of the domain knowledge to plan the search queries, use the summary of the domain knowledge provided by the user in their user message.
@@ -192,17 +207,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
         all_search_outputs = []
 
         def _call_model_to_prepare_search(msgs):
-            return self.client.responses.parse(
-                model=self.model_name,
-                input=msgs,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "minimal"
-                },
-                text_format=SearchQueriesDefinitionOutput,
-            )
+            return parse_structured(msgs, SearchQueriesDefinitionOutput, self.model_name)
 
         try:
             response = _call_model_to_prepare_search(messages_prepare_search)
@@ -210,7 +215,7 @@ As a source of the domain knowledge to plan the search queries, use the summary 
                 search_iteration += 1
                 current_iteration_outputs = []
 
-                for item in response.output_parsed.queries:
+                for item in response.queries:
                     query = item.query if hasattr(item, 'query') else None
                     max_results_val = item.max_results if hasattr(item, 'max_results') else 10
                     offset_val = item.offset if hasattr(item, 'offset') else 0
@@ -275,6 +280,7 @@ The next planned ontology design iteration is "{iteration.name}" described as "{
 The domain is separated into multiple areas, and the next iteration focuses on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 The key concepts of the focused area are: {', '.join(iteration.focusedArea.keyConcepts) if iteration.focusedArea.keyConcepts else 'None'}.
 </GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}
 
 <DOMAIN_KNOWLEDGE_BASE>
 As a source of the domain knowledge to guide your decisions, use the domain knowledge provided by the user:
@@ -367,26 +373,24 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             })
 
         try:
-            response = self.client.responses.parse(
-                model=self.model_name,
-                input=input_generate_tasks,
-                text={
-                    "verbosity": "low"
-                },
-                reasoning={
-                    "effort": "low"
-                },
-                text_format=DesignTasksOutput,
+            design_tasks_output = parse_structured(
+                input_generate_tasks,
+                DesignTasksOutput,
+                self.model_name,
             )
-
-            design_tasks_output = response.output_parsed
 
         except Exception as e:
             raise RuntimeError(f"OpenAI API call with tool loop failed: {str(e)}")
 
         planned_tasks: List[DesignTask] = []
         for design_task_output in design_tasks_output.tasks:
-            pattern_obj = next((p for p in design_project.patterns if p.name == design_task_output.followedPatternName), None)
+            pattern_obj = _match_pattern(design_project.patterns, design_task_output.followedPatternName)
+            if pattern_obj is None:
+                print(
+                    f"Skipping planned task '{design_task_output.name}': "
+                    f"unknown pattern '{design_task_output.followedPatternName}'"
+                )
+                continue
             task = DesignTask(
                 id=str(uuid.uuid4()),
                 name=design_task_output.name,
