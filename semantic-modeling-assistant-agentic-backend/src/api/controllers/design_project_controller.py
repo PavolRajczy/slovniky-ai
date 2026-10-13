@@ -60,7 +60,7 @@ from api.models import (
     ProjectGuidanceItemModel, CreateProjectGuidanceItemRequest, UpdateProjectGuidanceItemRequest,
     ProjectGuidanceListResponse,
     ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
-    GenerateOperationsRequest, ApplyProjectOperationsRequest,
+    GenerateOperationsRequest, ApplyProjectOperationsRequest, DataspecerSyncResponse,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -139,6 +139,38 @@ def _ensure_project_documents_indexed(project: DesignProject) -> None:
                 logger.warning(f"Failed to index document {doc.id} for project {project.id}: {e}")
 
 
+def _sync_project_to_dataspecer(project_id: str, iteration_id: Optional[str] = None) -> tuple[Optional[bool], Optional[str]]:
+    """
+    Push the project ontology to its linked Dataspecer vocabulary and log the outcome.
+
+    Returns (None, None) for projects without a Dataspecer link, otherwise (synced, error).
+    A failed push never raises, so callers that already changed the ontology still succeed.
+    """
+    try:
+        if not design_project_service.push_ontology_to_dataspecer(project_id):
+            return None, None
+    except DataspecerLinkError as error:
+        logger.warning("Dataspecer sync failed for project %s: %s", project_id, error)
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.DATASPECER_SYNC_FAILED,
+            actor=ProjectActivityActor.USER,
+            summary="Could not update the linked Dataspecer vocabulary",
+            iteration_id=iteration_id,
+            detail={"error": str(error)},
+        )
+        return False, str(error)
+
+    activity_service.record(
+        project_id=project_id,
+        type=ProjectActivityEventType.DATASPECER_SYNCED,
+        actor=ProjectActivityActor.USER,
+        summary="Updated the linked Dataspecer vocabulary",
+        iteration_id=iteration_id,
+    )
+    return True, None
+
+
 def _convert_domain_area_to_model(area: KnowledgeDomainArea) -> KnowledgeDomainAreaModel:
     """Convert domain KnowledgeDomainArea to API model."""
     return KnowledgeDomainAreaModel(
@@ -183,7 +215,9 @@ def _convert_iteration_to_model(iteration: DesignIteration) -> DesignIterationMo
         status=api_status,
         total_tasks=total_count,
         planned_tasks_count=planned_count,
-        finished_tasks_count=finished_count
+        finished_tasks_count=finished_count,
+        goal=iteration.goal,
+        subarea_class_uris=list(iteration.subareaClassUris),
     )
 
 
@@ -636,6 +670,29 @@ async def dataspecer_export_url(project_id: str):
         return {"put_url": export_url_for_package(project.dataspecerPackageIri)}
     except DataspecerLinkError as error:
         raise HTTPException(status_code=error.status_code, detail=str(error))
+
+
+@router.post("/projects/{project_id}/dataspecer-sync", response_model=DataspecerSyncResponse)
+async def sync_project_to_dataspecer(project_id: str):
+    """
+    Send the current project ontology to the linked Dataspecer vocabulary again.
+
+    Used to retry after an apply whose automatic sync failed.
+    """
+    try:
+        design_project_service.load_project(project_id)
+    except Exception as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error))
+
+    synced, error = _sync_project_to_dataspecer(project_id)
+    if synced is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This project is not linked to a Dataspecer vocabulary.",
+        )
+    if not synced:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=error)
+    return DataspecerSyncResponse(synced=True)
 
 
 @router.post("/projects/open-from-dataspecer", response_model=ProjectModel)
@@ -1930,7 +1987,9 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
             project_id=project_id,
             focused_area_id=request.focused_area_id,
             k=request.count,
-            user_instruction=request.user_instruction or ""
+            user_instruction=request.user_instruction or "",
+            goal=request.goal,
+            subarea_class_uris=request.subarea_class_uris,
         )
         activity_service.record(
             project_id=project_id,
@@ -1942,6 +2001,8 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
                 "focusedAreaId": request.focused_area_id,
                 "names": [it.name for it in iterations if it.name],
                 "userInstruction": request.user_instruction or None,
+                "goal": request.goal or None,
+                "subareaClassUris": request.subarea_class_uris or None,
             },
         )
         
@@ -1952,6 +2013,8 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error suggesting iterations: {e}")
         raise HTTPException(
@@ -1981,6 +2044,11 @@ async def create_iteration(project_id: str, request: CreateIterationRequest):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Domain area with ID '{request.focused_area_id}' not found"
             )
+
+        try:
+            subarea_class_uris = design_project_service.validate_subarea_class_uris(project, request.subarea_class_uris)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         
         # Create new iteration
         new_iteration = DesignIteration(
@@ -1993,7 +2061,9 @@ async def create_iteration(project_id: str, request: CreateIterationRequest):
             plannedTasks=[],
             focusedArea=area,
             plannedOperations=None,  # No operations initially
-            designedOntologyChangesSpecification=None
+            designedOntologyChangesSpecification=None,
+            goal=(request.goal or "").strip() or None,
+            subareaClassUris=subarea_class_uris,
         )
         
         project.plannedIterations.append(new_iteration)
@@ -2973,6 +3043,7 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
                 "clientModifiedOperations": request.operations is not None,
             },
         )
+        dataspecer_synced, dataspecer_sync_error = _sync_project_to_dataspecer(project_id, iteration_id)
         
         # Calculate statistics (simplified)
         stats = {
@@ -3003,6 +3074,8 @@ async def apply_iteration_changes(project_id: str, iteration_id: str, request: A
             ofn_absolute_path=ofn_result["absolute_path"],
             ofn_pojmy_count=ofn_result["pojmy_count"],
             ofn_overwrote_existing=ofn_result["overwrote_existing"],
+            dataspecer_synced=dataspecer_synced,
+            dataspecer_sync_error=dataspecer_sync_error,
         )
 
     except HTTPException:
@@ -3264,6 +3337,7 @@ async def apply_operations_to_project_ontology_endpoint(project_id: str, request
             ofn_result["pojmy_count"],
             ofn_result["overwrote_existing"],
         )
+        _sync_project_to_dataspecer(project_id)
         return _convert_ontology_to_model(updated_ontology)
     except FileNotFoundError:
         raise HTTPException(

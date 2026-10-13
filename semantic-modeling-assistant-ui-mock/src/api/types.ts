@@ -158,6 +158,8 @@ export type DesignIterationModel = {
   total_tasks: number
   planned_tasks_count: number
   finished_tasks_count: number
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type DesignTaskStatus = 'planned' | 'generating' | 'completed'
@@ -245,6 +247,8 @@ export type ProjectActivityEventType =
   | 'operation_approved'
   | 'operation_rejected'
   | 'ontology_exported'
+  | 'dataspecer_synced'
+  | 'dataspecer_sync_failed'
 
 export type ProjectActivityActor = 'user' | 'assistant'
 
@@ -328,6 +332,13 @@ export type IterationAppliedResponse = {
   ofn_absolute_path?: string | null
   ofn_pojmy_count?: number | null
   ofn_overwrote_existing?: boolean | null
+  /** Null when the project is not linked to a Dataspecer vocabulary. */
+  dataspecer_synced?: boolean | null
+  dataspecer_sync_error?: string | null
+}
+
+export type DataspecerSyncResponse = {
+  synced: boolean
 }
 
 export type SuccessResponse = {
@@ -380,12 +391,16 @@ export type SuggestIterationsRequest = {
   focused_area_id: string
   count?: number
   user_instruction?: string | null
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type CreateIterationRequest = {
   name: string
   specification: string
   focused_area_id: string
+  goal?: string | null
+  subarea_class_uris?: string[]
 }
 
 export type UpdateIterationRequest = {

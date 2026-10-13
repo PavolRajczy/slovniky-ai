@@ -3,6 +3,7 @@ import uuid
 from typing import List, Optional
 from pydantic import BaseModel, Field
 
+from agents.iteration_scope_prompt import render_scope
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.model_config import get_model
 from llm.provider import parse_structured
@@ -51,7 +52,7 @@ class IterationSuggesterAgent_Simple_OpenAI(IterationSuggesterAgent):
         if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
 
-    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str) -> List[DesignIteration]:
+    def suggest_iterations(self, design_project: DesignProject, focused_area: KnowledgeDomainArea, k: int, user_instruction: str, goal: Optional[str] = None, subarea_class_uris: Optional[List[str]] = None) -> List[DesignIteration]:
         """
         Suggests new design iterations for the given design project using OpenAI.
 
@@ -60,20 +61,33 @@ class IterationSuggesterAgent_Simple_OpenAI(IterationSuggesterAgent):
             focused_area (KnowledgeDomainArea): The knowledge domain area to focus the suggestions on.
             k (int): The number of iterations to suggest.
             user_instruction (str): Instructions from the user to guide the suggestions.
+            goal (str, optional): Planning objective that replaces the default breadth-first strategy.
+            subarea_class_uris (List[str], optional): Classes of the designed ontology the iterations must stay within.
 
         Returns:
             List[DesignIteration]: A list of suggested design iterations.
         """
-        # Implementation of the iteration suggestion logic using OpenAI goes here
-
         if design_project.keyKnowledgeDocument is None:
             raise ValueError("Design project must have a key knowledge document to suggest iterations.")        
 
-        iterations = []
+        if goal:
+            task = (
+                f'Plan next {k} new ontology design iterations that together achieve the objective stated by the user in <GOAL_OF_USER>, '
+                f'within the area "{focused_area.label}". Each iteration should be small, precise, and move the ontology toward that objective.'
+            )
+            strategy = '- Every planned iteration must directly serve the objective in <GOAL_OF_USER>. Do not plan iterations that only explore the focused area in general.'
+        else:
+            task = (
+                f'Plan next {k} new ontology design iterations to incrementally improve the given ontology, focusing specifically on the area "{focused_area.label}". '
+                'Each iteration should be small, precise, and targeted to a single key concept and its neighborhood or a small number of strongly related concepts.'
+            )
+            strategy = '- Prefer iterations that introduce the key domain concepts into the ontology, if they are not yet modeled or planned in previous or planned iterations. In other words, prioritize "breath-first" exploration of the focused area, before going into deep refinement of the focused area. Only if all key domain concepts are already modeled or planned, you can plan iterations that go deeep into the focused area, i.e. refine the already modeled key concepts.'
+        if subarea_class_uris:
+            strategy += '\n- Every planned iteration must stay within the classes listed in <SUBAREA>.'
 
         system_prompt = f"""<ROLE>You are an expert in knowledge domain analysis and iterative ontology design.</ROLE>
 
-<TASK>Plan next {k} new ontology design iterations to incrementally improve the given ontology, focusing specifically on the area "{focused_area.label}". Each iteration should be small, precise, and targeted to a single key concept and its neighborhood or a small number of strongly related concepts. .</TASK>
+<TASK>{task}</TASK>
 
 <KNOWLEDGE_CONTEXT>
 The ontology models the domain {design_project.modeledKnowledgeDomain.label} which is separated into multiple areas including the focused area "{focused_area.label}" described as "{focused_area.description}".
@@ -88,7 +102,7 @@ Plan the iterations solely based on the following knowledge context provided to 
 <INSTRUCTIONS>
 - The user speaks {self.language} language, you must respond in {self.language} language.
 - Keep the planned iterations small and focused on particular aspects of the focused area "{focused_area.label}".
-- Prefer iterations that introduce the key domain concepts into the ontology, if they are not yet modeled or planned in previous or planned iterations. In other words, prioritize "breath-first" exploration of the focused area, before going into deep refinement of the focused area. Only if all key domain concepts are already modeled or planned, you can plan iterations that go deeep into the focused area, i.e. refine the already modeled key concepts.
+{strategy}
 - The newly planned iterations do not need to cover the whole focused area. Prefer keeping the iterations small and focused. You will be asked to propose more iterations later if needed.
 - A newly planned iteration should build on the finished and already planned iterations.
 - An iteration should not specify concrete ontology design tasks or steps, but only the goal aiming at constructing, editing or deleting specific ontology elements corresponding to the ontology metamodel specified below.
@@ -148,6 +162,10 @@ Specification: Focus on spacecrafts and their space missions and refine in detai
 <OVERVIEW_DOCUMENT>
 {document_outline}
 </OVERVIEW_DOCUMENT>"""
+
+        scope = render_scope(design_project.designedOntology, goal, subarea_class_uris)
+        if scope:
+            user_prompt += f"\n{scope}\n"
         
         if user_instruction:
             user_prompt += f"\n<USER_CUSTOMIZATION>Customize your analysis with this instruction that is very important for me: {user_instruction}</USER_CUSTOMIZATION>\n"

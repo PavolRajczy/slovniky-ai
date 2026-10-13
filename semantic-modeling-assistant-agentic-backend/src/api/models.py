@@ -259,6 +259,8 @@ class DesignIterationModel(BaseModel):
     total_tasks: int = 0
     planned_tasks_count: int = 0
     finished_tasks_count: int = 0
+    goal: Optional[str] = None
+    subarea_class_uris: List[str] = Field(default_factory=list)
 
 
 class CreateIterationRequest(BaseModel):
@@ -266,6 +268,8 @@ class CreateIterationRequest(BaseModel):
     name: str
     specification: str
     focused_area_id: str
+    goal: Optional[str] = None
+    subarea_class_uris: List[str] = Field(default_factory=list)
 
 
 class UpdateIterationRequest(BaseModel):
@@ -280,6 +284,8 @@ class SuggestIterationsRequest(BaseModel):
     focused_area_id: str
     count: int = Field(default=5, ge=1, le=20)
     user_instruction: Optional[str] = None
+    goal: Optional[str] = None  # Planning objective that replaces the default open-ended suggestion prompt
+    subarea_class_uris: List[str] = Field(default_factory=list)  # Restrict suggestions, tasks and operations to these classes
 
 
 class ReorderIterationsRequest(BaseModel):
@@ -546,6 +552,13 @@ class IterationAppliedResponse(BaseModel):
     ofn_absolute_path: Optional[str] = None
     ofn_pojmy_count: Optional[int] = None
     ofn_overwrote_existing: Optional[bool] = None
+    dataspecer_synced: Optional[bool] = None  # None when the project is not linked to Dataspecer
+    dataspecer_sync_error: Optional[str] = None
+
+
+class DataspecerSyncResponse(BaseModel):
+    """Response after sending the project ontology to its linked Dataspecer vocabulary."""
+    synced: bool
 
 
 class IterationsListResponse(BaseModel):

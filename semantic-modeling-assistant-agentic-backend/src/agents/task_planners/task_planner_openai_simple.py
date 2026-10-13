@@ -5,6 +5,7 @@ import re
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 
+from agents.iteration_scope_prompt import render_iteration_scope
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.model_config import get_model
 from llm.provider import parse_structured
@@ -145,6 +146,7 @@ You are working in iterations, the next planned iteration is "{iteration.name}" 
 The domain is separated into multiple areas, and the next iteration focuses on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 The key concepts of the focused area are: {', '.join(iteration.focusedArea.keyConcepts) if iteration.focusedArea.keyConcepts else 'None'}.
 </GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}
 
 <KNOWLEDGE_BASE>
 As a source of the domain knowledge to plan the search queries, use the summary of the domain knowledge provided by the user in their user message.
@@ -278,6 +280,7 @@ The next planned ontology design iteration is "{iteration.name}" described as "{
 The domain is separated into multiple areas, and the next iteration focuses on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 The key concepts of the focused area are: {', '.join(iteration.focusedArea.keyConcepts) if iteration.focusedArea.keyConcepts else 'None'}.
 </GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}
 
 <DOMAIN_KNOWLEDGE_BASE>
 As a source of the domain knowledge to guide your decisions, use the domain knowledge provided by the user:

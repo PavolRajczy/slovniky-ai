@@ -4,6 +4,7 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel, Field
 from rdflib import URIRef
 
+from agents.iteration_scope_prompt import render_iteration_scope
 from agents.model_config import get_mini_model
 from llm.provider import parse_structured
 from agents.modelers.modeler import ModelerAgent
@@ -311,6 +312,7 @@ The current iteration comprises a sequence of planned ontology design tasks.
 The next ontology design task is "{task.name}" which strictly focuses only at "{task.followedPattern.category.value}" elements in the ontology.
 This next ontology design step is specified as: "{task.specification}"
 </GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}
 
 <KNOWLEDGE_BASE>
 As a source of the domain knowledge to plan the search queries, use the summary of the domain knowledge provided by the user in their user message.
@@ -411,7 +413,8 @@ As a source of the domain knowledge to plan the search queries, use the summary 
 - The domain is separated into multiple areas, now you focus on the area "{iteration.focusedArea.label}" described as "{iteration.focusedArea.description}".
 - You work in iterations, the current iteration is "{iteration.name}" described as "{iteration.specification}".
 - There is a planned sequence of ontology design tasks in the current iteration comprising finished, current, and planned tasks specified below. You must accomplish the solely current task in the context of the finished and planned tasks.
-</GOAL_CONTEXT>"""
+</GOAL_CONTEXT>
+{render_iteration_scope(design_project.designedOntology, iteration)}"""
     
     def _get_tasks_context(self, iteration: DesignIteration, task: DesignTask) -> str:
         finished_tasks_str = (
