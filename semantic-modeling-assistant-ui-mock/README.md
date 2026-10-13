@@ -47,7 +47,3 @@ UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backe
 npm run build
 npm run preview
 ```
-
-## Relation to `semantic-modeling-assistant-agentic-frontend-v2`
-
-The debug frontend `v2` is **not** this app. This package is a separate visual baseline for documentation and thesis figures.
