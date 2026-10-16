@@ -28,6 +28,12 @@ docker compose up --build
 
 UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backend). Full guide: [`DOCKER.md`](../DOCKER.md).
 
+### Serving under a sub-path
+
+The image can be served under any URL path without rebuilding: set the `BASE_PATH` env variable of the container (e.g. `BASE_PATH=/slovniky-ai`). On start the container rewrites asset URLs, the router base and the API base (`<BASE_PATH>/api`). A reverse proxy in front must strip the prefix before forwarding, as [`gateway/default.conf.template`](../gateway/default.conf.template) does.
+
+For a local build under a sub-path use `npm run build -- --base=/slovniky-ai/` (or `npx vite --base /slovniky-ai/` for the dev server).
+
 ## Routes (for screenshots)
 
 | Path | Spec view |

@@ -4,6 +4,7 @@ import {
   createRouter,
   Navigate,
 } from '@tanstack/react-router'
+import { APP_BASE_PATH } from '@/basePath'
 import { AppShell } from '@/shell/AppShell'
 import { ProjectSetupPage } from '@/pages/ProjectSetupPage'
 import { DomainAreasPage } from '@/pages/DomainAreasPage'
@@ -147,7 +148,7 @@ const routeTree = rootRoute.addChildren([
   exportResultRoute,
 ])
 
-export const router = createRouter({ routeTree })
+export const router = createRouter({ routeTree, basepath: APP_BASE_PATH || '/' })
 
 declare module '@tanstack/react-router' {
   interface Register {

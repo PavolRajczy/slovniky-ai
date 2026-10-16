@@ -1,0 +1,52 @@
+# Single entry point: Dataspecer at the site root, the semantic modeling
+# assistant (UI + its /api) under ${SLOVNIKY_AI_PATH}/.
+# The nginx image renders this template with envsubst on start; nginx's own
+# $variables are kept because only defined environment variables are replaced.
+
+# The prefix is cut from the raw $request_uri: nginx would decode and
+# slash-merge a rewritten $uri, breaking encoded IDs like https%3A%2F%2F...
+map $request_uri $slovniky_ai_uri {
+    "~^${SLOVNIKY_AI_PATH}(/.*)$" $1;
+    default /;
+}
+
+upstream slovniky_ai_frontend {
+    server frontend:80;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    client_max_body_size 50m;
+    # Keep redirects relative so they work behind any host:port mapping.
+    absolute_redirect off;
+
+    location = ${SLOVNIKY_AI_PATH} {
+        return 301 ${SLOVNIKY_AI_PATH}/;
+    }
+
+    # The frontend container serves the UI at / and proxies /api to the backend.
+    location ${SLOVNIKY_AI_PATH}/ {
+        proxy_pass http://slovniky_ai_frontend$slovniky_ai_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # LLM-backed endpoints can run for several minutes.
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+    }
+
+    # Dataspecer expects the full path to be preserved.
+    location / {
+        proxy_pass http://dataspecer;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
