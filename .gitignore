@@ -2,6 +2,7 @@
 .*
 !.dockerignore
 !.env.example
+!.gitattributes
 
 */data/
 */data_test/
