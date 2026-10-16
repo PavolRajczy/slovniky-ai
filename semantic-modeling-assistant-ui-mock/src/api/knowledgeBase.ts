@@ -1,4 +1,4 @@
-import { ApiError, apiFetch, getApiBaseUrl } from './client'
+import { ApiError, apiFetch, apiUrl } from './client'
 import type {
   AddKnowledgeDocumentsRequest,
   DeleteResponse,
@@ -40,9 +40,7 @@ export async function uploadExpertDocument(
 ): Promise<SuccessResponse> {
   const body = new FormData()
   body.append('file', file)
-  const base = getApiBaseUrl()
-  const path = `/api/projects/${projectId}/knowledge-base/expert/upload`
-  const url = base.length > 0 ? `${base}${path}` : path
+  const url = apiUrl(`/api/projects/${projectId}/knowledge-base/expert/upload`)
   const response = await fetch(url, {
     method: 'POST',
     body,

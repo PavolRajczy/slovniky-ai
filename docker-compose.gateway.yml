@@ -1,0 +1,93 @@
+# Dataspecer + semantic modeling assistant behind one nginx gateway (one port).
+#
+#   Dataspecer          http://localhost:3000/
+#   Assistant UI        http://localhost:3000/slovniky-ai/
+#   Assistant API docs  http://localhost:3000/slovniky-ai/api/docs
+#
+# 1. Put OPENAI_API_KEY in the repo-root .env (see .env.example).
+# 2. docker compose -f docker-compose.gateway.yml up --build
+#
+# Behind a domain, map the gateway port and set PUBLIC_URL to the public origin
+# (e.g. https://slovniky.example.com). SLOVNIKY_AI_PATH changes the sub-path.
+
+name: slovniky-ai-gateway
+
+x-slovniky-ai-path: &slovniky-ai-path ${SLOVNIKY_AI_PATH:-/slovniky-ai}
+
+services:
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-3000}:80"
+    environment:
+      SLOVNIKY_AI_PATH: *slovniky-ai-path
+    volumes:
+      - ./gateway/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      dataspecer:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+
+  dataspecer:
+    # Branch with the knowledge base model and links to the assistant
+    # (built with VITE_SLOVNIKY_AI=/slovniky-ai).
+    image: ${DATASPECER_IMAGE:-ghcr.io/dataspecer/ws:branch-feature-project-AI-vocabularies-connection}
+    restart: unless-stopped
+    environment:
+      BASE_URL: ${PUBLIC_URL:-http://localhost:3000}
+    volumes:
+      - dataspecer-database:/usr/src/app/database
+
+  backend:
+    build:
+      context: ./semantic-modeling-assistant-agentic-backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in the repo-root .env file}
+      # Empty value keeps the official https://api.openai.com/v1 origin.
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-mini}
+      OPENAI_MODEL_MINI: ${OPENAI_MODEL_MINI:-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-qwen3-embedding-4b}
+      OPENAI_EMBEDDING_DIMENSION: ${OPENAI_EMBEDDING_DIMENSION:-2560}
+      # Internal address of the Dataspecer API (the ws image serves it under /api).
+      DATASPECER_BACKEND: http://dataspecer/api
+      # Public prefix, so the API docs load their OpenAPI spec through the gateway.
+      UVICORN_ROOT_PATH: *slovniky-ai-path
+    volumes:
+      # Same folder as docker-compose.yml, so converted documents, summaries
+      # and FAISS indexes are reused from the knowledge base cache.
+      - ./semantic-modeling-assistant-agentic-backend/data:/opt/backend/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  frontend:
+    build:
+      context: ./semantic-modeling-assistant-ui-mock
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: same-origin
+    restart: unless-stopped
+    environment:
+      BASE_PATH: *slovniky-ai-path
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  dataspecer-database:

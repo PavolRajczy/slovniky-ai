@@ -74,3 +74,30 @@ Zoznam bežiacich kontajnerov:
 docker compose ps
 ```
 
+---
+
+## 3. Spolu s Dataspecerom za jednou doménou
+
+`docker-compose.gateway.yml` spustí Dataspecer, backend a UI za jedným nginx gateway. Von je otvorený iba jeden port.
+
+Dataspecer je z branche `feature/project-AI-vocabularies-connection` (`ghcr.io/dataspecer/ws:branch-feature-project-AI-vocabularies-connection`), ktorá pridáva model „Knowledge base“ a odkazy do asistenta. Odkazy smerujú na `/slovniky-ai` na tej istej doméne; iná adresa sa nastaví build argumentom `SLOVNIKY_AI` pri buildení Dataspeceru.
+
+```powershell
+docker compose -f docker-compose.gateway.yml up --build
+```
+
+| Čo | Adresa |
+| --- | --- |
+| Dataspecer | http://localhost:3000/ |
+| UI asistenta | http://localhost:3000/slovniky-ai/ |
+| API dokumentácia | http://localhost:3000/slovniky-ai/api/docs |
+
+Voliteľné premenné v `.env`:
+
+- `GATEWAY_PORT` — port gateway na hostiteľovi (predvolene `3000`).
+- `PUBLIC_URL` — verejná adresa, pod ktorou je gateway dostupný (predvolene `http://localhost:3000`). Pri nasadení na doménu napr. `https://slovniky.example.com`. Dataspecer z nej skladá odkazy.
+- `SLOVNIKY_AI_PATH` — podcesta asistenta (predvolene `/slovniky-ai`). Platí naraz pre gateway, UI aj backend; UI netreba znova buildiť. Odkazy z Dataspeceru sú však zapečené pri jeho builde.
+- `DATASPECER_IMAGE` — iný image Dataspeceru, napr. lokálne zbuildený `docker build -t dataspecer-ws:local ../dataspecer`.
+
+Backend volá Dataspecer interne cez `http://dataspecer/api`. Dáta Dataspeceru sú v Docker volume `dataspecer-database`. Backend používa ten istý priečinok `semantic-modeling-assistant-agentic-backend/data` ako `docker-compose.yml`, takže zdieľa projekty aj cache knowledge base (skonvertované dokumenty, sumáre, FAISS indexy).
+
