@@ -2,6 +2,7 @@ import { ApiError, apiFetch, apiUrl } from './client'
 import type {
   AddKnowledgeDocumentsRequest,
   DeleteResponse,
+  DocumentProcessingJob,
   KnowledgeBaseResponse,
   SetKeyDocumentRequest,
   SuccessResponse,
@@ -34,13 +35,49 @@ export function removeLegalDocument(
   )
 }
 
-export async function uploadExpertDocument(
+export function uploadExpertDocument(
   projectId: string,
   file: File,
 ): Promise<SuccessResponse> {
+  return postFile<SuccessResponse>(`/api/projects/${projectId}/knowledge-base/expert/upload`, file)
+}
+
+/** Starts loading, summarizing and indexing a legal act; poll the job with getDocumentProcessingJob. */
+export function startLegalDocumentJob(
+  projectId: string,
+  documentId: string,
+): Promise<DocumentProcessingJob> {
+  return apiFetch<DocumentProcessingJob>(`/projects/${projectId}/knowledge-base/legal/jobs`, {
+    method: 'POST',
+    body: { document_ids: [documentId] },
+  })
+}
+
+/** Uploads a PDF or DOCX and starts processing it; poll the job with getDocumentProcessingJob. */
+export function startExpertUploadJob(
+  projectId: string,
+  file: File,
+): Promise<DocumentProcessingJob> {
+  return postFile<DocumentProcessingJob>(
+    `/api/projects/${projectId}/knowledge-base/expert/upload/jobs`,
+    file,
+  )
+}
+
+export function getDocumentProcessingJob(
+  projectId: string,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<DocumentProcessingJob> {
+  return apiFetch<DocumentProcessingJob>(`/projects/${projectId}/knowledge-base/jobs/${jobId}`, {
+    signal,
+  })
+}
+
+async function postFile<T>(apiPath: string, file: File): Promise<T> {
   const body = new FormData()
   body.append('file', file)
-  const url = apiUrl(`/api/projects/${projectId}/knowledge-base/expert/upload`)
+  const url = apiUrl(apiPath)
   const response = await fetch(url, {
     method: 'POST',
     body,
@@ -62,7 +99,7 @@ export async function uploadExpertDocument(
         : response.statusText || 'Upload failed.'
     throw new ApiError(response.status, message, parsed as never)
   }
-  return parsed as SuccessResponse
+  return parsed as T
 }
 
 export function addExpertDocuments(

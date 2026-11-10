@@ -44,7 +44,7 @@ class NoOpSummarizer(KnowledgeDocumentSummarizer):
     A no-operation summarizer that does nothing.
     Used when we don't need document summarization for search operations.
     """
-    def summarize_document(self, document) -> None:
+    def summarize_document(self, document, progress=None) -> None:
         # Do nothing - we don't need summarization for search
         pass
 

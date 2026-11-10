@@ -20,6 +20,7 @@ from design_project.domain import (
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from knowledge_base.domain import KnowledgeDocument
+from knowledge_base.processing_progress import NULL_PROGRESS, ProcessingProgressListener
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base.store import KnowledgeDocumentLoader, KnowledgeDocumentSummarizer
 from ontology.domain import Kind, Ontology
@@ -36,7 +37,7 @@ class FakeKnowledgeDocumentLoader(KnowledgeDocumentLoader):
 
 
 class FakeKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
-    def summarize_document(self, document: KnowledgeDocument) -> None:
+    def summarize_document(self, document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         document.contentSummary = "Fake summary"
 
 

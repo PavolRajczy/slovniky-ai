@@ -298,6 +298,34 @@ export type KnowledgeBaseResponse = {
   expert_documents: KnowledgeDocumentSummary[]
 }
 
+export type DocumentProcessingStage =
+  | 'queued'
+  | 'loading'
+  | 'summarizing'
+  | 'indexing'
+  | 'saving'
+  | 'completed'
+  | 'failed'
+
+export type DocumentProcessingJob = {
+  id: string
+  project_id: string
+  document_kind: 'legal' | 'expert'
+  document_label: string
+  stage: DocumentProcessingStage
+  /** Units of the current stage that are done. */
+  completed: number
+  /** Units of the current stage; null when the amount of work is unknown. */
+  total: number | null
+  message: string | null
+  error: string | null
+  /** The stage that was running when the job failed. */
+  failed_stage: Exclude<DocumentProcessingStage, 'completed' | 'failed'> | null
+  started_at: string
+  updated_at: string
+  finished_at: string | null
+}
+
 export type IterationsListResponse = {
   planned_iterations: DesignIterationModel[]
   current_iteration: DesignIterationModel | null

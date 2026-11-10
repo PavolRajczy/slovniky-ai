@@ -11,6 +11,7 @@ import {
 import type { GuidanceItemSource, GuidanceItemType } from '@/api/types'
 import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 const guidanceRouteApi = getRouteApi('/guidance')
 
@@ -61,6 +62,7 @@ export function GuidancePage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditFormState>({ type: 'instruction', content: '' })
   const [itemError, setItemError] = useState<string | null>(null)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   const guidanceQuery = useQuery({
     queryKey: ['project-guidance', projectId],
@@ -117,6 +119,7 @@ export function GuidancePage() {
       await invalidateGuidance()
     },
     onError: (error: unknown) => setItemError(toErrorMessage(error)),
+    onSettled: () => setDeleteTargetId(null),
   })
 
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
@@ -335,15 +338,7 @@ export function GuidancePage() {
                         type="button"
                         className="text-rose-700 disabled:opacity-60"
                         disabled={deleteMutation.isPending}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              'Remove this guidance item? The assistant will stop following it.',
-                            )
-                          ) {
-                            deleteMutation.mutate(item.id)
-                          }
-                        }}
+                        onClick={() => setDeleteTargetId(item.id)}
                       >
                         Delete
                       </button>
@@ -367,6 +362,18 @@ export function GuidancePage() {
           .
         </p>
       </section>
+
+      {deleteTargetId ? (
+        <ConfirmDialog
+          title="Remove this guidance item?"
+          description="The assistant will stop following it."
+          confirmLabel="Remove"
+          confirmPendingLabel="Removing…"
+          isConfirmPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleteTargetId)}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      ) : null}
     </div>
   )
 }

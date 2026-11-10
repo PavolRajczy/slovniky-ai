@@ -4,7 +4,8 @@ Design Project Controller
 Main controller handling all design project operations and orchestrating the design workflow.
 """
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from urllib.parse import unquote
 import logging
@@ -31,7 +32,19 @@ from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, KnowledgeDomainArea,
     DesignIterationStatus, DesignTaskStatus, IdentifiedOperation,
 )
-from knowledge_base.service import ESEL_SPARQL_ENDPOINT, KnowledgeBaseService
+from knowledge_base.processing_progress import (
+    NULL_PROGRESS,
+    DocumentProcessingJob,
+    DocumentProcessingJobRegistry,
+    DocumentProcessingStage,
+    ProcessingProgressListener,
+)
+from knowledge_base.service import (
+    ESEL_SPARQL_ENDPOINT,
+    LEGAL_DOCUMENT_ID_PREFIX,
+    KnowledgeBaseService,
+    canonical_legal_document_id,
+)
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
@@ -61,6 +74,7 @@ from api.models import (
     ProjectGuidanceListResponse,
     ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
     GenerateOperationsRequest, ApplyProjectOperationsRequest, DataspecerSyncResponse,
+    DocumentProcessingJobModel,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -1147,8 +1161,162 @@ async def record_operation_decisions(project_id: str, request: RecordOperationDe
 # Knowledge Base Management Endpoints
 # ============================================================================
 
+LEGAL_DOCUMENTS = "legal"
+EXPERT_DOCUMENTS = "expert"
+
+document_processing_jobs = DocumentProcessingJobRegistry()
+
+
+def _project_knowledge_documents(project: DesignProject, document_kind: str) -> list:
+    return project.legalKnowledgeBase if document_kind == LEGAL_DOCUMENTS else project.expertKnowledgeBase
+
+
+def _add_documents_to_knowledge_base(
+    project_id: str,
+    document_kind: str,
+    document_ids: List[str],
+    progress: ProcessingProgressListener = NULL_PROGRESS,
+) -> int:
+    """
+    Load, summarize and index the documents, then attach the new ones to the project.
+
+    The project is loaded again after the slow processing so that documents are attached
+    to its current knowledge base lists.
+
+    Returns:
+        int: The number of documents that were loaded.
+    """
+    design_project_service.load_project(project_id)
+
+    if document_kind == LEGAL_DOCUMENTS:
+        new_docs = knowledge_base_service.load_legal_knowledge_documents(document_ids, progress)
+    else:
+        new_docs = knowledge_base_service.load_expert_knowledge_documents(document_ids, progress)
+    if not new_docs:
+        return 0
+
+    project = design_project_service.load_project(project_id)
+    project_documents = _project_knowledge_documents(project, document_kind)
+    existing_ids = {doc.id for doc in project_documents}
+    for doc in new_docs:
+        if doc.id in existing_ids:
+            continue
+        project_documents.append(doc)
+        try:
+            knowledge_base_index_service.add_document(doc, progress)
+            logger.info(f"Indexed document: {doc.id}")
+        except Exception as e:
+            logger.warning(f"Failed to index document {doc.id}: {e}")
+
+    progress.start_stage(DocumentProcessingStage.SAVING)
+    design_project_service.save_project(project)
+    return len(new_docs)
+
+
+def _run_document_processing_job(job: DocumentProcessingJob, document_ids: List[str]) -> None:
+    try:
+        loaded_count = _add_documents_to_knowledge_base(job.project_id, job.document_kind, document_ids, job)
+    except Exception as e:
+        logger.error(f"Document processing job {job.id} failed: {e}")
+        job.fail(str(e))
+        return
+    if loaded_count == 0:
+        job.fail("The document could not be loaded. Check the address or the file and try again.")
+        return
+    job.complete(f"Added {job.document_label} to the knowledge base.")
+
+
+def _start_document_processing_job(
+    project_id: str,
+    document_kind: str,
+    document_id: str,
+    document_label: str,
+    background_tasks: BackgroundTasks,
+) -> DocumentProcessingJobModel:
+    try:
+        design_project_service.load_project(project_id)
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    job = document_processing_jobs.create(project_id, document_kind, document_label)
+    background_tasks.add_task(_run_document_processing_job, job, [document_id])
+    return _document_processing_job_to_model(job)
+
+
+def _document_processing_job_to_model(job: DocumentProcessingJob) -> DocumentProcessingJobModel:
+    snapshot = job.snapshot()
+    return DocumentProcessingJobModel(
+        id=snapshot.id,
+        project_id=snapshot.project_id,
+        document_kind=snapshot.document_kind,
+        document_label=snapshot.document_label,
+        stage=snapshot.stage.value,
+        completed=snapshot.completed,
+        total=snapshot.total,
+        message=snapshot.message,
+        error=snapshot.error,
+        failed_stage=snapshot.failed_stage.value if snapshot.failed_stage else None,
+        started_at=snapshot.started_at.isoformat(),
+        updated_at=snapshot.updated_at.isoformat(),
+        finished_at=snapshot.finished_at.isoformat() if snapshot.finished_at else None,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/knowledge-base/legal/jobs",
+    response_model=DocumentProcessingJobModel,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_legal_document_job(project_id: str, request: AddKnowledgeDocumentsRequest, background_tasks: BackgroundTasks):
+    """
+    Start loading, summarizing and indexing one legal document in the background.
+
+    Poll GET /projects/{project_id}/knowledge-base/jobs/{job_id} for progress.
+    """
+    if len(request.document_ids) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Exactly one document ID is required.")
+    try:
+        document_id = canonical_legal_document_id(request.document_ids[0])
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    label = document_id.removeprefix(LEGAL_DOCUMENT_ID_PREFIX).strip("/") or document_id
+    return _start_document_processing_job(project_id, LEGAL_DOCUMENTS, document_id, f"act {label}", background_tasks)
+
+
+@router.post(
+    "/projects/{project_id}/knowledge-base/expert/upload/jobs",
+    response_model=DocumentProcessingJobModel,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_expert_upload_job(project_id: str, background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    """
+    Store an uploaded PDF or DOCX and start reading, summarizing and indexing it in the background.
+
+    Poll GET /projects/{project_id}/knowledge-base/jobs/{job_id} for progress.
+    """
+    try:
+        document_id = await _store_uploaded_expert_file(file)
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    return _start_document_processing_job(project_id, EXPERT_DOCUMENTS, document_id, file.filename, background_tasks)
+
+
+@router.get("/projects/{project_id}/knowledge-base/jobs/{job_id}", response_model=DocumentProcessingJobModel)
+async def get_document_processing_job(project_id: str, job_id: str):
+    """Return the progress of a document processing job."""
+    job = document_processing_jobs.get(project_id, job_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document processing job '{job_id}' not found. Jobs are lost when the server restarts."
+        )
+    return _document_processing_job_to_model(job)
+
+
 @router.post("/projects/{project_id}/knowledge-base/legal", response_model=SuccessResponse)
-async def add_legal_documents(project_id: str, request: AddKnowledgeDocumentsRequest):
+def add_legal_documents(project_id: str, request: AddKnowledgeDocumentsRequest):
     """
     Add legal documents to project knowledge base.
     
@@ -1156,29 +1324,10 @@ async def add_legal_documents(project_id: str, request: AddKnowledgeDocumentsReq
     """
     try:
         logger.info(f"Adding legal documents to project: {project_id}")
-        project = design_project_service.load_project(project_id)
-        
-        # Load the documents
-        new_docs = knowledge_base_service.load_legal_knowledge_documents(request.document_ids)
-        
-        # Add to project (avoid duplicates)
-        existing_ids = {doc.id for doc in project.legalKnowledgeBase}
-        for doc in new_docs:
-            if doc.id not in existing_ids:
-                project.legalKnowledgeBase.append(doc)
-                # Index the document for search operations
-                try:
-                    knowledge_base_index_service.add_document(doc)
-                    logger.info(f"Indexed document: {doc.id}")
-                except Exception as e:
-                    logger.warning(f"Failed to index document {doc.id}: {e}")
-        
-        # Save project
-        design_project_service.save_project(project)
-        
+        loaded_count = _add_documents_to_knowledge_base(project_id, LEGAL_DOCUMENTS, request.document_ids)
         return SuccessResponse(
             success=True,
-            message=f"Added {len(new_docs)} legal documents to project"
+            message=f"Added {loaded_count} legal documents to project"
         )
     
     except FileNotFoundError:
@@ -1243,28 +1392,34 @@ async def upload_expert_document(project_id: str, file: UploadFile = File(...)):
     produced from the file become its sections.
     """
     try:
-        if not file.filename:
-            raise ValueError("A file name is required.")
-        content = await file.read()
-        if not content:
-            raise ValueError("The file is empty.")
-        loader = knowledge_base_service.expert_knowledge_document_loader
-        if not isinstance(loader, LocalKnowledgeDocumentLoader):
-            raise ValueError("Expert document upload is not available.")
-        document_id = loader.store_uploaded_file(file.filename, content)
-        return await add_expert_documents(
-            project_id,
-            AddKnowledgeDocumentsRequest(document_ids=[document_id]),
-        )
+        document_id = await _store_uploaded_expert_file(file)
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(error),
         ) from error
+    return await run_in_threadpool(
+        add_expert_documents,
+        project_id,
+        AddKnowledgeDocumentsRequest(document_ids=[document_id]),
+    )
+
+
+async def _store_uploaded_expert_file(file: UploadFile) -> str:
+    """Save the uploaded file with the expert document loader and return its document ID."""
+    if not file.filename:
+        raise ValueError("A file name is required.")
+    content = await file.read()
+    if not content:
+        raise ValueError("The file is empty.")
+    loader = knowledge_base_service.expert_knowledge_document_loader
+    if not isinstance(loader, LocalKnowledgeDocumentLoader):
+        raise ValueError("Expert document upload is not available.")
+    return loader.store_uploaded_file(file.filename, content)
 
 
 @router.post("/projects/{project_id}/knowledge-base/expert", response_model=SuccessResponse)
-async def add_expert_documents(project_id: str, request: AddKnowledgeDocumentsRequest):
+def add_expert_documents(project_id: str, request: AddKnowledgeDocumentsRequest):
     """
     Add expert documents to project knowledge base.
     
@@ -1272,29 +1427,10 @@ async def add_expert_documents(project_id: str, request: AddKnowledgeDocumentsRe
     """
     try:
         logger.info(f"Adding expert documents to project: {project_id}")
-        project = design_project_service.load_project(project_id)
-        
-        # Load the documents
-        new_docs = knowledge_base_service.load_expert_knowledge_documents(request.document_ids)
-        
-        # Add to project (avoid duplicates)
-        existing_ids = {doc.id for doc in project.expertKnowledgeBase}
-        for doc in new_docs:
-            if doc.id not in existing_ids:
-                project.expertKnowledgeBase.append(doc)
-                # Index the document for search operations
-                try:
-                    knowledge_base_index_service.add_document(doc)
-                    logger.info(f"Indexed document: {doc.id}")
-                except Exception as e:
-                    logger.warning(f"Failed to index document {doc.id}: {e}")
-        
-        # Save project
-        design_project_service.save_project(project)
-        
+        loaded_count = _add_documents_to_knowledge_base(project_id, EXPERT_DOCUMENTS, request.document_ids)
         return SuccessResponse(
             success=True,
-            message=f"Added {len(new_docs)} expert documents to project"
+            message=f"Added {loaded_count} expert documents to project"
         )
     
     except FileNotFoundError:

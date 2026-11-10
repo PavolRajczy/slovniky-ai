@@ -3,15 +3,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/client'
 import {
   addExpertDocuments,
-  addLegalDocuments,
-  uploadExpertDocument,
   getProjectKnowledgeBase,
   removeExpertDocument,
   removeLegalDocument,
   setKeyDocument,
+  startExpertUploadJob,
+  startLegalDocumentJob,
 } from '@/api/knowledgeBase'
 import { getProject } from '@/api/projects'
 import type { KnowledgeDocumentSummary } from '@/api/types'
+import { DocumentProcessingProgress } from '@/components/DocumentProcessingProgress'
+import { useTrackedDocumentProcessingJob } from '@/hooks/useDocumentProcessingJob'
 
 const EXAMPLE_LEGAL_URL =
   'https://opendata.eselpoint.gov.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01'
@@ -50,13 +52,24 @@ export function KnowledgeBaseSection({ projectId }: Props) {
   const [expertError, setExpertError] = useState<string | null>(null)
   const [keyError, setKeyError] = useState<string | null>(null)
 
+  const legalJob = useTrackedDocumentProcessingJob(projectId, async () => {
+    setLegalUrl('')
+    await invalidateKb()
+  })
+
+  const expertJob = useTrackedDocumentProcessingJob(projectId, async () => {
+    setExpertFile(null)
+    if (expertFileInputRef.current) {
+      expertFileInputRef.current.value = ''
+    }
+    await invalidateKb()
+  })
+
   const addLegalMutation = useMutation({
-    mutationFn: (documentId: string) =>
-      addLegalDocuments(projectId, { document_ids: [documentId] }),
-    onSuccess: async () => {
+    mutationFn: (documentId: string) => startLegalDocumentJob(projectId, documentId),
+    onSuccess: (job) => {
       setLegalError(null)
-      setLegalUrl('')
-      await invalidateKb()
+      legalJob.track(job)
     },
     onError: (error: unknown) => setLegalError(toErrorMessage(error)),
   })
@@ -68,14 +81,10 @@ export function KnowledgeBaseSection({ projectId }: Props) {
   })
 
   const uploadExpertMutation = useMutation({
-    mutationFn: (file: File) => uploadExpertDocument(projectId, file),
-    onSuccess: async () => {
+    mutationFn: (file: File) => startExpertUploadJob(projectId, file),
+    onSuccess: (job) => {
       setExpertError(null)
-      setExpertFile(null)
-      if (expertFileInputRef.current) {
-        expertFileInputRef.current.value = ''
-      }
-      await invalidateKb()
+      expertJob.track(job)
     },
     onError: (error: unknown) => setExpertError(toErrorMessage(error)),
   })
@@ -213,15 +222,23 @@ export function KnowledgeBaseSection({ projectId }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={addLegalMutation.isPending}
+                disabled={addLegalMutation.isPending || legalJob.isRunning}
                 className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm disabled:opacity-60"
               >
-                {addLegalMutation.isPending ? 'Loading + indexing…' : 'Add legal document'}
+                {processingButtonLabel(addLegalMutation.isPending, legalJob.isRunning, 'Add legal document')}
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
               Adding a new act may take several minutes the first time (load → summarize → index).
             </p>
+            {legalJob.job ? (
+              <DocumentProcessingProgress job={legalJob.job} onDismiss={legalJob.dismiss} />
+            ) : null}
+            {legalJob.pollError ? (
+              <p className="text-[11px] text-rose-800">
+                Lost track of the processing: {toErrorMessage(legalJob.pollError)}
+              </p>
+            ) : null}
           </form>
 
           {legalError ? (
@@ -279,15 +296,23 @@ export function KnowledgeBaseSection({ projectId }: Props) {
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={uploadExpertMutation.isPending || !expertFile}
+                disabled={uploadExpertMutation.isPending || expertJob.isRunning || !expertFile}
                 className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
               >
-                {uploadExpertMutation.isPending ? 'Reading + summarizing…' : 'Upload document'}
+                {processingButtonLabel(uploadExpertMutation.isPending, expertJob.isRunning, 'Upload document')}
               </button>
             </div>
             <p className="text-[11px] text-slate-500">
               The first upload summarizes every section, same as a legal act.
             </p>
+            {expertJob.job ? (
+              <DocumentProcessingProgress job={expertJob.job} onDismiss={expertJob.dismiss} />
+            ) : null}
+            {expertJob.pollError ? (
+              <p className="text-[11px] text-rose-800">
+                Lost track of the processing: {toErrorMessage(expertJob.pollError)}
+              </p>
+            ) : null}
           </form>
 
           <form onSubmit={handleAddExpert} className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -429,6 +454,12 @@ function DocumentRow({ doc, isKey, isBusy, onSetKey, onRemove }: DocumentRowProp
       </div>
     </li>
   )
+}
+
+function processingButtonLabel(isStarting: boolean, isProcessing: boolean, idleLabel: string): string {
+  if (isStarting) return 'Starting…'
+  if (isProcessing) return 'Processing…'
+  return idleLabel
 }
 
 function toErrorMessage(error: unknown): string {

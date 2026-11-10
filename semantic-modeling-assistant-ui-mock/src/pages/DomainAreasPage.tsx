@@ -2,6 +2,7 @@ import { Link, getRouteApi } from '@tanstack/react-router'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { WorkflowStepper, resolveWorkflowContext } from '@/components/workflow'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ApiError } from '@/api/client'
 import {
   createDomainArea,
@@ -50,6 +51,7 @@ export function DomainAreasPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditFormState>({ label: '', description: '', keyConcepts: '' })
   const [editError, setEditError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<KnowledgeDomainAreaModel | null>(null)
 
   useEffect(() => {
     if (!packageIri || projectId) {
@@ -148,7 +150,10 @@ export function DomainAreasPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (areaId: string) => deleteDomainArea(projectId!, areaId),
-    onSuccess: invalidateAreas,
+    onSuccess: async () => {
+      setDeleteTarget(null)
+      await invalidateAreas()
+    },
   })
 
   const areas = areasQuery.data ?? []
@@ -184,9 +189,7 @@ export function DomainAreasPage() {
   }
 
   const handleDelete = (area: KnowledgeDomainAreaModel) => {
-    const ok = window.confirm(`Delete section "${area.label}"? This cannot be undone.`)
-    if (!ok) return
-    deleteMutation.mutate(area.id)
+    setDeleteTarget(area)
   }
 
   const generatePending = generateMutation.isPending
@@ -523,6 +526,17 @@ export function DomainAreasPage() {
           </tbody>
         </table>
       </div>
+
+      {deleteTarget ? (
+        <ConfirmDialog
+          title={`Delete section "${deleteTarget.label}"?`}
+          description="This cannot be undone."
+          confirmLabel="Delete section"
+          isConfirmPending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import numpy as np
 import faiss
 from llm.provider import create_embeddings, get_embedding_dimension, get_embedding_model
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 from knowledge_base_index.indexer import KnowledgeDocumentIndexer
 from ..domain import IndexDocument, TextChunk, SearchQuery, SearchResult, ChunkMatch
 from ..faiss_paths import read_faiss_index, write_faiss_index
@@ -53,7 +54,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         self.chunk_metadata: List[TextChunk] = []  # Store chunk metadata by index
         self.index_documents: Dict[str, IndexDocument] = {}  # Store index documents by ID
     
-    def build_index(self, knowledge_document: KnowledgeDocument) -> None:
+    def build_index(self, knowledge_document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         """
         Build an index for the given knowledge document.
         
@@ -65,6 +66,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         
         Args:
             knowledge_document: The knowledge document to index
+            progress: Receives one step per embedding batch
         """
         print(f"Building summary index for knowledge document: {knowledge_document.id}")
         
@@ -94,13 +96,16 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         # Generate embeddings in batches to handle API limits
         batch_size = 100
         all_embeddings = []
+        batch_count = (len(chunk_texts) + batch_size - 1) // batch_size
+        progress.start_stage(DocumentProcessingStage.INDEXING, total=batch_count)
         
         for i in range(0, len(chunk_texts), batch_size):
             batch_texts = chunk_texts[i:i + batch_size]
-            print(f"Generating embeddings for batch {i//batch_size + 1}/{(len(chunk_texts) + batch_size - 1)//batch_size}")
+            print(f"Generating embeddings for batch {i//batch_size + 1}/{batch_count}")
             
             batch_embeddings = self._get_embeddings(batch_texts)
             all_embeddings.append(batch_embeddings)
+            progress.advance()
         
         # Combine all embeddings
         embeddings = np.vstack(all_embeddings) if all_embeddings else np.array([]).reshape(0, self.embedding_dimension)

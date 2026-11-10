@@ -1,5 +1,6 @@
 from typing import List, Optional, Dict
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 from .domain import SearchQuery, SearchResult
 from .indexer import KnowledgeDocumentIndexer
 from .indexers.faiss_fulltext_openai_indexer import FAISSFullTextOpenAIKnowledgeDocumentIndexer
@@ -33,7 +34,7 @@ class KnowledgeBaseIndexService:
         self._documents: Dict[str, KnowledgeDocument] = {}
     
     
-    def add_document(self, knowledge_document: KnowledgeDocument) -> None:
+    def add_document(self, knowledge_document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         """
         Add a knowledge document to the collection and build or load its index.
         
@@ -42,18 +43,20 @@ class KnowledgeBaseIndexService:
         
         Args:
             knowledge_document: The knowledge document to add and index.
+            progress: Receives the indexing stage.
             
         Raises:
             Exception: If the indexing or loading process fails.
         """
         try:
+            progress.start_stage(DocumentProcessingStage.INDEXING)
             # Create a new indexer for this document
             indexer = self._indexer_factory()
             
             # Try to load existing index first
             if not indexer.load_index(knowledge_document):
                 # No existing index found, build a new one
-                indexer.build_index(knowledge_document)
+                indexer.build_index(knowledge_document, progress)
                 # Store the newly built index
                 indexer.store_index(knowledge_document)
             
