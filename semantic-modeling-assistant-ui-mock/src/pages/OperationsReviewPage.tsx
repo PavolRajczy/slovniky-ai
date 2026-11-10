@@ -144,6 +144,7 @@ export function OperationsReviewPage() {
   const [savedGuidanceIds, setSavedGuidanceIds] = useState<Record<string, string>>({})
   const [saveRejectReasonAsGuidance, setSaveRejectReasonAsGuidance] = useState(false)
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
+  const [regenerateTargetId, setRegenerateTargetId] = useState<string | null>(null)
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all')
   const [draftReady, setDraftReady] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
@@ -421,13 +422,8 @@ export function OperationsReviewPage() {
     isPrepared && approvedOperations.length > 0 && counts.pending === 0
 
   const handleRegenerateChange = async (operationId: string) => {
+    setRegenerateTargetId(null)
     const reason = rejectionReasonById[operationId]?.trim()
-    const ok = window.confirm(
-      reason
-        ? 'Regenerate this rejected change? The assistant will try again using your rejection reason.'
-        : 'Regenerate this rejected change? The assistant will try again using your project guidance.',
-    )
-    if (!ok) return
     setActionError(null)
     try {
       if (reason && !savedGuidanceIds[operationId]) {
@@ -757,7 +753,7 @@ export function OperationsReviewPage() {
                               <button
                                 type="button"
                                 className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-60"
-                                onClick={() => handleRegenerateChange(op.id)}
+                                onClick={() => setRegenerateTargetId(op.id)}
                                 disabled={regeneratePending.isPending}
                               >
                                 {regeneratePending.isPending ? 'Regenerating…' : 'Regenerate'}
@@ -838,6 +834,22 @@ export function OperationsReviewPage() {
           </div>
         </aside>
       </div>
+
+      {regenerateTargetId ? (
+        <ConfirmDialog
+          tone="default"
+          headerLabel="Regenerate change"
+          title="Regenerate this rejected change?"
+          description={
+            rejectionReasonById[regenerateTargetId]?.trim()
+              ? 'The assistant will try again using your rejection reason.'
+              : 'The assistant will try again using your project guidance.'
+          }
+          confirmLabel="Regenerate"
+          onConfirm={() => handleRegenerateChange(regenerateTargetId)}
+          onCancel={() => setRegenerateTargetId(null)}
+        />
+      ) : null}
 
       {finalizeConfirmOpen ? (
         <ConfirmDialog

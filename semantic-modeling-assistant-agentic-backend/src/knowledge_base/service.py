@@ -2,6 +2,7 @@ from typing import List, Dict
 import json
 from pathlib import Path
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, ProcessingProgressListener
 from knowledge_base.store import KnowledgeDocumentLoader, KnowledgeDocumentSummarizer, KnowledgeStore
 
 
@@ -18,12 +19,12 @@ class _ReuseCachedSummaryIndex(KnowledgeDocumentSummarizer):
     def __init__(self, inner: KnowledgeDocumentSummarizer):
         self.inner = inner
 
-    def summarize_document(self, document: KnowledgeDocument) -> None:
+    def summarize_document(self, document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         index_file = summary_index_file(document)
         if index_file is not None and index_file.is_file():
             print(f"Skipping summary for {document.id}; summary index already cached")
             return
-        self.inner.summarize_document(document)
+        self.inner.summarize_document(document, progress)
 
 ESEL_OPENDATA_ORIGIN = "https://opendata.eselpoint.gov.cz"
 ESEL_SPARQL_ENDPOINT = f"{ESEL_OPENDATA_ORIGIN}/sparql"
@@ -82,25 +83,27 @@ class KnowledgeBaseService:
         knowledge_documents += self.knowledge_store.load_documents(expert_knowledge_document_ids, self.expert_knowledge_document_loader, self.document_summarizer)
         return knowledge_documents
 
-    def load_legal_knowledge_documents(self, document_ids: List[str]) -> List[KnowledgeDocument]:
+    def load_legal_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS) -> List[KnowledgeDocument]:
         """
         Retrieve multiple legal knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of legal knowledge document IDs to retrieve.
+            progress: Receives the loading and summarizing stages.
         
         Returns:
             A list of retrieved legal knowledge documents.
         """
         canonical_ids = [canonical_legal_document_id(doc_id) for doc_id in document_ids]
-        return self.knowledge_store.load_documents(canonical_ids, self.legal_knowledge_document_loader, self.document_summarizer)
+        return self.knowledge_store.load_documents(canonical_ids, self.legal_knowledge_document_loader, self.document_summarizer, progress)
 
-    def load_expert_knowledge_documents(self, document_ids: List[str]) -> List[KnowledgeDocument]:
+    def load_expert_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS) -> List[KnowledgeDocument]:
         """
         Retrieve multiple expert knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of expert knowledge document IDs to retrieve.
+            progress: Receives the loading and summarizing stages.
 
         Returns:
             A list of retrieved expert knowledge documents.
@@ -109,6 +112,7 @@ class KnowledgeBaseService:
             document_ids,
             self.expert_knowledge_document_loader,
             _ReuseCachedSummaryIndex(self.document_summarizer),
+            progress,
         )
 
     def list_legal_knowledge_documents(self, base_dir: str = "data/knowledge_base/esel") -> List[Dict[str, str]]:

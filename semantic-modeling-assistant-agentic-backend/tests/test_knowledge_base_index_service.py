@@ -87,7 +87,7 @@ class MockKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         self.should_load_successfully = False
         self.search_results = create_test_search_results("default-element")
     
-    def build_index(self, knowledge_document: KnowledgeDocument) -> None:
+    def build_index(self, knowledge_document: KnowledgeDocument, progress=None) -> None:
         self.build_index_calls.append(knowledge_document)
         if self.should_fail_build:
             raise Exception("Mock indexer build failure")

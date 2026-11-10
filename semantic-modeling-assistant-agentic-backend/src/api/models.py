@@ -586,5 +586,24 @@ class KnowledgeBaseResponse(BaseModel):
     expert_documents: List[KnowledgeDocumentSummary]
 
 
+class DocumentProcessingJobModel(BaseModel):
+    """Progress of adding one document to the project knowledge base."""
+    id: str
+    project_id: str
+    document_kind: Literal["legal", "expert"]
+    document_label: str
+    stage: Literal["queued", "loading", "summarizing", "indexing", "saving", "completed", "failed"]
+    completed: int = Field(description="Units of the current stage that are done.")
+    total: Optional[int] = Field(None, description="Units of the current stage; null when the amount of work is unknown.")
+    message: Optional[str] = None
+    error: Optional[str] = None
+    failed_stage: Optional[Literal["queued", "loading", "summarizing", "indexing", "saving"]] = Field(
+        None, description="The stage that was running when the job failed."
+    )
+    started_at: str
+    updated_at: str
+    finished_at: Optional[str] = None
+
+
 # Resolve forward reference for ApplyProjectOperationsRequest
 ApplyProjectOperationsRequest.model_rebuild()
