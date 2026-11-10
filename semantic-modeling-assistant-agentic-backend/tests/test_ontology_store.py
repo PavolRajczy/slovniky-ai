@@ -514,15 +514,18 @@ def test_store_ontology_not_in_cache():
         assert "not found in the store" in str(e)
 
 
-def test_load_nonexistent_ontology():
-    """Test that loading a non-existent ontology raises FileNotFoundError."""
-    store = FilesystemOntologyStore(base_dir="data_test/ontologies")
-    
-    try:
-        store.load_ontology("https://example.org/nonexistent")
-        assert False, "Should have raised FileNotFoundError"
-    except FileNotFoundError as e:
-        assert "Ontology file not found" in str(e)
+def test_load_nonexistent_ontology(tmp_path):
+    """Loading an unknown URI creates, persists and caches an empty ontology for it."""
+    store = FilesystemOntologyStore(base_dir=str(tmp_path))
+    uri = "https://example.org/nonexistent"
+    assert not store.exists(uri)
+
+    ontology = store.load_ontology(uri)
+
+    assert ontology.uri == URIRef(uri)
+    assert ontology.classes == {} and ontology.attributes == {} and ontology.relationships == {}
+    assert store.exists(uri), "The empty ontology should be written to disk"
+    store.store_ontology(ontology)  # Loaded ontologies are cached, so storing must not raise
 
 
 if __name__ == "__main__":
@@ -543,7 +546,8 @@ if __name__ == "__main__":
         print("Running error tests...")
         test_store_ontology_not_in_cache()
         print("✓ test_store_ontology_not_in_cache passed")
-        test_load_nonexistent_ontology()
+        import tempfile
+        test_load_nonexistent_ontology(Path(tempfile.mkdtemp()))
         print("✓ test_load_nonexistent_ontology passed")
         print("\nAll tests passed!")
     except AssertionError as e:

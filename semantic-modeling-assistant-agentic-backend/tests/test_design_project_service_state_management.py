@@ -19,24 +19,12 @@ import shutil
 import uuid
 from rdflib import URIRef
 
-from design_project.service import DesignProjectService
-from design_project.store import FileSystemDesignProjectStore
 from design_project.domain import (
-    DesignIterationStatus, DesignTaskStatus, DesignTaskPattern, 
-    DesignTaskCategory, KnowledgeDomain, KnowledgeDomainArea
+    DesignIterationStatus, DesignTaskStatus, KnowledgeDomainArea
 )
-from knowledge_base.service import KnowledgeBaseService
-from knowledge_base.store import KnowledgeDocumentLoader, KnowledgeDocumentSummarizer
-from knowledge_base.domain import KnowledgeDocument
-from ontology.service import OntologyService
-from ontology.store import FilesystemOntologyStore
-from ontology.domain import Ontology, Kind
-from ontology.edit_operations import CreateClassOperation, OperationType
+from ontology.domain import Ontology
 
-from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgentFake
-from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgentFake
-from agents.task_planners.task_planner import TaskPlannerAgentFake
-from agents.modelers.modeler import ModelerAgentFake
+from fakes import create_fake_design_project_service
 
 
 # Test data directory
@@ -50,49 +38,8 @@ def setup_test_environment():
         shutil.rmtree(TEST_DATA_DIR)
     os.makedirs(TEST_DATA_DIR, exist_ok=True)
     
-    # Create services
-    ontology_store = FilesystemOntologyStore(base_dir=f"{TEST_DATA_DIR}/ontologies")
-    ontology_service = OntologyService(store=ontology_store)
-    
-    # Create fake loaders and summarizer for knowledge base
-    class FakeLoader(KnowledgeDocumentLoader):
-        def load_document(self, document_id: str) -> KnowledgeDocument:
-            return KnowledgeDocument(id=document_id, title="Fake", content="Fake content", contentSummary=None)
-        def list_all_documents(self) -> list:
-            return []
-    
-    class FakeSummarizer(KnowledgeDocumentSummarizer):
-        def summarize_document(self, document: KnowledgeDocument) -> str:
-            return "Fake summary"
-    
-    kb_service = KnowledgeBaseService(
-        legal_knowledge_document_loader=FakeLoader(),
-        expert_knowledge_document_loader=FakeLoader(),
-        document_summarizer=FakeSummarizer()
-    )
-    
-    project_store = FileSystemDesignProjectStore(
-        ontology_service=ontology_service,
-        base_dir=f"{TEST_DATA_DIR}/projects"
-    )
-    
-    # Create fake agents
-    domain_area_analyzer = KnowledgeDomainAreaAnalyzerAgentFake()
-    iteration_suggester = IterationSuggesterAgentFake()
-    task_planner = TaskPlannerAgentFake()
-    modeler = ModelerAgentFake()
-    
-    service = DesignProjectService(
-        store=project_store,
-        knowledge_base_service=kb_service,
-        ontology_service=ontology_service,
-        knowledge_domain_area_analyzer_agent=domain_area_analyzer,
-        iteration_suggester_agent=iteration_suggester,
-        task_planner_agent=task_planner,
-        modeler_agent=modeler
-    )
-    
-    return service, ontology_service, kb_service
+    service = create_fake_design_project_service(TEST_DATA_DIR)
+    return service, service.ontology_service, service.knowledge_base_service
 
 
 def create_test_ontology(ontology_service):

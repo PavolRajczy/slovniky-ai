@@ -19,6 +19,7 @@ import uuid
 from typing import List, Optional
 from unittest.mock import Mock, patch
 import numpy as np
+import pytest
 
 # Ensure src/ is importable when running as a script
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -28,36 +29,24 @@ sys.path.insert(0, src_path)
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, LEGAL_DOCUMENT_ID_PREFIX
 from knowledge_base_index.domain import IndexDocument, TextChunk, SearchQuery, SearchResult
 from knowledge_base_index.chunkers.semchunk_chunker import SemchunkIndexDocumentChunker
 from knowledge_base_index.indexers.faiss_fulltext_openai_indexer import FAISSFullTextOpenAIKnowledgeDocumentIndexer
 
+pytestmark = pytest.mark.live
 
-# ------------------------
-# Mock OpenAI for testing without API calls
-# ------------------------
-
-class MockEmbeddingResponse:
-    def __init__(self, dimension=1536):
-        self.data = []
-        self.dimension = dimension
-    
-    def add_embedding(self, text: str):
-        # Create a deterministic "embedding" based on text hash
-        embedding = np.random.RandomState(seed=hash(text) % 2**32).normal(0, 1, self.dimension)
-        embedding = embedding / np.linalg.norm(embedding)  # Normalize
-        mock_item = Mock()
-        mock_item.embedding = embedding.tolist()
-        self.data.append(mock_item)
-        return self
+EMBEDDING_DIMENSION = 384
 
 
-def mock_openai_embeddings_create(model, input):
-    """Mock OpenAI embeddings.create method."""
-    response = MockEmbeddingResponse()
-    for text in input:
-        response.add_embedding(text)
-    return response
+def create_indexer_with_fake_embeddings_client() -> FAISSFullTextOpenAIKnowledgeDocumentIndexer:
+    """The tests patch _get_embeddings, so the indexer never needs a real embeddings client."""
+    with patch('knowledge_base_index.indexers.faiss_fulltext_openai_indexer.create_embeddings', return_value=Mock()):
+        return FAISSFullTextOpenAIKnowledgeDocumentIndexer(
+            target_model="gpt-3.5-turbo",
+            chunk_size=500,
+            embedding_dimension=EMBEDDING_DIMENSION
+        )
 
 
 # ------------------------
@@ -67,11 +56,9 @@ def mock_openai_embeddings_create(model, input):
 def load_esel_document() -> Optional[KnowledgeDocument]:
     """Load the ESEL legal document."""
     try:
-        sparql_endpoint = "https://opendata.eselpoint.cz/sparql"
-        loader = ESELKnowledgeDocumentLoader(sparql_endpoint)
+        loader = ESELKnowledgeDocumentLoader(ESEL_SPARQL_ENDPOINT, base_dir="data_test/knowledge_base/esel")
         
-        # Use the document from the data directory
-        document_id = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/1000/01/1000-01-01"
+        document_id = f"{LEGAL_DOCUMENT_ID_PREFIX}/2001/56/2025-07-01"
         
         print(f"Loading ESEL document: {document_id}")
         document = loader.load_document(document_id)
@@ -251,19 +238,7 @@ class TestRealDocumentIndexing:
     """Test indexing with real documents."""
     
     def setUp(self):
-        # Use mock OpenAI client for testing
-        with patch('knowledge_base_index.indexers.faiss_indexer.OpenAI') as mock_openai:
-            mock_client = Mock()
-            mock_client.embeddings.create = mock_openai_embeddings_create
-            mock_openai.return_value = mock_client
-            
-            self.indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
-                target_model="gpt-3.5-turbo",
-                chunk_size=500,
-                embedding_dimension=384  # Smaller dimension for faster testing
-            )
-            self.indexer.embedding_dimension = 384
-            self.indexer.faiss_index = __import__('faiss').IndexFlatIP(384)
+        self.indexer = create_indexer_with_fake_embeddings_client()
     
     def test_index_esel_document(self):
         """Test building index with ESEL legal document.""" 
@@ -472,19 +447,7 @@ class TestCombinedDocumentIndexing:
     """Test indexing multiple documents together."""
     
     def setUp(self):
-        # Use mock OpenAI client for testing
-        with patch('knowledge_base_index.indexers.faiss_indexer.OpenAI') as mock_openai:
-            mock_client = Mock()
-            mock_client.embeddings.create = mock_openai_embeddings_create
-            mock_openai.return_value = mock_client
-            
-            self.indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
-                target_model="gpt-3.5-turbo",
-                chunk_size=500,
-                embedding_dimension=384
-            )
-            self.indexer.embedding_dimension = 384
-            self.indexer.faiss_index = __import__('faiss').IndexFlatIP(384)
+        self.indexer = create_indexer_with_fake_embeddings_client()
     
     def test_index_multiple_documents(self):
         """Test building a combined index with both documents."""

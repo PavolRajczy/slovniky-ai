@@ -13,15 +13,14 @@ from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base_index.indexers.faiss_fulltext_openai_indexer import FAISSFullTextOpenAIKnowledgeDocumentIndexer
 from knowledge_base_index.domain import SearchQuery
 
+import pytest
+
+pytestmark = pytest.mark.live
+
 def test_store_and_load_index():
     """
     Test the store_index and load_index functionality of FAISSFullTextOpenAIKnowledgeDocumentIndexer.
     """
-    
-    # Skip test if OpenAI API key is not available
-    if not os.getenv('OPENAI_API_KEY'):
-        print("SKIPPING TEST: OpenAI API key not found. Set OPENAI_API_KEY environment variable to run this test.")
-        return
     
     # Create a temporary directory for testing
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -54,10 +53,7 @@ def test_store_and_load_index():
         print("=== Testing FAISS Indexer Store/Load Functionality ===")
         
         # Create indexer instance
-        indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
-            chunk_size=100,
-            embedding_model="text-embedding-3-small"
-        )
+        indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(chunk_size=100)
         
         print("1. Building initial index...")
         indexer.build_index(knowledge_doc)
@@ -88,10 +84,7 @@ def test_store_and_load_index():
         print("   Index files created successfully")
         
         print("4. Creating new indexer instance...")
-        new_indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
-            chunk_size=100,
-            embedding_model="text-embedding-3-small"
-        )
+        new_indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(chunk_size=100)
         
         # Verify the new indexer is empty
         assert new_indexer.faiss_index.ntotal == 0, "New indexer should be empty"
@@ -113,10 +106,7 @@ def test_store_and_load_index():
         print(f"   Search returned {len(loaded_results)} results (same as original)")
         
         print("7. Testing build_or_load_index method...")
-        third_indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
-            chunk_size=100,
-            embedding_model="text-embedding-3-small"
-        )
+        third_indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(chunk_size=100)
         
         # This should load from cache since we stored it
         third_indexer.build_or_load_index(knowledge_doc)

@@ -8,8 +8,7 @@ Tests the FAISS-based semantic indexing implementation including:
 - Embedding generation and FAISS indexing
 - Semantic search functionality
 
-Note: These tests require an OpenAI API key to be set as OPENAI_API_KEY environment variable.
-For testing without actual API calls, mock implementations can be added.
+Embeddings are mocked, so these tests make no API calls.
 """
 
 import os
@@ -91,33 +90,6 @@ def create_simple_knowledge_document() -> KnowledgeDocument:
 
 
 # ------------------------
-# Mock OpenAI for testing without API calls
-# ------------------------
-
-class MockEmbeddingResponse:
-    def __init__(self, dimension=1536):
-        self.data = []
-        self.dimension = dimension
-    
-    def add_embedding(self, text: str):
-        # Create a deterministic "embedding" based on text hash
-        embedding = np.random.RandomState(seed=hash(text) % 2**32).normal(0, 1, self.dimension)
-        embedding = embedding / np.linalg.norm(embedding)  # Normalize
-        mock_item = Mock()
-        mock_item.embedding = embedding.tolist()
-        self.data.append(mock_item)
-        return self
-
-
-def mock_openai_embeddings_create(model, input):
-    """Mock OpenAI embeddings.create method."""
-    response = MockEmbeddingResponse()
-    for text in input:
-        response.add_embedding(text)
-    return response
-
-
-# ------------------------
 # Test Classes
 # ------------------------
 
@@ -183,21 +155,13 @@ class TestFAISSKnowledgeDocumentIndexer:
     """Test the FAISS-based knowledge document indexer."""
     
     def setUp(self):
-        # Use mock OpenAI client for testing
-        with patch('knowledge_base_index.indexers.faiss_indexer.OpenAI') as mock_openai:
-            mock_client = Mock()
-            mock_client.embeddings.create = mock_openai_embeddings_create
-            mock_openai.return_value = mock_client
-            
+        # Embeddings are mocked per test via _get_embeddings; no API client is created.
+        with patch('knowledge_base_index.indexers.faiss_fulltext_openai_indexer.create_embeddings', return_value=Mock()):
             self.indexer = FAISSFullTextOpenAIKnowledgeDocumentIndexer(
                 target_model="gpt-4.1",
                 chunk_size=200,
-                embedding_model="text-embedding-3-small",
-                embedding_dimension=384,# Smaller dimension for faster testing
-                
+                embedding_dimension=384,
             )
-            self.indexer.embedding_dimension = 384
-            self.indexer.faiss_index = __import__('faiss').IndexFlatIP(384)
     
     def test_create_index_documents(self):
         """Test creation of IndexDocument objects from KnowledgeDocument."""

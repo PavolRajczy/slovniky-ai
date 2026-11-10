@@ -12,28 +12,33 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 src_path = os.path.join(project_root, 'src')
 sys.path.insert(0, src_path)
 
+import pytest
+
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.domain import KnowledgeDocument
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, LEGAL_DOCUMENT_ID_PREFIX
+
+DOCUMENT_ID = f"{LEGAL_DOCUMENT_ID_PREFIX}/2001/56/2025-07-01"
 
 def test_loader_initialization():
     """Test that the loader can be initialized."""
     print("Testing loader initialization...")
     
-    sparql_endpoint = "https://opendata.eselpoint.cz/sparql"
+    sparql_endpoint = ESEL_SPARQL_ENDPOINT
     loader = ESELKnowledgeDocumentLoader(sparql_endpoint, base_dir="data_test/knowledge_base/esel")
     
     assert loader.sparql_endpoint == sparql_endpoint
     print("✓ Loader initialization successful")
 
+@pytest.mark.live
 def test_load_document_without_cache():
     """Test loading a real document from the SPARQL endpoint when cache is empty."""
     print("Testing loading document without cache...")
     
-    sparql_endpoint = "https://opendata.eselpoint.cz/sparql"
+    sparql_endpoint = ESEL_SPARQL_ENDPOINT
     loader = ESELKnowledgeDocumentLoader(sparql_endpoint, base_dir="data_test/knowledge_base/esel")
     
-    # Test document ID provided by the user
-    document_id = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01"
+    document_id = DOCUMENT_ID
     
     # Ensure cache files are not present - delete them if they exist
     document_cache_dir = loader._get_document_cache_dir(document_id)
@@ -102,15 +107,15 @@ def test_load_document_without_cache():
     assert len(document.childElements) > 0, "Document should have child elements"
     print(f"✓ Document structure verification passed - found {len(document.childElements)} parts")
 
+@pytest.mark.live
 def test_load_document_from_cache():
     """Test loading a document from cache when cache file exists."""
     print("Testing loading document from cache...")
     
-    sparql_endpoint = "https://opendata.eselpoint.cz/sparql"
+    sparql_endpoint = ESEL_SPARQL_ENDPOINT
     loader = ESELKnowledgeDocumentLoader(sparql_endpoint, base_dir="data_test/knowledge_base/esel")
     
-    # Test document ID provided by the user
-    document_id = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/2001/56/2025-07-01"
+    document_id = DOCUMENT_ID
     
     # Verify cache files exist (should have been created by previous test)
     document_cache_dir = loader._get_document_cache_dir(document_id)

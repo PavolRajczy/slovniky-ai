@@ -280,11 +280,10 @@ def test_search_in_document_success():
     query = search_calls[0]
     assert query.query_text == "test query"
     assert query.max_results == 10
-    assert query.include_summaries == False
     
     # Verify results
     assert len(results) == 1
-    assert results[0].element_id == "element-doc1"
+    assert results[0].id == "element-doc1"
     
     print("✓ Search in document completed successfully")
 
@@ -334,7 +333,7 @@ def test_search_in_collection_success():
     
     # Verify results from both documents are returned
     assert len(results) == 2
-    element_ids = [r.element_id for r in results]
+    element_ids = [r.id for r in results]
     assert "element-doc1" in element_ids
     assert "element-doc2" in element_ids
     
@@ -427,75 +426,53 @@ def test_document_management_operations():
     print("✓ Document management operations work correctly")
 
 
-def test_build_index_for_existing_document():
-    """Test building index for a document that's already in the collection."""
-    print("Testing build index for existing document...")
-    
+def test_add_existing_document_again_replaces_its_index():
+    """Re-adding a document that is already in the collection reindexes it without duplicating it."""
     factory = create_mock_indexer_factory()
     service = KnowledgeBaseIndexService(indexer_factory=factory)
-    
+
     doc1 = create_test_knowledge_document("doc1")
     service.add_document(doc1)
-    
-    # Clear previous calls
-    indexer = factory.indexers[0]
-    indexer.build_index_calls.clear()
-    
-    # Build index again
-    service.build_index(doc1)
-    
-    # Verify build was called on existing indexer
-    assert len(indexer.build_index_calls) == 1
-    assert indexer.build_index_calls[0] is doc1
-    
-    print("✓ Build index for existing document works")
+    service.add_document(doc1)
+
+    assert len(factory.indexers) == 2
+    assert factory.indexers[1].build_index_calls == [doc1]
+    assert service.get_document_ids() == ["doc1"]
+
+    factory.indexers[1].search_results = create_test_search_results("element-doc1")
+    assert [element.id for element in service.search("test query")] == ["element-doc1"]
+    assert factory.indexers[0].search_calls == []
 
 
 def test_backward_compatibility_with_single_indexer():
     """Test backward compatibility when passing a single indexer to constructor."""
-    print("Testing backward compatibility with single indexer...")
-    
     mock_indexer = MockKnowledgeDocumentIndexer()
     service = KnowledgeBaseIndexService(indexer=mock_indexer)
-    
-    # Test that it works like the old interface
+
     doc1 = create_test_knowledge_document("doc1")
-    service.build_index(doc1)
-    
-    # The same indexer should be used
-    assert len(mock_indexer.build_index_calls) == 1
-    assert mock_indexer.build_index_calls[0] is doc1
-    
-    # Test search
+    service.add_document(doc1)
+
+    assert mock_indexer.build_index_calls == [doc1]
+    assert mock_indexer.store_index_calls == [doc1]
+
     mock_indexer.search_results = create_test_search_results("element-doc1")
     results = service.search("test query")
-    
+
     assert len(mock_indexer.search_calls) == 1
     assert len(results) == 1
-    
-    print("✓ Backward compatibility with single indexer works")
 
 
-def test_build_index_for_new_document():
-    """Test building index for a document that's not yet in the collection."""
-    print("Testing build index for new document...")
-    
+def test_add_new_document_makes_it_available():
+    """Adding a document that is not yet in the collection makes it available for search."""
     factory = create_mock_indexer_factory()
     service = KnowledgeBaseIndexService(indexer_factory=factory)
-    
+
     doc1 = create_test_knowledge_document("doc1")
-    service.build_index(doc1)
-    
-    # Verify new indexer was created and build was called
+    service.add_document(doc1)
+
     assert len(factory.indexers) == 1
-    indexer = factory.indexers[0]
-    assert len(indexer.build_index_calls) == 1
-    assert indexer.build_index_calls[0] is doc1
-    
-    # Document should be in collection
+    assert factory.indexers[0].build_index_calls == [doc1]
     assert service.has_document("doc1")
-    
-    print("✓ Build index for new document works")
 
 
 def test_search_with_offset():
