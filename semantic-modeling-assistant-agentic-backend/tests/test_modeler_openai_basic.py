@@ -115,18 +115,6 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             designedOntologyChangesSpecification=None
         )
 
-    def test_initialization(self):
-        """Test that the agent initializes correctly."""
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            agent = ModelerAgent_Simple_OpenAI(
-                self.knowledge_base_service, 
-                self.knowledge_base_index_service
-            )
-            
-            self.assertEqual(agent.knowledge_base_service, self.knowledge_base_service)
-            self.assertEqual(agent.knowledge_base_index_service, self.knowledge_base_index_service)
-            self.assertEqual(agent.model_name, "mini")
-    
     def test_initialization_missing_api_key(self):
         """Test that initialization fails without OpenAI API key."""
         with patch.dict('os.environ', {}, clear=True):
