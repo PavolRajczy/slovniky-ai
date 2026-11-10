@@ -326,12 +326,6 @@ export function TasksPage() {
   }
 
   const handlePrepare = (targetTaskId?: string, openReview = true) => {
-    const ok = window.confirm(
-      targetTaskId
-        ? `Prepare proposed changes for this work item? The ontology stays unchanged until you review and finalize.`
-        : `Prepare proposed changes for "${activeIteration?.name ?? ''}"? AI will generate proposals for each work item from the current finalized ontology. The ontology stays unchanged until you finalize. This may take a few minutes.`,
-    )
-    if (!ok) return
     prepareMutation.mutate({ targetTaskId, openReview })
   }
 

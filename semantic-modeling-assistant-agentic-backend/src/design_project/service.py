@@ -651,8 +651,7 @@ class DesignProjectService:
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
         is_planned = iteration is not None
         if is_planned:
-            if project.currentIteration and project.currentIteration.id != iteration_id:
-                raise ValueError("Another iteration is already being prepared.")
+            self._ensure_no_other_iteration_in_progress(project, iteration_id)
         else:
             iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
         if not iteration:
@@ -763,8 +762,7 @@ class DesignProjectService:
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
 
         if iteration:
-            if project.currentIteration and project.currentIteration.id != iteration_id:
-                raise ValueError("Another iteration is already being prepared.")
+            self._ensure_no_other_iteration_in_progress(project, iteration_id)
             project.plannedIterations.remove(iteration)
             project.currentIteration = iteration
         else:
@@ -840,6 +838,14 @@ class DesignProjectService:
             iteration.status = DesignIterationStatus.TASKS_PLANNED
             self.store.store_project(project)
             raise e
+
+    def _ensure_no_other_iteration_in_progress(self, project: DesignProject, iteration_id: str) -> None:
+        current = project.currentIteration
+        if current and current.id != iteration_id:
+            raise ValueError(
+                f"Iteration \"{current.name}\" is still in progress. "
+                f"Finalize or discard it before preparing another iteration."
+            )
 
     def _rollback_iteration_state(self, project: DesignProject, iteration: DesignIteration) -> None:
         """

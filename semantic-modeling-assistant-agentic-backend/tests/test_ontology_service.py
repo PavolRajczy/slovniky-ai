@@ -68,12 +68,12 @@ def test_ontology_service_error_handling():
         store = FilesystemOntologyStore(base_dir=temp_dir)
         service = OntologyService(store)
         
-        # Test loading non-existent ontology
-        try:
-            service.load_ontology("http://non-existent.org/ontology")
-            assert False, "Should have raised FileNotFoundError"
-        except FileNotFoundError:
-            pass  # Expected
+        # Loading an unknown URI starts a new, empty ontology for it
+        assert not service.ontology_exists("http://non-existent.org/ontology")
+        created = service.load_ontology("http://non-existent.org/ontology")
+        assert str(created.uri) == "http://non-existent.org/ontology"
+        assert len(created.classes) == 0
+        assert service.ontology_exists("http://non-existent.org/ontology")
         
         # Test invalid URI validation
         try:
