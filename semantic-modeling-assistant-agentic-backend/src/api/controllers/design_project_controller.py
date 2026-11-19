@@ -50,6 +50,7 @@ from knowledge_base.document_loaders.document_loader_local import LocalKnowledge
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
 from knowledge_base_index.service import KnowledgeBaseIndexService
 from knowledge_base_index.indexers.faiss_summary_openai_indexer import FAISSSummaryOpenAIKnowledgeDocumentIndexer
+from llm.provider import AIServiceUnavailableError
 from ontology.service import OntologyService
 from ontology.edit_operations import OntologyEditOperation, OperationType
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer_openai_simple import KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI
@@ -136,10 +137,13 @@ def _ensure_project_documents_indexed(project: DesignProject) -> None:
     1. Check if each document is already indexed
     2. If not, add it to the index (which will load from disk if available, or build new index)
     
-    This is called when loading a project to restore the index state after app restarts.
+    This is called before AI operations to restore the index state after app restarts.
     
     Args:
         project: The design project whose documents should be indexed
+
+    Raises:
+        AIServiceUnavailableError: The embedding model did not answer, so the AI operation cannot search the knowledge base.
     """
     all_documents = project.legalKnowledgeBase + project.expertKnowledgeBase
     
@@ -148,9 +152,15 @@ def _ensure_project_documents_indexed(project: DesignProject) -> None:
             try:
                 logger.info(f"Re-indexing document after restart: {doc.id}")
                 knowledge_base_index_service.add_document(doc)
+            except AIServiceUnavailableError:
+                raise
             except Exception as e:
-                # Log warning but don't fail the project load
                 logger.warning(f"Failed to index document {doc.id} for project {project.id}: {e}")
+
+
+def _ai_unavailable(error: AIServiceUnavailableError) -> HTTPException:
+    logger.error(f"AI service unavailable: {error}")
+    return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error))
 
 
 def _sync_project_to_dataspecer(project_id: str, iteration_id: Optional[str] = None) -> tuple[Optional[bool], Optional[str]]:
@@ -758,10 +768,6 @@ async def get_project(project_id: str):
     try:
         logger.info(f"Getting project: {project_id}")
         project = design_project_service.load_project(project_id)
-        
-        # Ensure all project documents are indexed (handles app restarts)
-        _ensure_project_documents_indexed(project)
-        
         return _convert_project_to_model(project)
     
     except FileNotFoundError:
@@ -1185,6 +1191,9 @@ def _add_documents_to_knowledge_base(
 
     Returns:
         int: The number of documents that were loaded.
+
+    Raises:
+        AIServiceUnavailableError: The summarizing or embedding model did not answer. No document is attached.
     """
     design_project_service.load_project(project_id)
 
@@ -1201,12 +1210,14 @@ def _add_documents_to_knowledge_base(
     for doc in new_docs:
         if doc.id in existing_ids:
             continue
-        project_documents.append(doc)
         try:
             knowledge_base_index_service.add_document(doc, progress)
             logger.info(f"Indexed document: {doc.id}")
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             logger.warning(f"Failed to index document {doc.id}: {e}")
+        project_documents.append(doc)
 
     progress.start_stage(DocumentProcessingStage.SAVING)
     design_project_service.save_project(project)
@@ -1335,6 +1346,8 @@ def add_legal_documents(project_id: str, request: AddKnowledgeDocumentsRequest):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error adding legal documents: {e}")
         raise HTTPException(
@@ -1438,6 +1451,8 @@ def add_expert_documents(project_id: str, request: AddKnowledgeDocumentsRequest)
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error adding expert documents: {e}")
         raise HTTPException(
@@ -1655,7 +1670,7 @@ async def set_key_knowledge_document(project_id: str, request: SetKeyDocumentReq
 
 
 @router.post("/projects/{project_id}/domain-areas/generate", response_model=List[KnowledgeDomainAreaModel])
-async def generate_domain_areas(project_id: str, request: GenerateDomainAreasRequest):
+def generate_domain_areas(project_id: str, request: GenerateDomainAreasRequest):
     """
     Generate domain areas using AI based on the key knowledge document.
     
@@ -1700,6 +1715,8 @@ async def generate_domain_areas(project_id: str, request: GenerateDomainAreasReq
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error generating domain areas: {e}")
         raise HTTPException(
@@ -1923,7 +1940,7 @@ async def delete_domain_area(project_id: str, area_id: str):
 
 
 @router.post("/projects/{project_id}/domain-areas/reidentify", response_model=List[KnowledgeDomainAreaModel])
-async def reidentify_domain_areas(project_id: str, request: ReidentifyDomainAreasRequest):
+def reidentify_domain_areas(project_id: str, request: ReidentifyDomainAreasRequest):
     """
     Re-identify domain areas with AI assistance.
     
@@ -1952,6 +1969,8 @@ async def reidentify_domain_areas(project_id: str, request: ReidentifyDomainArea
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found"
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error reidentifying domain areas: {e}")
         raise HTTPException(
@@ -2104,7 +2123,7 @@ async def get_iteration(project_id: str, iteration_id: str):
 
 
 @router.post("/projects/{project_id}/iterations/suggest", response_model=List[DesignIterationModel])
-async def suggest_iterations(project_id: str, request: SuggestIterationsRequest):
+def suggest_iterations(project_id: str, request: SuggestIterationsRequest):
     """
     Suggest new iterations for a domain area with AI assistance.
     
@@ -2151,6 +2170,8 @@ async def suggest_iterations(project_id: str, request: SuggestIterationsRequest)
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error suggesting iterations: {e}")
         raise HTTPException(
@@ -2423,7 +2444,7 @@ async def list_tasks(project_id: str, iteration_id: str):
 
 
 @router.post("/projects/{project_id}/iterations/{iteration_id}/tasks/plan", response_model=List[DesignTaskModel])
-async def plan_tasks(project_id: str, iteration_id: str, request: PlanTasksRequest):
+def plan_tasks(project_id: str, iteration_id: str, request: PlanTasksRequest):
     """
     Plan tasks for an iteration with AI assistance.
     
@@ -2463,6 +2484,8 @@ async def plan_tasks(project_id: str, iteration_id: str, request: PlanTasksReque
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project or iteration not found"
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error planning tasks: {e}")
         raise HTTPException(
@@ -2696,7 +2719,7 @@ async def delete_task(project_id: str, iteration_id: str, task_id: str):
 # ============================================================================
 
 @router.post("/projects/{project_id}/iterations/{iteration_id}/prepare", response_model=IterationPreparedResponse)
-async def prepare_iteration(project_id: str, iteration_id: str):
+def prepare_iteration(project_id: str, iteration_id: str):
     """
     Prepare an iteration by materializing tasks into ontology edit operations.
     
@@ -2744,6 +2767,8 @@ async def prepare_iteration(project_id: str, iteration_id: str):
             status_code=status.HTTP_409_CONFLICT,
             detail=str(e)
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error preparing iteration: {e}")
         raise HTTPException(
@@ -2753,7 +2778,7 @@ async def prepare_iteration(project_id: str, iteration_id: str):
 
 
 @router.post("/projects/{project_id}/iterations/{iteration_id}/tasks/{task_id}/prepare", response_model=IterationPreparedResponse)
-async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
+def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
     """
     Prepare one task by materializing only that task into ontology edit operations.
     """
@@ -2794,6 +2819,8 @@ async def prepare_iteration_task(project_id: str, iteration_id: str, task_id: st
             status_code=status.HTTP_409_CONFLICT,
             detail=str(e)
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Error preparing task: {e}")
         raise HTTPException(
@@ -3417,7 +3444,7 @@ async def regenerate_project_ofn_endpoint(project_id: str):
 # ============================================================================
 
 @router.post("/projects/{project_id}/ontology/generate-operations", response_model=List[OntologyOperationModel])
-async def generate_operations_from_instruction(project_id: str, request: GenerateOperationsRequest):
+def generate_operations_from_instruction(project_id: str, request: GenerateOperationsRequest):
     """
     Generate ontology edit operations from a free-form user instruction.
     Returns proposed operations for review; use apply-operations to apply them.
@@ -3447,6 +3474,8 @@ async def generate_operations_from_instruction(project_id: str, request: Generat
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Project with ID '{project_id}' not found",
         )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
     except Exception as e:
         logger.error(f"Generate operations failed: {e}")
         raise HTTPException(

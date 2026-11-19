@@ -261,6 +261,9 @@ class DesignProjectService:
         """
         Loads an existing design project by its ID.
 
+        Nearly every request loads the project, so this never calls the AI model. Summaries are
+        computed only when a document is added to the knowledge base.
+
         Args:
             project_id (str): The ID of the project to load.
 
@@ -268,8 +271,8 @@ class DesignProjectService:
             DesignProject: The loaded design project.
         """
         project = self.store.load_project(project_id)
-        legal_knowledge_base =  self.knowledge_base_service.load_legal_knowledge_documents([doc.id for doc in project.legalKnowledgeBase])
-        expert_knowledge_base = self.knowledge_base_service.load_expert_knowledge_documents([doc.id for doc in project.expertKnowledgeBase])
+        legal_knowledge_base = self.knowledge_base_service.load_legal_knowledge_documents([doc.id for doc in project.legalKnowledgeBase], summarize=False)
+        expert_knowledge_base = self.knowledge_base_service.load_expert_knowledge_documents([doc.id for doc in project.expertKnowledgeBase], summarize=False)
         self.store.set_project_knowledge(project, legal_knowledge_base, expert_knowledge_base)
         return project
 

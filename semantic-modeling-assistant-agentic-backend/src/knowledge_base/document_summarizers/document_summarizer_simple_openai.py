@@ -5,7 +5,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from agents.model_config import get_mini_model
-from llm.provider import invoke_chat
+from llm.provider import AIServiceUnavailableError, invoke_chat
 
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
@@ -57,16 +57,20 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
         Modifies the document in place and saves the updated document to its cache file.
         If only_element_id_contains is set, only root children whose id contains any of those strings (and their descendants) are summarized. Comma-separated for multiple parts.
         Reports one progress step per summarized element.
+
+        Raises:
+            AIServiceUnavailableError: The model stopped answering. Summaries computed so far are saved,
+                so the next run continues with the remaining elements.
         """
         roots = self._roots_to_summarize(document)
         progress.start_stage(DocumentProcessingStage.SUMMARIZING, total=sum(self._count_pending(root) for root in roots))
-        for root in roots:
-            self._summarize_element(root, progress)
-        
-        # Save the updated document with summaries back to the cache file
-        # Only update content part to preserve metadata
-        if document.cacheFilePath:
-            CacheManager.update_split_cache(document, update_content=True, update_metadata=False)
+        try:
+            for root in roots:
+                self._summarize_element(root, progress)
+        finally:
+            # Only update content part to preserve metadata
+            if document.cacheFilePath:
+                CacheManager.update_split_cache(document, update_content=True, update_metadata=False)
 
     def _roots_to_summarize(self, document: KnowledgeDocument) -> List[KnowledgeDocumentElement]:
         if not self._only_contains_list:
@@ -106,6 +110,8 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
         print(f"Summarizing element ID {element.id}.")
         try:
             summary = self._summarize_text(text_to_summarize)
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             print(f"Failed to summarize element {element.id}: {e}")
             summary = ""  # Leave contentSummary set so we persist progress; empty = failed

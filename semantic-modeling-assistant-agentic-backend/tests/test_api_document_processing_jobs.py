@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from api.controllers.design_project_controller import router
 from knowledge_base.domain import KnowledgeDocument
 from knowledge_base.processing_progress import DocumentProcessingStage
+from llm.provider import AIServiceUnavailableError
 
 app = FastAPI()
 app.include_router(router)
@@ -88,6 +89,22 @@ def test_legal_document_job_reports_the_processing_error(project_service, knowle
 
     assert finished["stage"] == "failed"
     assert finished["error"] == "e-Sbirka is unavailable"
+
+
+@patch(f"{CONTROLLER}.knowledge_base_index_service")
+@patch(f"{CONTROLLER}.knowledge_base_service")
+@patch(f"{CONTROLLER}.design_project_service")
+def test_legal_document_job_fails_when_the_embedding_model_does_not_answer(project_service, knowledge_service, index_service):
+    project_service.load_project.return_value = empty_project()
+    knowledge_service.load_legal_knowledge_documents.side_effect = summarize_in_three_steps
+    index_service.add_document.side_effect = AIServiceUnavailableError("nemotron-3-5-embed-8b", TimeoutError("Request timed out."))
+
+    finished = get_job(start_legal_job()["id"])
+
+    assert finished["stage"] == "failed"
+    assert "'nemotron-3-5-embed-8b' did not respond after 3 attempts" in finished["error"]
+    assert project_service.load_project.return_value.legalKnowledgeBase == []
+    project_service.save_project.assert_not_called()
 
 
 @patch(f"{CONTROLLER}.design_project_service")

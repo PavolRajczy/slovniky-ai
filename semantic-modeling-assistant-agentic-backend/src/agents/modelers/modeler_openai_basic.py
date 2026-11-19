@@ -6,7 +6,7 @@ from rdflib import URIRef
 
 from agents.iteration_scope_prompt import render_iteration_scope
 from agents.model_config import get_mini_model
-from llm.provider import parse_structured
+from llm.provider import AIServiceUnavailableError, parse_structured
 from agents.modelers.modeler import ModelerAgent
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
@@ -282,6 +282,8 @@ class ModelerAgent_Simple_OpenAI(ModelerAgent):
 
         try:
             operations_output = parse_structured(messages, EditOperationsOutput, self.model_name)
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             print(f"Error generating operations from instruction: {e}")
             return []
@@ -397,6 +399,8 @@ As a source of the domain knowledge to plan the search queries, use the summary 
                     continue
                 break
 
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise RuntimeError(f"OpenAI API call with tool loop failed: {str(e)}")
         
@@ -756,6 +760,8 @@ As a source of the domain knowledge to guide your decisions, use the domain know
                 EditOperationsOutput,
                 self.model_name,
             )
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             print(f"Error generating edit operations: {e}")
             return []

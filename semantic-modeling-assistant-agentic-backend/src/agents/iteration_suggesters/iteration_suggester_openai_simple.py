@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from agents.iteration_scope_prompt import render_scope
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.model_config import get_model
-from llm.provider import parse_structured
+from llm.provider import AIServiceUnavailableError, parse_structured
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, KnowledgeDomainArea
 from knowledge_base.service import KnowledgeBaseService
 from knowledge_base_index.service import KnowledgeBaseIndexService
@@ -177,6 +177,8 @@ Specification: Focus on spacecrafts and their space missions and refine in detai
 
         try:
             iterations_output = parse_structured(input, IterationsOutput, self.model_name)
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise RuntimeError(f"OpenAI API call failed: {str(e)}")
 
