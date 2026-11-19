@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
+from llm.provider import AIServiceUnavailableError
 from .domain import SearchQuery, SearchResult
 from .indexer import KnowledgeDocumentIndexer
 from .indexers.faiss_fulltext_openai_indexer import FAISSFullTextOpenAIKnowledgeDocumentIndexer
@@ -46,6 +47,7 @@ class KnowledgeBaseIndexService:
             progress: Receives the indexing stage.
             
         Raises:
+            AIServiceUnavailableError: The embedding model did not answer.
             Exception: If the indexing or loading process fails.
         """
         try:
@@ -64,6 +66,8 @@ class KnowledgeBaseIndexService:
             self._document_indexers[knowledge_document.id] = indexer
             self._documents[knowledge_document.id] = knowledge_document
             
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise Exception(f"Failed to add document '{knowledge_document.id}': {str(e)}") from e
 
@@ -107,6 +111,9 @@ class KnowledgeBaseIndexService:
         Args:
             query_text: The text to search for.
             relative_difference: The maximum allowed relative difference from the top relevance score (the default 0 means only the top result).
+
+        Raises:
+            AIServiceUnavailableError: The embedding model did not answer.
         """
         if not query_text or not query_text.strip():
             return []
@@ -156,6 +163,8 @@ class KnowledgeBaseIndexService:
                     for search_result in filtered_results:
                         all_filtered_results.append((search_result, document_id))
                         
+                except AIServiceUnavailableError:
+                    raise
                 except Exception as e:
                     # Log the error but continue with other documents
                     print(f"Warning: Failed to search in document '{document_id}': {str(e)}")
@@ -172,6 +181,8 @@ class KnowledgeBaseIndexService:
             
             return knowledge_elements
             
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise Exception(f"Failed to search collection with query '{query_text}' and relative_difference {relative_difference}: {str(e)}") from e
 
@@ -218,6 +229,8 @@ class KnowledgeBaseIndexService:
                     # Create tuples to track which document each result came from
                     for search_result in search_results:
                         all_results.append((search_result, document_id))
+                except AIServiceUnavailableError:
+                    raise
                 except Exception as e:
                     # Log the error but continue with other documents
                     print(f"Warning: Failed to search in document '{document_id}': {str(e)}")
@@ -238,6 +251,8 @@ class KnowledgeBaseIndexService:
                     knowledge_elements.append(element)
             
             return knowledge_elements
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise Exception(f"Failed to search collection with query '{query_text}': {str(e)}") from e
 
@@ -292,6 +307,8 @@ class KnowledgeBaseIndexService:
                     knowledge_elements.append(element)
             
             return knowledge_elements
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise Exception(f"Failed to search in document '{document_id}' with query '{query_text}': {str(e)}") from e
 

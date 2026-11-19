@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import numpy as np
 import faiss
-from llm.provider import create_embeddings, get_embedding_dimension, get_embedding_model
+from llm.provider import ai_service_call, create_embeddings, get_embedding_dimension, get_embedding_model
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 from knowledge_base_index.indexer import KnowledgeDocumentIndexer
@@ -459,8 +459,12 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
             
         Returns:
             NumPy array of embeddings
+
+        Raises:
+            AIServiceUnavailableError: The embedding model did not answer in any attempt.
         """
         if not texts:
             return np.array([]).reshape(0, self.embedding_dimension)
-        vectors = self.embeddings.embed_documents(texts)
+        with ai_service_call(self.embedding_model):
+            vectors = self.embeddings.embed_documents(texts)
         return np.array(vectors)

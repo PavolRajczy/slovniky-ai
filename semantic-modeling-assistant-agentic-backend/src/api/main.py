@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 import logging
 
 from agents.model_config import get_base_url
+from llm.provider import AIServiceUnavailableError
 from api.controllers.ontology_controller import router as ontology_router
 from api.controllers.knowledge_base_controller import router as knowledge_base_router
 from api.controllers.design_project_controller import router as design_project_router
@@ -71,6 +72,20 @@ async def validation_exception_handler(request, exc):
             "message": "Request validation failed",
             "details": exc.errors(),
             "status_code": 422
+        }
+    )
+
+
+@app.exception_handler(AIServiceUnavailableError)
+async def ai_service_unavailable_handler(request, exc):
+    """Handle an AI model that did not answer in any attempt."""
+    logger.error(f"AI service unavailable: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": True,
+            "message": str(exc),
+            "status_code": 503
         }
     )
 

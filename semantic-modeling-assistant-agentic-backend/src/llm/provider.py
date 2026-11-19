@@ -15,9 +15,11 @@ falls back to the maintained alias ``mini``.
 """
 import json
 import os
+from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, Iterator, List, Optional, Type
 
+import openai
 from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -40,6 +42,14 @@ DEFAULT_CHAT_MODEL = "mini"
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_EMBEDDING_MODEL = "qwen3-embedding-4b"
 DEFAULT_EMBEDDING_DIMENSION = 2560
+# Without a timeout a stalled endpoint blocks the caller forever and keeps one of
+# the API key's parallel-request slots busy. Structured planning prompts on a
+# reasoning model can legitimately take minutes; an embedding batch takes seconds.
+AI_REQUEST_ATTEMPTS = 3
+CHAT_REQUEST_TIMEOUT_SECONDS = 180
+EMBEDDING_REQUEST_TIMEOUT_SECONDS = 60
+# The OpenAI client retries exactly these errors and raises them once it gives up.
+_UNAVAILABLE_ERRORS = (openai.APIConnectionError, openai.RateLimitError, openai.InternalServerError)
 
 MODEL_ENV_VAR = "OPENAI_MODEL"
 MINI_MODEL_ENV_VAR = "OPENAI_MODEL_MINI"
@@ -47,6 +57,26 @@ BATCH_MODEL_ENV_VAR = "LLM_MODEL_NAME"
 BASE_URL_ENV_VAR = "OPENAI_BASE_URL"
 EMBEDDING_MODEL_ENV_VAR = "OPENAI_EMBEDDING_MODEL"
 EMBEDDING_DIMENSION_ENV_VAR = "OPENAI_EMBEDDING_DIMENSION"
+
+
+class AIServiceUnavailableError(RuntimeError):
+    """The AI endpoint did not answer a request in any of its attempts."""
+
+    def __init__(self, model_name: str, cause: Exception):
+        super().__init__(
+            f"The AI model '{model_name}' did not respond after {AI_REQUEST_ATTEMPTS} attempts "
+            f"({type(cause).__name__}: {str(cause)[:300]}). Try again later."
+        )
+        self.model_name = model_name
+
+
+@contextmanager
+def ai_service_call(model_name: str) -> Iterator[None]:
+    """Raise AIServiceUnavailableError when the OpenAI client gives up on a request."""
+    try:
+        yield
+    except _UNAVAILABLE_ERRORS as error:
+        raise AIServiceUnavailableError(model_name, error) from error
 
 
 class LLMProvider(str, Enum):
@@ -126,6 +156,8 @@ class LLMFactory:
                 "temperature": config.temperature,
                 "api_key": api_key,
                 "base_url": get_base_url(),
+                "timeout": CHAT_REQUEST_TIMEOUT_SECONDS,
+                "max_retries": AI_REQUEST_ATTEMPTS - 1,
             }
             params.update(config.extra_params)
             return ChatOpenAI(**params)
@@ -249,12 +281,16 @@ def parse_structured(messages: List[dict], schema: Type[BaseModel], model_name: 
 
     Uses tool calling, which the e-INFRA generative models advertise, and does
     not send Responses API reasoning or verbosity parameters.
+
+    Raises:
+        AIServiceUnavailableError: The model did not answer in any attempt.
     """
     structured = create_chat_model(model_name).with_structured_output(
         schema,
         method="function_calling",
     )
-    return structured.invoke(messages)
+    with ai_service_call(model_name):
+        return structured.invoke(messages)
 
 
 def invoke_chat(
@@ -263,11 +299,17 @@ def invoke_chat(
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
 ) -> str:
-    """Return the text of one chat completion."""
+    """
+    Return the text of one chat completion.
+
+    Raises:
+        AIServiceUnavailableError: The model did not answer in any attempt.
+    """
     chat = create_chat_model(model_name, temperature=temperature)
     if max_tokens is not None:
         chat = chat.bind(max_tokens=max_tokens)
-    response = chat.invoke(messages)
+    with ai_service_call(model_name):
+        response = chat.invoke(messages)
     content = response.content
     if isinstance(content, str):
         return content.strip()
@@ -285,6 +327,9 @@ def create_embeddings(model_name: Optional[str] = None) -> OpenAIEmbeddings:
 
     The vector size is not sent to the API. qwen3-embedding-4b already returns
     2560-dimensional vectors and rejects a dimensions parameter.
+
+    Wrap calls on the returned client in ai_service_call so a stalled endpoint
+    surfaces as AIServiceUnavailableError.
     """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -295,6 +340,8 @@ def create_embeddings(model_name: Optional[str] = None) -> OpenAIEmbeddings:
         model=model_name or get_embedding_model(),
         api_key=api_key,
         base_url=get_base_url(),
+        request_timeout=EMBEDDING_REQUEST_TIMEOUT_SECONDS,
+        max_retries=AI_REQUEST_ATTEMPTS - 1,
     )
 
 

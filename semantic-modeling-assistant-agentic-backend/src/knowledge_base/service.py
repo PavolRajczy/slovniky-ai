@@ -26,6 +26,9 @@ class _ReuseCachedSummaryIndex(KnowledgeDocumentSummarizer):
             return
         self.inner.summarize_document(document, progress)
 
+
+_SKIP_SUMMARIES = KnowledgeDocumentSummarizer()
+
 ESEL_OPENDATA_ORIGIN = "https://opendata.eselpoint.gov.cz"
 ESEL_SPARQL_ENDPOINT = f"{ESEL_OPENDATA_ORIGIN}/sparql"
 LEGAL_DOCUMENT_ID_PREFIX = f"{ESEL_OPENDATA_ORIGIN}/esel-esb/eli/cz/sb"
@@ -83,35 +86,39 @@ class KnowledgeBaseService:
         knowledge_documents += self.knowledge_store.load_documents(expert_knowledge_document_ids, self.expert_knowledge_document_loader, self.document_summarizer)
         return knowledge_documents
 
-    def load_legal_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS) -> List[KnowledgeDocument]:
+    def load_legal_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS, summarize: bool = True) -> List[KnowledgeDocument]:
         """
         Retrieve multiple legal knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of legal knowledge document IDs to retrieve.
             progress: Receives the loading and summarizing stages.
+            summarize: Ask the AI model for the summaries the documents are still missing.
         
         Returns:
             A list of retrieved legal knowledge documents.
         """
         canonical_ids = [canonical_legal_document_id(doc_id) for doc_id in document_ids]
-        return self.knowledge_store.load_documents(canonical_ids, self.legal_knowledge_document_loader, self.document_summarizer, progress)
+        summarizer = self.document_summarizer if summarize else _SKIP_SUMMARIES
+        return self.knowledge_store.load_documents(canonical_ids, self.legal_knowledge_document_loader, summarizer, progress)
 
-    def load_expert_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS) -> List[KnowledgeDocument]:
+    def load_expert_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS, summarize: bool = True) -> List[KnowledgeDocument]:
         """
         Retrieve multiple expert knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of expert knowledge document IDs to retrieve.
             progress: Receives the loading and summarizing stages.
+            summarize: Ask the AI model for the summaries the documents are still missing.
 
         Returns:
             A list of retrieved expert knowledge documents.
         """
+        summarizer = _ReuseCachedSummaryIndex(self.document_summarizer) if summarize else _SKIP_SUMMARIES
         return self.knowledge_store.load_documents(
             document_ids,
             self.expert_knowledge_document_loader,
-            _ReuseCachedSummaryIndex(self.document_summarizer),
+            summarizer,
             progress,
         )
 

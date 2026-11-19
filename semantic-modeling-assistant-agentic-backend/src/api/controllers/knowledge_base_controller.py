@@ -138,9 +138,9 @@ async def get_knowledge_document_outline(document_id: str):
         
         # Try to load from legal documents first, then expert documents
         try:
-            documents = knowledge_base_service.load_legal_knowledge_documents([decoded_id])
+            documents = knowledge_base_service.load_legal_knowledge_documents([decoded_id], summarize=False)
         except:
-            documents = knowledge_base_service.load_expert_knowledge_documents([decoded_id])
+            documents = knowledge_base_service.load_expert_knowledge_documents([decoded_id], summarize=False)
         
         if not documents:
             raise HTTPException(
@@ -187,9 +187,9 @@ async def get_knowledge_document(document_id: str):
         
         # Try to load from legal documents first, then expert documents
         try:
-            documents = knowledge_base_service.load_legal_knowledge_documents([decoded_id])
+            documents = knowledge_base_service.load_legal_knowledge_documents([decoded_id], summarize=False)
         except:
-            documents = knowledge_base_service.load_expert_knowledge_documents([decoded_id])
+            documents = knowledge_base_service.load_expert_knowledge_documents([decoded_id], summarize=False)
         
         if not documents:
             raise HTTPException(

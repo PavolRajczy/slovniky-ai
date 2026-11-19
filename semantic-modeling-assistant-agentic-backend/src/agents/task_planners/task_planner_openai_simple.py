@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from agents.iteration_scope_prompt import render_iteration_scope
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.model_config import get_model
-from llm.provider import parse_structured
+from llm.provider import AIServiceUnavailableError, parse_structured
 from agents.task_planners.task_planner import TaskPlannerAgent
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
 from design_project.domain import DesignIteration, DesignIterationStatus, DesignProject, DesignTask, DesignTaskStatus, KnowledgeDomainArea
@@ -262,6 +262,8 @@ As a source of the domain knowledge to plan the search queries, use the summary 
                     continue
                 break
 
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise RuntimeError(f"OpenAI API call with tool loop failed: {str(e)}")
         
@@ -379,6 +381,8 @@ As a source of the domain knowledge to guide your decisions, use the domain know
                 self.model_name,
             )
 
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             raise RuntimeError(f"OpenAI API call with tool loop failed: {str(e)}")
 
