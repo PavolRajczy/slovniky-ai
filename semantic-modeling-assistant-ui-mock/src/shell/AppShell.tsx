@@ -116,9 +116,6 @@ function Sidebar() {
           Ontology assistant
         </div>
         <div className="mt-1 text-lg font-semibold leading-tight">Design workspace</div>
-        <p className="mt-2 text-xs leading-snug text-slate-400">
-          React + FastAPI workflow for the Dataspecer-bound vocabulary assistant.
-        </p>
       </div>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
         {navItems.map((item) => {
@@ -139,9 +136,6 @@ function Sidebar() {
           )
         })}
       </nav>
-      <div className="border-t border-white/10 p-3 text-[11px] text-slate-500">
-        React · Vite · TanStack Router · Tailwind
-      </div>
     </aside>
   )
 }
