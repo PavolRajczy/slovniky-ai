@@ -305,6 +305,7 @@ As a source of the domain knowledge to guide your decisions, use the domain know
 - Never aim at data types, cardinalities, or other kinds of constraints and rules in ontology design tasks.
 - Never refer to specific parts of the provided domain knowledge base in the ontology design tasks. Insteads, specify the design task so that its specification can be used to semantically search the domain knowledge base for relevant knowledge resources.
 - Strictly output the name and specification of each ontology design task in {self.language} language.
+- Start each task name with a plain action noun that a domain expert understands (in Czech e.g. "Vymezení", "Identifikace", "Doplnění"). Avoid vague or figurative verbs such as "Objevení" or "Prozkoumání".
 </INSTRUCTIONS>
 
 <ONTOLOGY_METAMODEL>
