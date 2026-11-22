@@ -42,12 +42,12 @@ const COLUMNS: Array<{ id: DesignTaskStatus; label: string; description: string 
   {
     id: 'generating',
     label: 'Ready to review',
-    description: 'Proposed changes are ready to review. The ontology is unchanged until you finalize.',
+    description: 'Proposed changes are ready to review. The vocabulary is unchanged until you apply them.',
   },
   {
     id: 'completed',
     label: 'Applied',
-    description: 'Work items whose kept changes were written into the ontology on finalize.',
+    description: 'Work items whose kept changes were applied to the vocabulary.',
   },
 ]
 
@@ -965,7 +965,8 @@ function DirectionWorkPanel({
             </div>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            Next step: prepare one work item, review it, then finalize. The ontology updates only after finalize.
+            Next step: prepare a work item, review it, then apply the kept changes. The vocabulary updates only
+            after you apply.
           </p>
         </div>
       </div>

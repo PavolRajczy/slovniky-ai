@@ -139,10 +139,10 @@ export function OperationsReviewPage() {
 
   const [reviewById, setReviewById] = useState<Record<string, ReviewState>>({})
   const [rejectionReasonById, setRejectionReasonById] = useState<Record<string, string>>({})
-  const [rejectModalOpId, setRejectModalOpId] = useState<string | null>(null)
+  const [justRejectedId, setJustRejectedId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [savedGuidanceIds, setSavedGuidanceIds] = useState<Record<string, string>>({})
-  const [saveRejectReasonAsGuidance, setSaveRejectReasonAsGuidance] = useState(false)
+  const [guidanceOptOutIds, setGuidanceOptOutIds] = useState<Record<string, boolean>>({})
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [regenerateTargetId, setRegenerateTargetId] = useState<string | null>(null)
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all')
@@ -154,12 +154,6 @@ export function OperationsReviewPage() {
     isScopedReview && projectId && iterationId && taskId
       ? `${projectId}:${iterationId}:${taskId}`
       : null
-
-  useEffect(() => {
-    if (rejectModalOpId) {
-      setSaveRejectReasonAsGuidance(true)
-    }
-  }, [rejectModalOpId])
 
   useEffect(() => {
     setSummaryFilter('all')
@@ -295,12 +289,28 @@ export function OperationsReviewPage() {
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
 
+  const saveOptedInGuidance = async (operationIdsToSave: string[]): Promise<Record<string, string>> => {
+    const saved = { ...savedGuidanceIds }
+    for (const operationId of operationIdsToSave) {
+      const reason = rejectionReasonById[operationId]?.trim()
+      if (!reason || saved[operationId] || guidanceOptOutIds[operationId]) continue
+      const { item } = await saveGuidanceMutation.mutateAsync({ operationId, reason })
+      saved[operationId] = item.id
+    }
+    return saved
+  }
+
   const applyMutation = useMutation({
-    mutationFn: () =>
-      applyIteration(projectId!, iterationId!, {
+    mutationFn: async () => {
+      const rejectedIds = operations.filter((op) => reviewOf(op.id) === 'rejected').map((op) => op.id)
+      const savedGuidance = await saveOptedInGuidance(rejectedIds)
+      const data = await applyIteration(projectId!, iterationId!, {
         operations: approvedOperations,
-      }),
+      })
+      return { ...data, savedGuidance }
+    },
     onSuccess: async (data) => {
+      const { savedGuidance } = data
       setActionError(null)
       setFinalizeConfirmOpen(false)
       if (data.ofn_saved && projectId && data.ofn_path && data.ofn_absolute_path) {
@@ -335,7 +345,7 @@ export function OperationsReviewPage() {
           rejected: rejectedOperations.map((op) => ({
             ...toDecision(op),
             reason: rejectionReasonById[op.id]?.trim() || null,
-            saved_as_guidance: Boolean(savedGuidanceIds[op.id]),
+            saved_as_guidance: Boolean(savedGuidance[op.id]),
           })),
         }).catch(() => {
           // The ontology change already succeeded; a failed audit write must not block it.
@@ -409,10 +419,6 @@ export function OperationsReviewPage() {
     taskId,
   }
 
-  const rejectModalOp = rejectModalOpId
-    ? operations.find((op) => op.id === rejectModalOpId) ?? null
-    : null
-
   const hasOperations = operations.length > 0
   const isPrepared = operationsQuery.data?.status === 'prepared'
   const decidedCount = counts.approved + counts.rejected
@@ -442,8 +448,8 @@ export function OperationsReviewPage() {
   }
 
   const applyButtonLabel = applyMutation.isPending
-    ? 'Finalizing…'
-    : `Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
+    ? 'Applying…'
+    : `Apply ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}`
 
   const applyButtonTitle = !isPrepared
     ? 'Direction is not ready for review yet.'
@@ -451,7 +457,7 @@ export function OperationsReviewPage() {
       ? 'Keep at least one change first.'
       : isScopedReview && counts.pending > 0
         ? `Decide ${counts.pending} pending change${counts.pending === 1 ? '' : 's'} first.`
-        : 'Finalize the kept changes. The ontology is updated only after this step.'
+        : 'Apply the kept changes. The vocabulary is updated only after this step.'
 
   const handleApplyClick = () => {
     if (isScopedReview && !canFinalize) return
@@ -546,12 +552,12 @@ export function OperationsReviewPage() {
       {!isScopedReview ? (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
           This is the full prepared set. For less context at once, go back to prepare changes and review one
-          work item at a time. Finalize writes only kept changes into the ontology.
+          work item at a time. Only kept changes are applied to the vocabulary.
         </p>
       ) : (
         <p className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900">
-          Decide each change once. Finalize writes kept changes into the ontology; until then the ontology
-          stays unchanged. Rejected changes stay out.
+          Decide each change once. The vocabulary stays unchanged until you apply the kept changes. Rejected
+          changes stay out.
         </p>
       )}
 
@@ -573,8 +579,8 @@ export function OperationsReviewPage() {
               </h2>
               <p className="mt-1 text-sm text-slate-600">
                 {isScopedReview
-                  ? 'The AI proposed these ontology changes for the selected work item. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'
-                  : 'The AI proposed these ontology changes for the selected direction. Keep what should be applied, reject anything wrong, then finalize. The ontology is updated only when you finalize.'}
+                  ? 'The AI proposed these changes for the selected work item. Keep what is correct, reject anything wrong, then apply the kept changes.'
+                  : 'The AI proposed these changes for the selected direction. Keep what is correct, reject anything wrong, then apply the kept changes.'}
               </p>
             </div>
             {hasOperations ? (
@@ -684,10 +690,19 @@ export function OperationsReviewPage() {
                         ) : op.description ? (
                           <p className="mt-2 text-xs text-slate-700">{op.description}</p>
                         ) : null}
-                        {state === 'rejected' && rejectionReason ? (
-                          <p className="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] leading-5 text-rose-900">
-                            <span className="font-medium">Rejection reason:</span> {rejectionReason}
-                          </p>
+                        {state === 'rejected' ? (
+                          <RejectionReasonEditor
+                            reason={rejectionReasonById[op.id] ?? ''}
+                            onReasonChange={(value) =>
+                              setRejectionReasonById((prev) => ({ ...prev, [op.id]: value }))
+                            }
+                            saveAsGuidance={Boolean(rejectionReason) && !guidanceOptOutIds[op.id]}
+                            onSaveAsGuidanceChange={(checked) =>
+                              setGuidanceOptOutIds((prev) => ({ ...prev, [op.id]: !checked }))
+                            }
+                            guidanceAlreadySaved={Boolean(savedGuidanceIds[op.id])}
+                            autoFocus={justRejectedId === op.id}
+                          />
                         ) : null}
                         <OperationUpdateDiff
                           operation={op}
@@ -735,7 +750,10 @@ export function OperationsReviewPage() {
                             <button
                               type="button"
                               className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
-                              onClick={() => setRejectModalOpId(op.id)}
+                              onClick={() => {
+                                setReview(op.id, 'rejected')
+                                setJustRejectedId(op.id)
+                              }}
                             >
                               Reject this change
                             </button>
@@ -816,7 +834,7 @@ export function OperationsReviewPage() {
           <div className="flex flex-col gap-2">
             {isScopedReview && counts.pending > 0 ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                Decide {counts.pending} pending change{counts.pending === 1 ? '' : 's'} before finalizing.
+                Decide {counts.pending} pending change{counts.pending === 1 ? '' : 's'} before applying.
               </p>
             ) : null}
             <button
@@ -854,43 +872,12 @@ export function OperationsReviewPage() {
       {finalizeConfirmOpen ? (
         <ConfirmDialog
           tone="primary"
-          title={`Finalize ${approvedOperations.length} kept change${approvedOperations.length === 1 ? '' : 's'}?`}
-          description="Kept changes are written into the project ontology and the project OFN file is regenerated (overwrites data/projects/{id}/ofn.json if it already exists). Until you confirm, the ontology stays unchanged. Pending changes are not applied."
-          confirmLabel="Finalize & save OFN"
+          title={`Apply ${approvedOperations.length} change${approvedOperations.length === 1 ? '' : 's'} to the vocabulary?`}
+          description="Kept changes are written to the vocabulary. The linked Dataspecer vocabulary and the OFN export are updated automatically. Rejected changes are left out."
+          confirmLabel="Apply changes"
           isConfirmPending={applyMutation.isPending}
           onConfirm={() => applyMutation.mutate()}
           onCancel={() => setFinalizeConfirmOpen(false)}
-        />
-      ) : null}
-
-      {rejectModalOp ? (
-        <RejectModal
-          operation={rejectModalOp}
-          rejectionReason={rejectionReasonById[rejectModalOp.id] ?? ''}
-          onReasonChange={(value) =>
-            setRejectionReasonById((prev) => ({ ...prev, [rejectModalOp.id]: value }))
-          }
-          saveAsGuidance={saveRejectReasonAsGuidance}
-          onSaveAsGuidanceChange={setSaveRejectReasonAsGuidance}
-          guidanceAlreadySaved={Boolean(savedGuidanceIds[rejectModalOp.id])}
-          isConfirmPending={saveGuidanceMutation.isPending}
-          onConfirmReject={async () => {
-            const reason = rejectionReasonById[rejectModalOp.id]?.trim()
-            try {
-              if (
-                saveRejectReasonAsGuidance &&
-                reason &&
-                !savedGuidanceIds[rejectModalOp.id]
-              ) {
-                await saveGuidanceMutation.mutateAsync({ operationId: rejectModalOp.id, reason })
-              }
-              setReview(rejectModalOp.id, 'rejected')
-              setRejectModalOpId(null)
-            } catch {
-              // saveGuidanceMutation.onError surfaces the message.
-            }
-          }}
-          onCancel={() => setRejectModalOpId(null)}
         />
       ) : null}
     </div>
@@ -934,109 +921,55 @@ function DiffBlock({ title, added, updated, deleted }: DiffBlockProps) {
   )
 }
 
-type RejectModalProps = {
-  operation: OntologyOperationModel
-  rejectionReason: string
+type RejectionReasonEditorProps = {
+  reason: string
   onReasonChange: (value: string) => void
   saveAsGuidance: boolean
   onSaveAsGuidanceChange: (value: boolean) => void
   guidanceAlreadySaved: boolean
-  isConfirmPending: boolean
-  onConfirmReject: () => void | Promise<void>
-  onCancel: () => void
+  autoFocus: boolean
 }
 
-function RejectModal({
-  operation,
-  rejectionReason,
+function RejectionReasonEditor({
+  reason,
   onReasonChange,
   saveAsGuidance,
   onSaveAsGuidanceChange,
   guidanceAlreadySaved,
-  isConfirmPending,
-  onConfirmReject,
-  onCancel,
-}: RejectModalProps) {
-  const hasReason = rejectionReason.trim().length > 0
+  autoFocus,
+}: RejectionReasonEditorProps) {
+  const hasReason = reason.trim().length > 0
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-      role="dialog"
-      aria-modal="true"
-    >
-      <button
-        type="button"
-        className="absolute inset-0 bg-slate-900/40"
-        aria-label="Close rejection dialog"
-        onClick={onCancel}
+    <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+      <label className="block text-[11px] font-medium uppercase tracking-wide text-rose-900/80">
+        Why is it wrong? <span className="normal-case tracking-normal text-rose-900/60">(optional)</span>
+      </label>
+      <textarea
+        value={reason}
+        onChange={(event) => onReasonChange(event.target.value)}
+        rows={2}
+        autoFocus={autoFocus}
+        placeholder='e.g. "The act does not define this concept" or "This should be an attribute, not a class."'
+        className="mt-1 w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400"
       />
-      <div className="relative z-10 m-4 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Reject change</p>
-          <p className="mt-2 text-sm font-medium text-slate-900">{operation.label ?? operation.uri}</p>
-          <p className="mt-0.5 break-all font-mono text-[11px] text-slate-500">{operation.uri}</p>
-          {operation.definition ? (
-            <p className="mt-2 text-xs text-slate-700">{operation.definition}</p>
-          ) : operation.description ? (
-            <p className="mt-2 text-xs text-slate-700">{operation.description}</p>
-          ) : null}
-        </div>
-
-        <div className="mt-4 border-t border-rose-200/80 pt-4">
-          <label className="block text-[11px] font-medium uppercase tracking-wide text-rose-900/80">
-            Rejection reason
-          </label>
-          <textarea
-            value={rejectionReason}
-            onChange={(event) => onReasonChange(event.target.value)}
-            rows={3}
-            placeholder='e.g. "Class name should be singular according to methodology."'
-            className="mt-1 w-full rounded-lg border border-rose-200 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400"
-          />
-          <label className="mt-3 flex items-start gap-2">
-            <input
-              type="checkbox"
-              checked={saveAsGuidance || guidanceAlreadySaved}
-              disabled={!hasReason || guidanceAlreadySaved || isConfirmPending}
-              onChange={(event) => onSaveAsGuidanceChange(event.target.checked)}
-              className="mt-0.5 rounded border-rose-300 text-rose-700 focus:ring-rose-500"
-            />
-            <span className="text-[11px] leading-5 text-slate-700">
-              Save reason as project guidance for future work
-              {guidanceAlreadySaved ? (
-                <span className="mt-0.5 block text-slate-500">Already saved to guidance.</span>
-              ) : null}
-            </span>
-          </label>
-          <p className="mt-2 text-[11px] leading-5 text-slate-600">
-            This reason will be used as extra context when you regenerate this change.
-          </p>
-          <p className="mt-2 text-[11px] leading-5 text-rose-900/80">
-            Rejected changes stay visible in the list but are excluded when you apply kept changes. Use
-            Regenerate if you want the assistant to try again.
-          </p>
-        </div>
-
-        <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            onClick={onCancel}
-            disabled={isConfirmPending}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-rose-800 disabled:opacity-60"
-            onClick={() => void onConfirmReject()}
-            disabled={isConfirmPending}
-          >
-            {isConfirmPending ? 'Saving…' : 'Mark rejected'}
-          </button>
-        </div>
-      </div>
+      <label className="mt-2 flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={saveAsGuidance || guidanceAlreadySaved}
+          disabled={!hasReason || guidanceAlreadySaved}
+          onChange={(event) => onSaveAsGuidanceChange(event.target.checked)}
+          className="mt-0.5 rounded border-rose-300 text-rose-700 focus:ring-rose-500"
+        />
+        <span className="text-[11px] leading-5 text-slate-700">
+          Save reason as project guidance for future work
+          {guidanceAlreadySaved ? (
+            <span className="ml-1 text-slate-500">(already saved)</span>
+          ) : (
+            <span className="block text-slate-500">Saved when you apply the kept changes or regenerate.</span>
+          )}
+        </span>
+      </label>
     </div>
   )
 }
@@ -1069,7 +1002,7 @@ function ReviewDecisionProgress({
             · {pendingCount} still pending
           </>
         ) : (
-          <> · ready to finalize</>
+          <> · ready to apply</>
         )}
       </p>
     </div>

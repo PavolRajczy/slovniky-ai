@@ -75,7 +75,7 @@ export function DataspecerSyncNotice({ projectId, linked, showWithoutFeedback = 
 
 function describe(feedback: DataspecerSyncFeedback | null, pending: boolean): string {
   if (pending) return 'Sending the current ontology to Dataspecer…'
-  if (!feedback) return 'Each finalize updates the linked Dataspecer vocabulary with the current ontology.'
+  if (!feedback) return 'Each time you apply changes, the linked Dataspecer vocabulary is updated.'
   if (feedback.synced) return 'The linked Dataspecer vocabulary is up to date with the current ontology.'
   return 'The ontology changes were saved, but the linked Dataspecer vocabulary could not be updated.'
 }

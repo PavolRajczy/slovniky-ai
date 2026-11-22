@@ -26,9 +26,9 @@ const toneStyles = {
     pendingLabel: 'Confirming…',
   },
   primary: {
-    header: 'Confirm finalization',
+    header: 'Apply changes',
     confirmButton: 'bg-emerald-600 hover:bg-emerald-700',
-    pendingLabel: 'Finalizing…',
+    pendingLabel: 'Applying…',
   },
 } as const
 
