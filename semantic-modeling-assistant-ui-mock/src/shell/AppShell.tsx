@@ -3,11 +3,12 @@ import { useMemo } from 'react'
 import { BackendStatusPill } from '@/components/BackendStatusPill'
 import { CurrentProjectProvider, useCurrentProjectContext } from '@/shell/CurrentProjectProvider'
 
-const modelingPaths = ['/domain-areas', '/iterations-v2', '/tasks', '/operations', '/export-result']
+const modelingPaths = ['/domain-areas', '/iterations-v2', '/tasks', '/operations']
 
 const navItems = [
   { to: '/project', label: 'Project setup', activePaths: ['/project'] },
   { to: '/domain-areas', label: 'Modeling', activePaths: modelingPaths },
+  { to: '/export-result', label: 'Result', activePaths: ['/export-result'] },
   { to: '/guidance', label: 'Guidance', activePaths: ['/guidance'] },
   { to: '/activity', label: 'Activity', activePaths: ['/activity'] },
 ] as const
@@ -124,7 +125,23 @@ function Sidebar() {
             <Link
               key={item.to}
               to={item.to}
-              search={item.to === '/domain-areas' ? { projectId, packageIri: undefined } : search}
+              search={
+                item.to === '/domain-areas'
+                  ? { projectId, packageIri: undefined }
+                  : item.to === '/export-result'
+                    ? {
+                        projectId,
+                        domainId: undefined,
+                        iterationId: undefined,
+                        taskId: undefined,
+                        approved: undefined,
+                        pending: undefined,
+                        rejected: undefined,
+                        regenerated: undefined,
+                        guidanceUpdated: undefined,
+                      }
+                    : search
+              }
               className={
                 active
                   ? 'rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white'
