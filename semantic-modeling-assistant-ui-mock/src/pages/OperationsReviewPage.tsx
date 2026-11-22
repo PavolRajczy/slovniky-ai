@@ -1,10 +1,7 @@
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  WorkflowContextCapsule,
-  resolveWorkflowContext,
-} from '@/components/workflow'
+import { WorkflowContextCapsule } from '@/components/workflow'
 import { ApiError } from '@/api/client'
 import { PageBackLink } from '@/components/PageBackLink'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -67,14 +64,7 @@ type ReviewState = 'pending' | 'approved' | 'rejected'
 type SummaryFilter = ReviewState | 'all'
 
 export function OperationsReviewPage() {
-  const search = operationsRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext({
-    projectId: search.projectId,
-    domainId: search.domainId,
-    iterationId: search.iterationId,
-    taskId: search.taskId,
-  })
-  const { projectId, iterationId, domainId, taskId } = search
+  const { projectId, iterationId, domainId, taskId } = operationsRouteApi.useSearch()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -481,7 +471,7 @@ export function OperationsReviewPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageBackLink to="/tasks" search={tasksSearch} label="prepare changes" />
-      <WorkflowContextCapsule linkContext={linkContext} />
+      <WorkflowContextCapsule projectId={projectId} domainId={domainId} iterationId={iterationId} taskId={taskId} />
 
       {isScopedReview ? (
         <section className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-950">
