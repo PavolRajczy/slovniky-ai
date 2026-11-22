@@ -11,7 +11,7 @@ import {
   startLegalDocumentJob,
 } from '@/api/knowledgeBase'
 import { getProject } from '@/api/projects'
-import type { KnowledgeDocumentSummary } from '@/api/types'
+import type { KnowledgeBaseResponse, KnowledgeDocumentSummary, ProjectModel } from '@/api/types'
 import { DocumentProcessingProgress } from '@/components/DocumentProcessingProgress'
 import { useTrackedDocumentProcessingJob } from '@/hooks/useDocumentProcessingJob'
 
@@ -52,9 +52,22 @@ export function KnowledgeBaseSection({ projectId }: Props) {
   const [expertError, setExpertError] = useState<string | null>(null)
   const [keyError, setKeyError] = useState<string | null>(null)
 
+  const ensureMainSource = async (kind: 'legal' | 'expert', preferredId?: string) => {
+    const project = queryClient.getQueryData<ProjectModel>(['project', projectId])
+    const kb = queryClient.getQueryData<KnowledgeBaseResponse>(['project-kb', projectId])
+    if (!project || !kb || project.key_knowledge_document_id) return
+    const documents = kind === 'legal' ? kb.legal_documents : kb.expert_documents
+    const target = documents.find((doc) => doc.id === preferredId) ?? documents[documents.length - 1]
+    if (target) {
+      setKeyMutation.mutate(target.id)
+    }
+  }
+
   const legalJob = useTrackedDocumentProcessingJob(projectId, async () => {
+    const addedId = addLegalMutation.variables
     setLegalUrl('')
     await invalidateKb()
+    await ensureMainSource('legal', addedId)
   })
 
   const expertJob = useTrackedDocumentProcessingJob(projectId, async () => {
@@ -63,6 +76,7 @@ export function KnowledgeBaseSection({ projectId }: Props) {
       expertFileInputRef.current.value = ''
     }
     await invalidateKb()
+    await ensureMainSource('expert')
   })
 
   const addLegalMutation = useMutation({
@@ -92,10 +106,11 @@ export function KnowledgeBaseSection({ projectId }: Props) {
   const addExpertMutation = useMutation({
     mutationFn: (documentId: string) =>
       addExpertDocuments(projectId, { document_ids: [documentId] }),
-    onSuccess: async () => {
+    onSuccess: async (_data, documentId) => {
       setExpertError(null)
       setExpertId('')
       await invalidateKb()
+      await ensureMainSource('expert', documentId)
     },
     onError: (error: unknown) => setExpertError(toErrorMessage(error)),
   })
@@ -167,8 +182,12 @@ export function KnowledgeBaseSection({ projectId }: Props) {
       </div>
       <p className="mt-1 text-sm text-slate-600">
         Attach a legal act or another structured document. Each document is loaded, summarized and
-        indexed by the backend. Use <strong>Set as key</strong> on the document that defines the domain,
-        including a PDF whose headings are the structure.
+        indexed by the backend.
+      </p>
+      <p className="mt-1 text-sm text-slate-600">
+        The <strong>main source</strong> is the document the assistant splits into sections on the domain map.
+        The first document you add becomes the main source automatically; use{' '}
+        <strong>Use as main source</strong> to pick a different one.
       </p>
 
       {kbQuery.isError ? (
@@ -276,7 +295,7 @@ export function KnowledgeBaseSection({ projectId }: Props) {
               <h4 className="text-sm font-semibold text-slate-900">Other documents</h4>
               <p className="mt-1 text-xs text-slate-600">
                 Upload a structured PDF or DOCX that is not a statute. Headings become sections. After it is
-                summarized, <strong>Set as key</strong> makes it the source for domain-area analysis.
+                summarized, <strong>Use as main source</strong> makes it the source for the domain map.
               </p>
             </div>
           </div>
@@ -369,15 +388,15 @@ export function KnowledgeBaseSection({ projectId }: Props) {
 
       <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h4 className="text-sm font-semibold text-slate-900">Key document</h4>
+          <h4 className="text-sm font-semibold text-slate-900">Main source</h4>
           {keyError ? (
             <span className="text-xs font-medium text-rose-700">{keyError}</span>
           ) : null}
         </div>
         {keyDocumentId ? (
           <div className="mt-2 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm">
-            <div className="font-medium text-slate-900">
-              {keyDocumentSummary?.title || keyDocumentId}
+            <div className="break-all font-medium text-slate-900">
+              {keyDocumentSummary ? documentDisplayTitle(keyDocumentSummary) : keyDocumentId}
             </div>
             <div className="mt-0.5 break-all font-mono text-[11px] text-slate-500">{keyDocumentId}</div>
             {keyDocumentSummary?.content_summary ? (
@@ -386,8 +405,8 @@ export function KnowledgeBaseSection({ projectId }: Props) {
           </div>
         ) : (
           <p className="mt-2 text-xs text-slate-600">
-            No key document set. Use <em>Set as key</em> on a legal act or an uploaded document. That document
-            becomes the primary source for domain-area analysis.
+            No main source yet. Add a legal act or upload a document above; the first one becomes the main
+            source for the domain map.
           </p>
         )}
       </div>
@@ -406,54 +425,63 @@ type DocumentRowProps = {
 function DocumentRow({ doc, isKey, isBusy, onSetKey, onRemove }: DocumentRowProps) {
   return (
     <li className="space-y-1 px-3 py-2 text-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium text-slate-800">{doc.title || doc.id}</span>
-            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
-              indexed
+      <div className="min-w-0">
+        <div className="break-all font-medium text-slate-800">{documentDisplayTitle(doc)}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+            indexed
+          </span>
+          {isKey ? (
+            <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900">
+              main source
             </span>
-            {isKey ? (
-              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900">
-                key document
-              </span>
-            ) : null}
-            {doc.element_type ? (
-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                {doc.element_type}
-              </span>
-            ) : null}
-          </div>
-          <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500" title={doc.id}>
-            {doc.id}
-          </div>
-          {doc.content_summary ? (
-            <p className="mt-1 text-xs text-slate-600 line-clamp-2">{doc.content_summary}</p>
+          ) : null}
+          {doc.element_type ? (
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+              {doc.element_type}
+            </span>
           ) : null}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {!isKey ? (
-            <button
-              type="button"
-              onClick={onSetKey}
-              disabled={isBusy}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              Set as key
-            </button>
-          ) : null}
+        <div className="mt-0.5 truncate font-mono text-[11px] text-slate-500" title={doc.id}>
+          {doc.id}
+        </div>
+        {doc.content_summary ? (
+          <p className="mt-1 text-xs text-slate-600 line-clamp-2">{doc.content_summary}</p>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap justify-end gap-2 pt-1">
+        {!isKey ? (
           <button
             type="button"
-            onClick={onRemove}
+            onClick={onSetKey}
             disabled={isBusy}
-            className="rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+            title="Make this the document the assistant splits into sections on the domain map."
+            className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
-            Remove
+            Use as main source
           </button>
-        </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={isBusy}
+          className="rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+        >
+          Remove
+        </button>
       </div>
     </li>
   )
+}
+
+const ELI_ACT_PATTERN = /\/eli\/cz\/sb\/(\d{4})\/(\d+)(?:\/|$)/
+
+function documentDisplayTitle(doc: KnowledgeDocumentSummary): string {
+  const title = doc.title?.trim()
+  if (title && title !== doc.id) return title
+  const eli = ELI_ACT_PATTERN.exec(doc.id)
+  if (eli) return `Act ${eli[2]}/${eli[1]} Sb.`
+  return title || doc.id
 }
 
 function processingButtonLabel(isStarting: boolean, isProcessing: boolean, idleLabel: string): string {

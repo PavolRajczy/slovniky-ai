@@ -279,8 +279,8 @@ export function DomainAreasPage() {
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">AI suggestions</h3>
         {!hasKeyDoc ? (
           <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            No key document is set on this project. The domain map needs a key document -
-            set one on the{' '}
+            This project has no main source yet. The domain map is built from the main source document -
+            add one on the{' '}
             <Link to="/project" search={{ projectId, packageIri: undefined }} className="font-medium underline">
               project page
             </Link>
@@ -294,7 +294,7 @@ export function DomainAreasPage() {
               {areas.length === 0 ? 'Suggest domain map' : 'Regenerate domain map'}
             </h4>
             <p className="mt-1 text-xs text-slate-600">
-              AI analyzes the key document and proposes understandable topic sections. Optional steering
+              AI analyzes the main source document and proposes understandable topic sections. Optional steering
               instruction below.
             </p>
             <textarea
