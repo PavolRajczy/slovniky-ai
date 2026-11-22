@@ -75,7 +75,8 @@ from api.models import (
     ProjectGuidanceListResponse,
     ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
     GenerateOperationsRequest, ApplyProjectOperationsRequest, DataspecerSyncResponse,
-    DocumentProcessingJobModel,
+    DocumentProcessingJobModel, RegenerateOperationRequest, RegenerateOperationResponse,
+    SkippedOperationModel,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -3181,11 +3182,18 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
         # same cached project object, so the name must be read before that call.
         iteration_name = project.currentIteration.name or iteration_id
 
-        # Apply the operations
-        updated_ontology = design_project_service.apply_current_iteration_changes(
+        applied = design_project_service.apply_current_iteration_changes_with_report(
             project_id=project_id,
             operations=operations
         )
+        updated_ontology = applied.ontology
+        if applied.skipped:
+            logger.warning(
+                "Skipped %s of %s operations while applying iteration %s",
+                len(applied.skipped),
+                len(operations),
+                iteration_id,
+            )
 
         ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
         logger.info(
@@ -3198,10 +3206,11 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
             project_id=project_id,
             type=ProjectActivityEventType.ITERATION_APPLIED,
             actor=ProjectActivityActor.USER,
-            summary=f"Applied {len(operations)} operation(s) to the ontology",
+            summary=f"Applied {applied.applied_count} operation(s) to the ontology",
             iteration_id=iteration_id,
             detail={
-                "operationCount": len(operations),
+                "operationCount": applied.applied_count,
+                "skippedOperationCount": len(applied.skipped),
                 "iterationName": iteration_name,
                 "clientModifiedOperations": request.operations is not None,
             },
@@ -3229,7 +3238,16 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
             success=True,
             iteration_id=iteration_id,
             status=iteration_status,
-            applied_operations_count=len(operations),
+            applied_operations_count=applied.applied_count,
+            skipped_operations=[
+                SkippedOperationModel(
+                    operation_id=skipped.operation_id,
+                    label=skipped.label,
+                    uri=skipped.uri,
+                    reason=skipped.reason,
+                )
+                for skipped in applied.skipped
+            ],
             ontology_changes=stats,
             updated_ontology=_convert_ontology_to_model(updated_ontology),
             ofn_saved=True,

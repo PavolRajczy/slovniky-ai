@@ -127,6 +127,21 @@ class IdentifiedOperation:
     created_from_task_id: Optional[str]             # ID of the task that generated this operation (for traceability)
 
 @dataclass
+class SkippedOperation:
+    """A kept operation that could not be applied to the ontology."""
+    operation_id: str
+    label: Optional[str]
+    uri: str
+    reason: str
+
+@dataclass
+class AppliedIterationChanges:
+    """Result of applying kept operations: the updated ontology and what could not be applied."""
+    ontology: Ontology
+    applied_count: int
+    skipped: List[SkippedOperation]
+
+@dataclass
 class DesignProject:
     # A design project represents the whole project of designing a domain ontology.
     id: str                                                 # A globally unique identifier of the design project.

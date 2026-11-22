@@ -24,6 +24,7 @@ import {
   buildOperationFieldChanges,
   type OperationFieldChange,
 } from '@/utils/operationUpdateDiff'
+import { findMissingClasses } from '@/utils/operationDependencies'
 import {
   clearReviewDraft,
   loadReviewDraft,
@@ -328,7 +329,11 @@ export function OperationsReviewPage() {
       if (projectId) {
         saveApplySuccessFeedback({
           projectId,
-          appliedCount: approvedOperations.length,
+          appliedCount: data.applied_operations_count,
+          skipped: (data.skipped_operations ?? []).map((skipped) => ({
+            label: skipped.label ?? skipped.uri,
+            reason: skipped.reason,
+          })),
           rejectedCount: rejectedOperations.length,
           taskName: activeTask?.name ?? null,
           ofnSaved: Boolean(data.ofn_saved),
@@ -449,6 +454,14 @@ export function OperationsReviewPage() {
       setActionError(toErrorMessage(error))
     }
   }
+
+  const missingClassesById = new Map(
+    approvedOperations.map((op) => [
+      op.id,
+      findMissingClasses(op, ontologyQuery.data, approvedOperations, operations),
+    ]),
+  )
+  const blockedKeptCount = [...missingClassesById.values()].filter((missing) => missing.length > 0).length
 
   const applyButtonLabel = applyMutation.isPending
     ? 'Applying…'
@@ -644,6 +657,7 @@ export function OperationsReviewPage() {
                 const refs = op.specification_references ?? op.references ?? []
                 const rejectionReason = rejectionReasonById[op.id]?.trim()
                 const updateChanges = buildOperationFieldChanges(ontologyQuery.data, op)
+                const missingClasses = missingClassesById.get(op.id) ?? []
                 return (
                   <li
                     key={op.id}
@@ -706,6 +720,17 @@ export function OperationsReviewPage() {
                             guidanceAlreadySaved={Boolean(savedGuidanceIds[op.id])}
                             autoFocus={justRejectedId === op.id}
                           />
+                        ) : null}
+                        {missingClasses.length > 0 ? (
+                          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] leading-5 text-amber-950">
+                            Needs the class{missingClasses.length === 1 ? '' : 'es'}{' '}
+                            <span className="font-semibold">
+                              {missingClasses.map((cls) => cls.label).join(', ')}
+                            </span>
+                            , which {missingClasses.length === 1 ? 'is' : 'are'} not in the vocabulary yet. Keep the
+                            change that creates {missingClasses.length === 1 ? 'it' : 'them'}, otherwise this change
+                            cannot be applied.
+                          </p>
                         ) : null}
                         <OperationUpdateDiff
                           operation={op}
@@ -838,6 +863,13 @@ export function OperationsReviewPage() {
             {isScopedReview && counts.pending > 0 ? (
               <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 Decide {counts.pending} pending change{counts.pending === 1 ? '' : 's'} before applying.
+              </p>
+            ) : null}
+            {blockedKeptCount > 0 ? (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                {blockedKeptCount} kept change{blockedKeptCount === 1 ? ' needs a class' : 's need classes'} that{' '}
+                {blockedKeptCount === 1 ? 'is' : 'are'} not kept. {blockedKeptCount === 1 ? 'It' : 'They'} will be
+                skipped unless you keep the class too.
               </p>
             ) : null}
             <button

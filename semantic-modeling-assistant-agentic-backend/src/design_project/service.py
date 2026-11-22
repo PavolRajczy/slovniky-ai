@@ -10,8 +10,9 @@ from agents.modelers.modeler import ModelerAgent
 from agents.task_planners.task_planner import TaskPlannerAgent
 
 from design_project.dataspecer_link import DataspecerLinkError, import_vocabulary, push_vocabulary
-from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskPattern, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus
+from design_project.domain import AppliedIterationChanges, DesignIteration, DesignProject, DesignTask, DesignTaskPattern, IdentifiedOperation, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus, SkippedOperation
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
+from design_project.operation_dependencies import class_creates_first, with_missing_referenced_classes
 from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.store import DesignProjectStore
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
@@ -729,7 +730,8 @@ class DesignProjectService:
                     # on the iteration for the modeler to treat as pending, not applied.
                     current_ontology = copy.deepcopy(project.designedOntology)
                     edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task, project_guidance_text=project_guidance)
-                    
+                    edit_operations = with_missing_referenced_classes(project.designedOntology, edit_operations, all_operations)
+
                     # Wrap each operation with identity
                     for operation in edit_operations:
                         identified_op = IdentifiedOperation(
@@ -839,6 +841,9 @@ class DesignProjectService:
                 task,
                 project_guidance_text=project_guidance,
             )
+            edit_operations = with_missing_referenced_classes(
+                project.designedOntology, edit_operations, iteration.plannedOperations or []
+            )
 
             identified_operations = [
                 IdentifiedOperation(
@@ -941,7 +946,11 @@ class DesignProjectService:
             operations (List[OntologyEditOperation]): The operations to apply.
             project (DesignProject, optional): The project for processing references. If None, references are not processed.
 
+        Returns:
+            Dict[int, str]: Index and reason of each operation that could not be applied. An element
+            that already exists is the desired state, so such a create is not reported.
         """
+        skipped: Dict[int, str] = {}
         for i, op in enumerate(operations):
             print(f"  Applying operation {i+1}/{len(operations)}: {type(op).__name__} ...")
             try:
@@ -953,16 +962,21 @@ class DesignProjectService:
                 
             except CreatedElementExistsError as e:
                 print(f"  Warning: {e}. Skipping operation.")
-            except UpdatedElementNotExistsError as e:
+            except (UpdatedElementNotExistsError, DeletedElementNotExistsError, ReferrencedElementNotExistsError) as e:
                 print(f"  Warning: {e}. Skipping operation.")
-            except DeletedElementNotExistsError as e:
-                print(f"  Warning: {e}. Skipping operation.")
-            except ReferrencedElementNotExistsError as e:
-                print(f"  Warning: {e}. Skipping operation.")
+                skipped[i] = str(e)
             print(f"  ... processed operation {i+1}")
+        return skipped
+
+    def apply_current_iteration_changes(self, project_id: str, operations=None) -> Ontology:
+        """
+        Applies the provided ontology edit operations and returns the updated ontology.
+        See apply_current_iteration_changes_with_report.
+        """
+        return self.apply_current_iteration_changes_with_report(project_id, operations).ontology
 
     @_locked_by_project
-    def apply_current_iteration_changes(self, project_id: str, operations=None):
+    def apply_current_iteration_changes_with_report(self, project_id: str, operations=None) -> AppliedIterationChanges:
         """
         Applies the provided ontology edit operations to the current iteration.
         The current iteration must be in OPERATIONS_GENERATED status.
@@ -973,7 +987,7 @@ class DesignProjectService:
             operations: Optional list of IdentifiedOperations. If None, uses persisted operations.
         
         Returns:
-            Ontology: The updated ontology.
+            AppliedIterationChanges: The updated ontology and the operations that could not be applied.
         """
         project = self.store.load_project(project_id)
         iteration = project.currentIteration
@@ -989,7 +1003,8 @@ class DesignProjectService:
             if iteration.plannedOperations is None:
                 raise ValueError("No operations available to apply")
             ops_to_apply = iteration.plannedOperations
-        
+        ops_to_apply = class_creates_first(list(ops_to_apply))
+
         # Extract the actual operations from the wrappers
         actual_operations = [identified_op.operation for identified_op in ops_to_apply]
 
@@ -1005,8 +1020,17 @@ class DesignProjectService:
         print(f"... ontology backup created")
 
         try:
-            self._apply_operations_to_ontology(project.designedOntology, actual_operations, project)
-            print(f"Successfully applied {len(actual_operations)} operations")
+            skipped_reasons = self._apply_operations_to_ontology(project.designedOntology, actual_operations, project)
+            skipped = [
+                SkippedOperation(
+                    operation_id=ops_to_apply[index].id,
+                    label=getattr(ops_to_apply[index].operation, "label", None),
+                    uri=str(ops_to_apply[index].operation.uri),
+                    reason=reason,
+                )
+                for index, reason in skipped_reasons.items()
+            ]
+            print(f"Applied {len(actual_operations) - len(skipped)} of {len(actual_operations)} operations")
 
             persisted_operations = iteration.plannedOperations or []
             is_partial_apply = operations is not None
@@ -1091,8 +1115,12 @@ class DesignProjectService:
             self.ontology_service.store_ontology(project.designedOntology)
             print(f"... ontology restored from backup")
             raise e
-        
-        return project.designedOntology
+
+        return AppliedIterationChanges(
+            ontology=project.designedOntology,
+            applied_count=len(actual_operations) - len(skipped),
+            skipped=skipped,
+        )
 
     def release_tasks_without_proposals(self, project: DesignProject, iteration: DesignIteration) -> bool:
         """Return work items marked ready for review to the prepare column when they have no proposals."""

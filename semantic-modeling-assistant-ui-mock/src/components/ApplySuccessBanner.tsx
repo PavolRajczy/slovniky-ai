@@ -51,6 +51,8 @@ export function ApplySuccessBanner({ projectId, dataspecerPackageIri }: ApplySuc
   if (!feedback) return null
 
   const syncFailed = feedback.dataspecerSynced === false
+  const skipped = feedback.skipped ?? []
+  const nothingApplied = feedback.appliedCount === 0
   const dismiss = () => {
     clearApplySuccessFeedback()
     setFeedback(null)
@@ -60,15 +62,36 @@ export function ApplySuccessBanner({ projectId, dataspecerPackageIri }: ApplySuc
     <section
       role="status"
       className={`rounded-2xl border p-4 text-sm shadow-sm ${
-        syncFailed ? 'border-rose-200 bg-rose-50/80 text-rose-950' : 'border-emerald-300 bg-emerald-50 text-emerald-950'
+        syncFailed || nothingApplied
+          ? 'border-rose-200 bg-rose-50/80 text-rose-950'
+          : skipped.length > 0
+            ? 'border-amber-300 bg-amber-50 text-amber-950'
+            : 'border-emerald-300 bg-emerald-50 text-emerald-950'
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-base font-semibold">
-            {feedback.appliedCount} change{feedback.appliedCount === 1 ? '' : 's'} applied to the vocabulary
+            {nothingApplied
+              ? 'No changes were applied to the vocabulary'
+              : `${feedback.appliedCount} change${feedback.appliedCount === 1 ? '' : 's'} applied to the vocabulary`}
             {feedback.taskName ? <span className="font-normal"> · {feedback.taskName}</span> : null}
           </p>
+          {skipped.length > 0 ? (
+            <div className="mt-2 text-xs">
+              <p className="font-semibold">
+                {skipped.length} kept change{skipped.length === 1 ? ' was' : 's were'} not applied:
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {skipped.map((item, index) => (
+                  <li key={`${item.label}-${index}`}>
+                    <span className="font-medium">{item.label}</span>
+                    <span className="opacity-80"> - {item.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
             {feedback.dataspecerSynced === null ? null : (
               <li className={syncFailed ? 'font-semibold text-rose-800' : ''}>
