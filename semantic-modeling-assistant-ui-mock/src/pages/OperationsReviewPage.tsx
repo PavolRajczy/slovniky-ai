@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { getProject } from '@/api/projects'
 import { saveOfnSaveFeedback } from '@/utils/ofnSaveFeedback'
 import { saveDataspecerSyncFeedback } from '@/utils/dataspecerSyncFeedback'
+import { saveApplySuccessFeedback } from '@/utils/applySuccessFeedback'
 import {
   applyIteration,
   buildDiffSummary,
@@ -334,6 +335,18 @@ export function OperationsReviewPage() {
       const rejectedOperations = operations.filter(
         (op) => (reviewById[op.id] ?? 'pending') === 'rejected',
       )
+      if (projectId) {
+        saveApplySuccessFeedback({
+          projectId,
+          appliedCount: approvedOperations.length,
+          rejectedCount: rejectedOperations.length,
+          taskName: activeTask?.name ?? null,
+          ofnSaved: Boolean(data.ofn_saved),
+          dataspecerSynced: data.dataspecer_synced ?? null,
+          dataspecerError: data.dataspecer_sync_error ?? null,
+          at: new Date().toISOString(),
+        })
+      }
 
       if (projectId) {
         // Persist the decisions server-side so the reasons outlive this browser.
