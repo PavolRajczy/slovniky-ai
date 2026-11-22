@@ -1,5 +1,5 @@
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '@/api/client'
 import { PageBackLink } from '@/components/PageBackLink'
@@ -7,7 +7,7 @@ import { ActivitySummary } from '@/components/ActivitySummary'
 import { actionButton, CardActions } from '@/components/ActionButtons'
 import { AppliedReviewSummaryModal, buildModalReviewGroups } from '@/components/AppliedReviewSummaryModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
-import { DataspecerSyncNotice } from '@/components/DataspecerSyncNotice'
+import { ApplySuccessBanner } from '@/components/ApplySuccessBanner'
 import { getProject } from '@/api/projects'
 import { listIterations } from '@/api/iterations'
 import { listTaskPatterns } from '@/api/patterns'
@@ -16,10 +16,9 @@ import {
   deleteTask,
   listTasks,
   planTasks,
-  prepareIteration,
-  prepareTask,
   updateTask,
 } from '@/api/tasks'
+import { usePrepareQueue, type PreparedTaskResult } from '@/hooks/usePrepareQueue'
 import type {
   DesignIterationModel,
   DesignIterationStatus,
@@ -30,11 +29,6 @@ import {
   listAppliedReviewSummaries,
   mergeAppliedReviewSummaries,
 } from '@/utils/appliedReviewStorage'
-import {
-  clearOfnSaveFeedback,
-  readOfnSaveFeedback,
-  type OfnSaveFeedback,
-} from '@/utils/ofnSaveFeedback'
 
 const tasksRouteApi = getRouteApi('/tasks')
 
@@ -43,12 +37,12 @@ const COLUMNS: Array<{ id: DesignTaskStatus; label: string; description: string 
   {
     id: 'generating',
     label: 'Ready to review',
-    description: 'Proposed changes are ready to review. The ontology is unchanged until you finalize.',
+    description: 'Proposed changes are ready to review. The vocabulary is unchanged until you apply them.',
   },
   {
     id: 'completed',
     label: 'Applied',
-    description: 'Work items whose kept changes were written into the ontology on finalize.',
+    description: 'Work items whose kept changes were applied to the vocabulary.',
   },
 ]
 
@@ -77,15 +71,6 @@ export function TasksPage() {
   const { projectId, domainId, iterationId } = tasksRouteApi.useSearch()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [ofnFeedback, setOfnFeedback] = useState<OfnSaveFeedback | null>(null)
-
-  useEffect(() => {
-    if (!projectId) {
-      setOfnFeedback(null)
-      return
-    }
-    setOfnFeedback(readOfnSaveFeedback(projectId))
-  }, [projectId])
 
   const projectQuery = useQuery({
     queryKey: ['project', projectId],
@@ -204,29 +189,51 @@ export function TasksPage() {
     },
   })
 
-  const prepareMutation = useMutation({
-    mutationFn: ({ targetTaskId, openReview }: { targetTaskId?: string; openReview: boolean }) =>
-      (targetTaskId
-        ? prepareTask(projectId!, activeIterationId!, targetTaskId)
-        : prepareIteration(projectId!, activeIterationId!)
-      ).then((data) => ({ data, targetTaskId, openReview })),
-    onSuccess: async ({ data, targetTaskId, openReview }) => {
+  const [readyNotice, setReadyNotice] = useState<PreparedTaskResult | null>(null)
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null)
+  const readyColumnRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (!highlightTaskId) return
+    const timer = window.setTimeout(() => setHighlightTaskId(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [highlightTaskId])
+
+  const prepareQueue = usePrepareQueue({
+    projectId,
+    onPrepared: async (result) => {
       setPrepareError(null)
       await invalidateTasks()
-      if (openReview) {
-        await navigate({
-          to: '/operations',
-          search: {
-            projectId,
-            domainId: activeIteration?.focused_area_id ?? domainId,
-            iterationId: data.iteration_id,
-            taskId: targetTaskId,
-          },
-        })
+      setReadyNotice(result)
+      if (result.operationsCount === 0) return
+      setHighlightTaskId(result.taskId)
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+        readyColumnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
     },
-    onError: (error: unknown) => setPrepareError(toErrorMessage(error)),
+    onFailed: async (entry, error) => {
+      setPrepareError(`Could not prepare "${entry.taskName}": ${toErrorMessage(error)}`)
+      await invalidateTasks()
+    },
   })
+
+  const tasks = collectTasks(tasksQuery.data ?? null)
+  const appliedReviewSummaries = useMemo(
+    () =>
+      projectId && activeIterationId
+        ? listAppliedReviewSummaries(projectId, activeIterationId)
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- summaries live in localStorage and change when tasks do
+    [projectId, activeIterationId, tasks],
+  )
+  const mergedAppliedReview = useMemo(
+    () => mergeAppliedReviewSummaries(appliedReviewSummaries),
+    [appliedReviewSummaries],
+  )
+  const appliedSummaryGroups = useMemo(
+    () => buildModalReviewGroups(mergedAppliedReview.kept, mergedAppliedReview.rejected),
+    [mergedAppliedReview],
+  )
 
   if (!projectId) {
     return (
@@ -256,25 +263,9 @@ export function TasksPage() {
     )
   }
 
-  const tasks = collectTasks(tasksQuery.data ?? null)
   const tasksByStatus = groupByStatus(tasks)
   const plannedTasks = tasksByStatus.get('planned') ?? []
   const appliedTasks = tasksByStatus.get('completed') ?? []
-  const appliedReviewSummaries = useMemo(
-    () =>
-      projectId && activeIterationId
-        ? listAppliedReviewSummaries(projectId, activeIterationId)
-        : [],
-    [projectId, activeIterationId, tasks],
-  )
-  const mergedAppliedReview = useMemo(
-    () => mergeAppliedReviewSummaries(appliedReviewSummaries),
-    [appliedReviewSummaries],
-  )
-  const appliedSummaryGroups = useMemo(
-    () => buildModalReviewGroups(mergedAppliedReview.kept, mergedAppliedReview.rejected),
-    [mergedAppliedReview],
-  )
   const appliedSummaryFocusTask = appliedSummaryFocusTaskId
     ? appliedTasks.find((task) => task.id === appliedSummaryFocusTaskId) ?? null
     : null
@@ -325,9 +316,19 @@ export function TasksPage() {
     setAppliedSummaryFocusTaskId(null)
   }
 
-  const handlePrepare = (targetTaskId?: string, openReview = true) => {
-    prepareMutation.mutate({ targetTaskId, openReview })
+  const handlePrepare = (targets: DesignTaskModel[]) => {
+    if (!activeIterationId) return
+    prepareQueue.enqueue(
+      targets.map((task) => ({ taskId: task.id, taskName: task.name, iterationId: activeIterationId })),
+    )
   }
+
+  const reviewSearch = (taskId: string) => ({
+    projectId,
+    domainId: activeIteration?.focused_area_id ?? domainId,
+    iterationId: activeIterationId,
+    taskId,
+  })
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -339,57 +340,7 @@ export function TasksPage() {
 
       <ActivitySummary projectId={projectId} iterationId={activeIterationId} />
 
-      <DataspecerSyncNotice projectId={projectId} linked={Boolean(projectQuery.data?.dataspecer_package_iri)} />
-
-      {ofnFeedback ? (
-        <section className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4 text-sm text-sky-950 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
-                OFN saved on finalize
-              </p>
-              <p className="mt-1">
-                {ofnFeedback.overwroteExisting
-                  ? 'Existing project OFN was overwritten.'
-                  : 'New project OFN file was created.'}{' '}
-                Concepts: <span className="font-semibold tabular-nums">{ofnFeedback.pojmyCount}</span>
-              </p>
-              <p className="mt-1 break-all font-mono text-[11px] text-sky-900/80">
-                {ofnFeedback.absolutePath}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to="/export-result"
-                search={{
-                  projectId,
-                  domainId,
-                  iterationId,
-                  taskId: undefined,
-                  approved: undefined,
-                  pending: undefined,
-                  rejected: undefined,
-                  regenerated: undefined,
-                  guidanceUpdated: undefined,
-                }}
-                className="rounded-lg bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800"
-              >
-                Open OFN export
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  clearOfnSaveFeedback()
-                  setOfnFeedback(null)
-                }}
-                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-medium text-sky-900 hover:bg-sky-50"
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : null}
+      <ApplySuccessBanner projectId={projectId} dataspecerPackageIri={projectQuery.data?.dataspecer_package_iri} />
 
       <DirectionWorkPanel
         activeIteration={activeIteration}
@@ -417,11 +368,11 @@ export function TasksPage() {
         <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Prepare changes</h2>
         <p className="mt-1 text-sm text-slate-600">
           Break the selected direction into concrete work items, then let the assistant prepare proposed
-          ontology changes for review. The designed ontology changes only when you finalize kept changes.
+          changes for review. The vocabulary changes only when you apply the kept changes.
         </p>
         <p className="mt-2 text-xs text-slate-500">
-          For a lighter review, prepare one work item, finalize it, then prepare the next if it depends on
-          those new elements.
+          You can click <strong>Prepare</strong> on several work items; they are queued and prepared one after
+          another. Prepared items appear in <strong>Ready to review</strong>.
         </p>
       </div>
 
@@ -431,9 +382,58 @@ export function TasksPage() {
         </p>
       ) : null}
 
+      {readyNotice ? (
+        <div
+          role="status"
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-sm ${
+            readyNotice.operationsCount > 0
+              ? 'border-amber-200 bg-amber-50 text-amber-950'
+              : 'border-slate-200 bg-slate-50 text-slate-800'
+          }`}
+        >
+          <p className="min-w-0 flex-1">
+            {readyNotice.operationsCount > 0 ? (
+              <>
+                <span className="font-semibold">"{readyNotice.taskName}"</span> is ready to review (
+                {readyNotice.operationsCount} proposed change{readyNotice.operationsCount === 1 ? '' : 's'}).
+              </>
+            ) : (
+              <>
+                The assistant proposed no changes for{' '}
+                <span className="font-semibold">"{readyNotice.taskName}"</span>. It stays in To prepare.
+              </>
+            )}
+            {prepareQueue.pendingCount > 0 ? (
+              <span className="ml-1 text-xs opacity-80">
+                {prepareQueue.pendingCount} more work item{prepareQueue.pendingCount === 1 ? '' : 's'} still
+                preparing.
+              </span>
+            ) : null}
+          </p>
+          <div className="flex gap-2">
+            {readyNotice.operationsCount > 0 ? (
+              <Link
+                to="/operations"
+                search={reviewSearch(readyNotice.taskId)}
+                className={actionButton.primarySm}
+              >
+                Review now
+              </Link>
+            ) : null}
+            <button type="button" onClick={() => setReadyNotice(null)} className={actionButton.secondarySm}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-3">
         {COLUMNS.map((column) => (
-          <section key={column.id} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+          <section
+            key={column.id}
+            ref={column.id === 'generating' ? readyColumnRef : undefined}
+            className="scroll-mt-6 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"
+          >
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 {column.label}
@@ -459,16 +459,20 @@ export function TasksPage() {
             {column.id === 'planned' && activeIteration && plannedTasks.length > 0 ? (
               <button
                 type="button"
-                onClick={() => handlePrepare()}
-                disabled={!canMovePlannedWorkItems || prepareMutation.isPending || projectQuery.isLoading}
+                onClick={() => handlePrepare(plannedTasks)}
+                disabled={
+                  !canMovePlannedWorkItems ||
+                  projectQuery.isLoading ||
+                  plannedTasks.every((task) => prepareQueue.statusOf(task.id) !== null)
+                }
                 className="mt-3 w-full rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
                 title={
                   !canMovePlannedWorkItems
-                    ? 'This direction is already ready for review or applied.'
-                    : 'Generate proposed changes and open review.'
+                    ? 'This direction is already applied.'
+                    : 'Queue every work item. They are prepared one after another.'
                 }
               >
-                {prepareMutation.isPending ? 'Preparing…' : 'Prepare all work items'}
+                {prepareQueue.isBusy ? 'Queue all remaining work items' : 'Prepare all work items'}
               </button>
             ) : null}
             <div className="mt-4 space-y-3">
@@ -482,6 +486,7 @@ export function TasksPage() {
                 (tasksByStatus.get(column.id) ?? []).map((task) => {
                   const isEditing = canMovePlannedWorkItems && editingId === task.id
                   const pattern = patterns.find((p) => p.id === task.followed_pattern_id)
+                  const queueStatus = prepareQueue.statusOf(task.id)
                   if (isEditing) {
                     return (
                       <article
@@ -548,11 +553,11 @@ export function TasksPage() {
                   return (
                     <article
                       key={task.id}
-                      className={`rounded-xl border bg-slate-50/60 p-3 ${
+                      className={`rounded-xl border bg-slate-50/60 p-3 transition-shadow ${
                         task.status === 'completed'
                           ? 'cursor-pointer border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50/40'
                           : 'border-slate-200'
-                      }`}
+                      } ${highlightTaskId === task.id ? 'ring-2 ring-amber-400 ring-offset-2' : ''}`}
                       onClick={
                         task.status === 'completed'
                           ? () => openAppliedSummary(task.id)
@@ -580,12 +585,7 @@ export function TasksPage() {
                         {task.status === 'generating' ? (
                           <Link
                             to="/operations"
-                            search={{
-                              projectId,
-                              domainId: activeIteration?.focused_area_id ?? domainId,
-                              iterationId: activeIterationId,
-                              taskId: task.id,
-                            }}
+                            search={reviewSearch(task.id)}
                             className={actionButton.primarySm}
                             onClick={(event) => event.stopPropagation()}
                           >
@@ -610,14 +610,16 @@ export function TasksPage() {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation()
-                                handlePrepare(task.id, false)
+                                handlePrepare([task])
                               }}
-                              disabled={prepareMutation.isPending || projectQuery.isLoading}
+                              disabled={queueStatus !== null || projectQuery.isLoading}
                               className={actionButton.primarySm}
                             >
-                              {prepareMutation.isPending && prepareMutation.variables?.targetTaskId === task.id
+                              {queueStatus === 'preparing'
                                 ? 'Preparing…'
-                                : 'Prepare'}
+                                : queueStatus === 'queued'
+                                  ? 'Queued'
+                                  : 'Prepare'}
                             </button>
                             <button
                               type="button"
@@ -625,6 +627,7 @@ export function TasksPage() {
                                 event.stopPropagation()
                                 startEdit(task)
                               }}
+                              disabled={queueStatus !== null}
                               className={actionButton.secondarySm}
                             >
                               Edit
@@ -636,7 +639,8 @@ export function TasksPage() {
                                 handleDelete(task)
                               }}
                               disabled={
-                                deleteMutation.isPending && deleteMutation.variables === task.id
+                                queueStatus !== null ||
+                                (deleteMutation.isPending && deleteMutation.variables === task.id)
                               }
                               className={actionButton.dangerSm}
                             >
@@ -897,7 +901,8 @@ function DirectionWorkPanel({
             </div>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            Next step: prepare one work item, review it, then finalize. The ontology updates only after finalize.
+            Next step: prepare a work item, review it, then apply the kept changes. The vocabulary updates only
+            after you apply.
           </p>
         </div>
       </div>

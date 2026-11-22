@@ -5,6 +5,8 @@ import { resolveWorkflowContext } from '@/components/workflow'
 import { PageBackLink } from '@/components/PageBackLink'
 import { ActivitySummary } from '@/components/ActivitySummary'
 import { DataspecerSyncNotice } from '@/components/DataspecerSyncNotice'
+import { ApplySuccessBanner } from '@/components/ApplySuccessBanner'
+import { dataspecerEditorUrl } from '@/utils/dataspecerLinks'
 import {
   OfnConceptStats,
   OfnExportPanel,
@@ -164,6 +166,8 @@ export function ExportResultPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageBackLink to="/iterations-v2" search={directionsSearch} label="directions" />
 
+      <ApplySuccessBanner projectId={projectId} dataspecerPackageIri={projectQuery.data?.dataspecer_package_iri} />
+
       <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
           {finishedIteration ? 'Direction completed' : 'Project result'}
@@ -174,7 +178,7 @@ export function ExportResultPage() {
         {finishedIteration ? (
           <p className="mt-1 text-sm text-emerald-900/90">
             {finishedIteration.finished_tasks_count} work item
-            {finishedIteration.finished_tasks_count === 1 ? '' : 's'} applied to the ontology.
+            {finishedIteration.finished_tasks_count === 1 ? '' : 's'} applied to the vocabulary.
           </p>
         ) : null}
         {ontologyUri ? (
@@ -203,6 +207,16 @@ export function ExportResultPage() {
           >
             Back to directions
           </Link>
+          {projectQuery.data?.dataspecer_package_iri ? (
+            <a
+              href={dataspecerEditorUrl(projectQuery.data.dataspecer_package_iri)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-50"
+            >
+              Open in Dataspecer
+            </a>
+          ) : null}
           <Link
             to="/guidance"
             search={{ projectId }}
@@ -244,8 +258,8 @@ export function ExportResultPage() {
           {dataspecerOpen ? (
             <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
               <p className="text-sm text-slate-600">
-                Approved changes are part of the designed ontology. Finalize already regenerates project OFN;
-                Dataspecer export is optional.
+                Applied changes are part of the designed vocabulary and the OFN export is regenerated
+                automatically; Dataspecer export is optional.
               </p>
               <div>
                 <label className="block text-xs font-medium uppercase tracking-wide text-slate-600">
@@ -296,7 +310,6 @@ export function ExportResultPage() {
         projectId={projectId}
         projectName={projectQuery.data?.name}
         showStats={false}
-        defaultExpanded={false}
       />
     </div>
   )

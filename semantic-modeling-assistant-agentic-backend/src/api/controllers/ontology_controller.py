@@ -268,7 +268,7 @@ async def update_ontology(ontology_uri: str, request: UpdateOntologyRequest):
 
 
 @router.post("/ontologies/import-from-url", response_model=OntologyMetadata, status_code=status.HTTP_201_CREATED)
-async def import_ontology_from_url_endpoint(request: ImportOntologyFromUrlRequest):
+def import_ontology_from_url_endpoint(request: ImportOntologyFromUrlRequest):
     """
     Import ontology from URL (OWL/Turtle). Fetches via GET, parses, and stores in data/ontologies.
     """
@@ -305,7 +305,7 @@ async def import_ontology_from_url_endpoint(request: ImportOntologyFromUrlReques
 
 
 @router.post("/ontologies/export-to-dataspecer", response_model=SuccessResponse)
-async def export_ontology_to_dataspecer(request: ExportOntologyToDataSpecerRequest):
+def export_ontology_to_dataspecer(request: ExportOntologyToDataSpecerRequest):
     """
     Export ontology to DataSpecer by PUTting simplified-semantic-model JSON to the given URL.
     """
@@ -335,7 +335,7 @@ async def export_ontology_to_dataspecer(request: ExportOntologyToDataSpecerReque
 
 
 @router.post("/ontologies/export-to-ofn")
-async def export_ontology_to_ofn(request: ExportOntologyToOfnRequest):
+def export_ontology_to_ofn(request: ExportOntologyToOfnRequest):
     """
     Export ontology as OFN Slovníky JSON (Konceptuální model, 2026-02-26).
 
@@ -363,7 +363,7 @@ async def export_ontology_to_ofn(request: ExportOntologyToOfnRequest):
 
 
 @router.post("/ontologies/import-from-dataspecer", response_model=OntologyMetadata, status_code=status.HTTP_201_CREATED)
-async def import_ontology_from_dataspecer(request: ImportOntologyFromDataSpecerRequest):
+def import_ontology_from_dataspecer(request: ImportOntologyFromDataSpecerRequest):
     """
     Import ontology from DataSpecer simplified-semantic-model URL. GETs JSON, expands short IRIs with base_uri, stores.
     """

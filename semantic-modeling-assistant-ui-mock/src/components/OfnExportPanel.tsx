@@ -16,6 +16,7 @@ import {
 
 type PojemKind = 'all' | 'Třída' | 'Vztah' | 'Vlastnost'
 type ExportFormat = 'json' | 'turtle'
+type PanelView = 'concepts' | ExportFormat
 
 const KIND_FILTERS: { id: PojemKind; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -23,6 +24,17 @@ const KIND_FILTERS: { id: PojemKind; label: string }[] = [
   { id: 'Vztah', label: 'Relations' },
   { id: 'Vlastnost', label: 'Properties' },
 ]
+
+const VIEW_TABS: { id: PanelView; label: string }[] = [
+  { id: 'concepts', label: 'Concepts' },
+  { id: 'json', label: 'JSON-LD' },
+  { id: 'turtle', label: 'Turtle' },
+]
+
+const VOCABULARY_TYPES_HINT =
+  'Types of the vocabulary as defined by the OFN Slovníky standard: Slovník (vocabulary), ' +
+  'Tezaurus (thesaurus of concepts) and Konceptuální model (conceptual model with classes, relations ' +
+  'and properties). They are set automatically and tell OFN tools how to read the file.'
 
 function textCs(value?: { cs?: string; en?: string } | null): string {
   if (!value) return ''
@@ -60,7 +72,8 @@ function kindBadgeClass(kind: string): string {
 }
 
 function stripMeta(document: ProjectOfnDocument): OfnDocument {
-  const { _meta: _ignored, ...rest } = document
+  const rest: Partial<ProjectOfnDocument> = { ...document }
+  delete rest._meta
   return rest as OfnDocument
 }
 
@@ -68,22 +81,14 @@ type OfnExportPanelProps = {
   projectId?: string | null
   projectName?: string
   showStats?: boolean
-  defaultExpanded?: boolean
 }
 
-export function OfnExportPanel({
-  projectId,
-  projectName,
-  showStats = true,
-  defaultExpanded = true,
-}: OfnExportPanelProps) {
+export function OfnExportPanel({ projectId, projectName, showStats = true }: OfnExportPanelProps) {
   const queryClient = useQueryClient()
-  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [view, setView] = useState<PanelView>('concepts')
   const [filter, setFilter] = useState<PojemKind>('all')
   const [query, setQuery] = useState('')
   const [selectedIri, setSelectedIri] = useState<string | null>(null)
-  const [showRaw, setShowRaw] = useState(false)
-  const [exportFormat, setExportFormat] = useState<ExportFormat>('json')
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const [saveFeedback, setSaveFeedback] = useState<OfnSaveFeedback | null>(null)
 
@@ -170,36 +175,33 @@ export function OfnExportPanel({
     [document],
   )
   const turtleText = turtleQuery.data ?? ''
-  const exportText = exportFormat === 'turtle' ? turtleText : jsonText
-  const exportReady = exportFormat === 'turtle' ? turtleText.length > 0 : jsonText.length > 0
+  const textFor = (format: ExportFormat) => (format === 'turtle' ? turtleText : jsonText)
 
-  const downloadExport = () => {
-    if (!exportText) return
-    const blob = new Blob([exportText], {
-      type:
-        exportFormat === 'turtle'
-          ? 'text/turtle;charset=utf-8'
-          : 'application/ld+json;charset=utf-8',
+  const downloadExport = (format: ExportFormat) => {
+    const text = textFor(format)
+    if (!text) return
+    const blob = new Blob([text], {
+      type: format === 'turtle' ? 'text/turtle;charset=utf-8' : 'application/ld+json;charset=utf-8',
     })
     const url = URL.createObjectURL(blob)
     const anchor = window.document.createElement('a')
     const slug = shortIri(document?.iri || 'slovnik') || 'ofn-slovnik'
     anchor.href = url
-    anchor.download = exportFormat === 'turtle' ? `${slug}.ofn.ttl` : `${slug}.ofn.json`
+    anchor.download = format === 'turtle' ? `${slug}.ofn.ttl` : `${slug}.ofn.json`
     anchor.click()
     URL.revokeObjectURL(url)
   }
 
-  const copyExport = async () => {
-    if (!exportText) return
+  const copyExport = async (format: ExportFormat) => {
+    const text = textFor(format)
+    if (!text) return
     try {
-      await navigator.clipboard.writeText(exportText)
+      await navigator.clipboard.writeText(text)
       setCopyState('copied')
-      window.setTimeout(() => setCopyState('idle'), 1800)
     } catch {
       setCopyState('failed')
-      window.setTimeout(() => setCopyState('idle'), 1800)
     }
+    window.setTimeout(() => setCopyState('idle'), 1800)
   }
 
   const loadError =
@@ -222,151 +224,119 @@ export function OfnExportPanel({
     ? `semantic-modeling-assistant-agentic-backend/data/projects/${projectId}/ofn.json and ofn.ttl`
     : null
 
-  const collapsible = !defaultExpanded
-  const actions = (
-    <div className="flex flex-wrap gap-2">
-      <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <button
-          type="button"
-          onClick={() => setExportFormat('json')}
-          className={`px-3 py-2 text-sm font-medium ${
-            exportFormat === 'json' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
-          }`}
-          title="Export as JSON-LD"
-        >
-          JSON
-        </button>
-        <button
-          type="button"
-          onClick={() => setExportFormat('turtle')}
-          className={`border-l border-slate-200 px-3 py-2 text-sm font-medium ${
-            exportFormat === 'turtle' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-50'
-          }`}
-          title="Export as RDF/Turtle"
-        >
-          Turtle
-        </button>
-      </div>
-      <button
-        type="button"
-        onClick={() => projectId && regenerateMutation.mutate()}
-        disabled={!projectId || regenerateMutation.isPending}
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-      >
-        {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate & overwrite' : 'Generate OFN'}
-      </button>
-      <button
-        type="button"
-        onClick={() => void copyExport()}
-        disabled={!exportReady}
-        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-      >
-        {copyState === 'copied'
-          ? 'Copied'
-          : copyState === 'failed'
-            ? 'Copy failed'
-            : exportFormat === 'turtle'
-              ? 'Copy Turtle'
-              : 'Copy JSON'}
-      </button>
-      <button
-        type="button"
-        onClick={downloadExport}
-        disabled={!exportReady}
-        className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
-      >
-        {exportFormat === 'turtle' ? 'Download .ttl' : 'Download .json'}
-      </button>
-    </div>
-  )
-
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 bg-linear-to-br from-slate-50 via-white to-sky-50/60 px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-              OFN Slovníky · project file
+              OFN Slovníky export
             </p>
             <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
               {document ? textCs(document.název) || 'Project OFN' : 'Project OFN'}
             </h3>
-            {expanded ? (
-              <p className="mt-1 max-w-2xl text-sm text-slate-600">
-                Finalize writes approved changes into the ontology and regenerates OFN as JSON-LD
-                and Turtle. Choose a format the same way as on the ontology page, then copy or download.
-              </p>
-            ) : null}
+            <p className="mt-1 max-w-2xl text-sm text-slate-600">
+              The vocabulary in the Czech OFN Slovníky format. It is regenerated automatically every time you
+              apply changes. Browse the concepts, or open the JSON-LD and Turtle files directly below.
+            </p>
           </div>
-          {collapsible ? (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => setExpanded((value) => !value)}
-              className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              onClick={() => projectId && regenerateMutation.mutate()}
+              disabled={!projectId || regenerateMutation.isPending}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              {expanded ? 'Hide' : 'Show OFN file'}
+              {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate' : 'Generate OFN'}
             </button>
-          ) : null}
-          {!collapsible ? actions : null}
-        </div>
-        {collapsible && expanded ? <div className="mt-4">{actions}</div> : null}
-
-        {expanded && storageHint ? (
-          <div className="mt-4 rounded-xl border border-sky-200 bg-white/80 px-3 py-2 text-xs text-sky-950">
-            <p className="font-semibold uppercase tracking-wide text-sky-800">Saved location</p>
-            <p className="mt-1 break-all font-mono text-[11px]">{storageHint}</p>
-            {storedDocument?._meta?.saved_at ? (
-              <p className="mt-1 text-sky-900/80">
-                Last saved: {storedDocument._meta.saved_at}
-                {storedDocument._meta.overwrote_existing ? ' · overwritten' : ' · created'}
-              </p>
-            ) : null}
-            {saveFeedback ? (
-              <p className="mt-1 text-sky-900/80">
-                Latest finalize wrote {saveFeedback.pojmyCount} concepts
-                {saveFeedback.overwroteExisting ? ' (overwrite)' : ''}.
-                <button
-                  type="button"
-                  className="ml-2 underline"
-                  onClick={() => {
-                    clearOfnSaveFeedback()
-                    setSaveFeedback(null)
-                  }}
-                >
-                  Dismiss
-                </button>
-              </p>
-            ) : null}
+            <button
+              type="button"
+              onClick={() => downloadExport('json')}
+              disabled={!jsonText}
+              className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
+            >
+              Download .json
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadExport('turtle')}
+              disabled={!turtleText}
+              className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-800 disabled:opacity-60"
+            >
+              Download .ttl
+            </button>
           </div>
-        ) : null}
+        </div>
 
-        {expanded && document ? (
+        {document ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-medium text-slate-500" title={VOCABULARY_TYPES_HINT}>
+              OFN vocabulary types{' '}
+              <span
+                className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600"
+                aria-label={VOCABULARY_TYPES_HINT}
+              >
+                ?
+              </span>
+              :
+            </span>
             {(document.typ ?? []).map((typ) => (
               <span
                 key={typ}
+                title={VOCABULARY_TYPES_HINT}
                 className="rounded-md bg-white/80 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200"
               >
                 {typ}
               </span>
             ))}
-            <span className="ml-1 truncate font-mono text-[11px] text-slate-500" title={document.iri}>
+            <span className="ml-1 truncate font-mono text-[11px] text-slate-500" title={`Vocabulary IRI: ${document.iri}`}>
               {document.iri}
             </span>
           </div>
         ) : null}
 
-        {expanded && showStats ? (
+        {showStats ? (
           <div className="mt-4">
             <OfnConceptStats counts={counts} />
           </div>
         ) : null}
+
+        {storageHint ? (
+          <details className="mt-4 text-xs text-slate-600">
+            <summary className="cursor-pointer text-slate-500 hover:text-slate-800">File details</summary>
+            <div className="mt-2 rounded-xl border border-sky-200 bg-white/80 px-3 py-2 text-sky-950">
+              <p className="font-semibold uppercase tracking-wide text-sky-800">Saved location on the server</p>
+              <p className="mt-1 break-all font-mono text-[11px]">{storageHint}</p>
+              {storedDocument?._meta?.saved_at ? (
+                <p className="mt-1 text-sky-900/80">
+                  Last saved: {storedDocument._meta.saved_at}
+                  {storedDocument._meta.overwrote_existing ? ' · overwritten' : ' · created'}
+                </p>
+              ) : null}
+              {saveFeedback ? (
+                <p className="mt-1 text-sky-900/80">
+                  Latest save wrote {saveFeedback.pojmyCount} concepts
+                  {saveFeedback.overwroteExisting ? ' (overwrite)' : ''}.
+                  <button
+                    type="button"
+                    className="ml-2 underline"
+                    onClick={() => {
+                      clearOfnSaveFeedback()
+                      setSaveFeedback(null)
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </p>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
       </div>
 
-      {expanded ? (
       <div className="px-6 py-5">
         {!projectId ? (
-          <p className="text-sm text-slate-600">Select a project to manage its OFN file.</p>
+          <p className="text-sm text-slate-600">Select a project to see its OFN export.</p>
         ) : loadError || regenerateError ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
             {loadError || regenerateError}
@@ -375,116 +345,69 @@ export function OfnExportPanel({
           <p className="text-sm text-slate-600">Loading saved OFN…</p>
         ) : missingOfn ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-medium">No OFN file for this project yet.</p>
+            <p className="font-medium">No OFN export for this project yet.</p>
             <p className="mt-1 text-amber-900/90">
-              Finalize approved changes, or click <span className="font-semibold">Generate OFN</span>{' '}
-              to create{' '}
-              <span className="font-mono text-[11px]">data/projects/{projectId}/ofn.json</span>
-              {' '}and{' '}
-              <span className="font-mono text-[11px]">ofn.ttl</span>.
+              It is created the first time you apply kept changes. You can also click{' '}
+              <span className="font-semibold">Generate OFN</span> to create it from the current vocabulary.
             </p>
           </div>
         ) : document ? (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {KIND_FILTERS.map((item) => {
-                const active = filter === item.id
+            <div role="tablist" className="flex gap-1 border-b border-slate-200">
+              {VIEW_TABS.map((tab) => {
+                const active = view === tab.id
                 return (
                   <button
-                    key={item.id}
+                    key={tab.id}
                     type="button"
-                    onClick={() => setFilter(item.id)}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setView(tab.id)}
+                    className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition ${
                       active
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        ? 'border-sky-600 text-sky-800'
+                        : 'border-transparent text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {item.label}
+                    {tab.label}
                   </button>
                 )
               })}
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search pojmy…"
-                className="ml-auto min-w-48 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+            </div>
+
+            {view === 'concepts' ? (
+              <ConceptsView
+                filter={filter}
+                onFilterChange={setFilter}
+                query={query}
+                onQueryChange={setQuery}
+                filtered={filtered}
+                selectedIri={selectedIri}
+                onSelect={setSelectedIri}
+                selected={selected}
               />
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-              <ul className="max-h-112 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-2">
-                {filtered.length === 0 ? (
-                  <li className="px-3 py-6 text-center text-sm text-slate-500">No matching concepts.</li>
-                ) : (
-                  filtered.map((pojem) => {
-                    const kind = primaryKind(pojem)
-                    const active = pojem.iri === selectedIri
-                    return (
-                      <li key={pojem.iri}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedIri(pojem.iri)}
-                          className={`w-full rounded-lg px-3 py-2 text-left transition ${
-                            active
-                              ? 'bg-white shadow-sm ring-1 ring-sky-300'
-                              : 'hover:bg-white/80'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-medium text-slate-900">
-                              {textCs(pojem.název) || shortIri(pojem.iri)}
-                            </span>
-                            <span
-                              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${kindBadgeClass(kind)}`}
-                            >
-                              {kind}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 truncate font-mono text-[10px] text-slate-500">
-                            {shortIri(pojem.iri)}
-                          </p>
-                        </button>
-                      </li>
-                    )
-                  })
-                )}
-              </ul>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                {selected ? (
-                  <OfnPojemDetail pojem={selected} />
-                ) : (
-                  <p className="text-sm text-slate-500">Select a concept to inspect details.</p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowRaw((value) => !value)}
-                className="text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800"
-              >
-                {showRaw
-                  ? exportFormat === 'turtle'
-                    ? 'Hide raw Turtle'
-                    : 'Hide raw JSON'
-                  : exportFormat === 'turtle'
-                    ? 'Show raw Turtle'
-                    : 'Show raw JSON'}
-              </button>
-              {showRaw ? (
-                <pre className="mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-[11px] leading-relaxed text-slate-100">
-                  {exportFormat === 'turtle'
+            ) : (
+              <CodeView
+                text={
+                  view === 'turtle'
                     ? turtleQuery.isLoading
                       ? 'Loading Turtle…'
                       : turtleText || 'Turtle is not available yet.'
-                    : jsonText}
-                </pre>
-              ) : null}
-            </div>
+                    : jsonText
+                }
+                copyLabel={
+                  copyState === 'copied'
+                    ? 'Copied'
+                    : copyState === 'failed'
+                      ? 'Copy failed'
+                      : view === 'turtle'
+                        ? 'Copy Turtle'
+                        : 'Copy JSON-LD'
+                }
+                copyDisabled={!textFor(view)}
+                onCopy={() => void copyExport(view)}
+              />
+            )}
 
             {projectName ? (
               <p className="text-[11px] text-slate-500">
@@ -494,8 +417,127 @@ export function OfnExportPanel({
           </div>
         ) : null}
       </div>
-      ) : null}
     </section>
+  )
+}
+
+type ConceptsViewProps = {
+  filter: PojemKind
+  onFilterChange: (filter: PojemKind) => void
+  query: string
+  onQueryChange: (query: string) => void
+  filtered: OfnPojem[]
+  selectedIri: string | null
+  onSelect: (iri: string) => void
+  selected: OfnPojem | null
+}
+
+function ConceptsView({
+  filter,
+  onFilterChange,
+  query,
+  onQueryChange,
+  filtered,
+  selectedIri,
+  onSelect,
+  selected,
+}: ConceptsViewProps) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        {KIND_FILTERS.map((item) => {
+          const active = filter === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onFilterChange(item.id)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              {item.label}
+            </button>
+          )
+        })}
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search concepts…"
+          className="ml-auto min-w-48 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <ul className="max-h-112 space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/60 p-2">
+          {filtered.length === 0 ? (
+            <li className="px-3 py-6 text-center text-sm text-slate-500">No matching concepts.</li>
+          ) : (
+            filtered.map((pojem) => {
+              const kind = primaryKind(pojem)
+              const active = pojem.iri === selectedIri
+              return (
+                <li key={pojem.iri}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(pojem.iri)}
+                    className={`w-full rounded-lg px-3 py-2 text-left transition ${
+                      active ? 'bg-white shadow-sm ring-1 ring-sky-300' : 'hover:bg-white/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-slate-900">
+                        {textCs(pojem.název) || shortIri(pojem.iri)}
+                      </span>
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${kindBadgeClass(kind)}`}
+                      >
+                        {kind}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate font-mono text-[10px] text-slate-500">{shortIri(pojem.iri)}</p>
+                  </button>
+                </li>
+              )
+            })
+          )}
+        </ul>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          {selected ? (
+            <OfnPojemDetail pojem={selected} />
+          ) : (
+            <p className="text-sm text-slate-500">Select a concept to inspect details.</p>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+type CodeViewProps = {
+  text: string
+  copyLabel: string
+  copyDisabled: boolean
+  onCopy: () => void
+}
+
+function CodeView({ text, copyLabel, copyDisabled, onCopy }: CodeViewProps) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onCopy}
+        disabled={copyDisabled}
+        className="absolute right-3 top-3 rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-100 hover:bg-slate-700 disabled:opacity-60"
+      >
+        {copyLabel}
+      </button>
+      <pre className="max-h-[36rem] overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 pr-28 font-mono text-xs leading-relaxed text-slate-100">
+        {text}
+      </pre>
+    </div>
   )
 }
 

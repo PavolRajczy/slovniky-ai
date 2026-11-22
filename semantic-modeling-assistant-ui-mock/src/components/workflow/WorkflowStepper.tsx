@@ -5,10 +5,10 @@ import type { WorkflowLinkContext } from '@/components/workflow/WorkflowSearchCo
 
 const STEP_META: { id: WorkflowStepId; label: string }[] = [
   { id: 'domain-areas', label: 'Domain map' },
-  { id: 'iterations', label: 'Iterations' },
+  { id: 'iterations', label: 'Directions' },
   { id: 'tasks', label: 'Prepare changes' },
   { id: 'operations', label: 'Review changes' },
-  { id: 'export', label: 'Export' },
+  { id: 'export', label: 'Result' },
 ]
 
 type ExportRecapSearch = {

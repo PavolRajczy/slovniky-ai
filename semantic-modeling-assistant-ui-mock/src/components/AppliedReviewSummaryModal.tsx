@@ -61,7 +61,7 @@ export function AppliedReviewSummaryModal({
         <div className="overflow-y-auto px-5 py-4">
           {empty ? (
             <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
-              No saved review summary is available yet. Summaries are stored when you finalize a work item
+              No saved review summary is available yet. Summaries are stored when you apply a work item
               from the review screen.
             </p>
           ) : (
