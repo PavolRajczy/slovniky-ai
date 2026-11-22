@@ -4,6 +4,7 @@ import type {
   IterationAppliedResponse,
   IterationPreparedResponse,
   OntologyOperationModel,
+  RegenerateOperationResponse,
   SuccessResponse,
 } from './types'
 
@@ -26,6 +27,18 @@ export function deleteIterationOperation(
   return apiFetch<SuccessResponse>(
     `/projects/${projectId}/iterations/${iterationId}/operations/${encodeURIComponent(operationId)}`,
     { method: 'DELETE' },
+  )
+}
+
+export function regenerateOperation(
+  projectId: string,
+  iterationId: string,
+  operationId: string,
+  reason: string | null,
+): Promise<RegenerateOperationResponse> {
+  return apiFetch<RegenerateOperationResponse>(
+    `/projects/${projectId}/iterations/${iterationId}/operations/${encodeURIComponent(operationId)}/regenerate`,
+    { method: 'POST', body: { reason } },
   )
 }
 

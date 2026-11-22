@@ -12,12 +12,12 @@ import { saveApplySuccessFeedback } from '@/utils/applySuccessFeedback'
 import {
   applyIteration,
   buildDiffSummary,
-  deleteIterationOperation,
   getIterationOperations,
+  regenerateOperation,
 } from '@/api/operations'
 import { getProjectOntology } from '@/api/ontology'
 import { listTaskPatterns } from '@/api/patterns'
-import { listTasks, prepareIteration } from '@/api/tasks'
+import { listTasks } from '@/api/tasks'
 import { addProjectGuidance } from '@/api/guidance'
 import type { OntologyOperationModel } from '@/api/types'
 import {
@@ -137,6 +137,7 @@ export function OperationsReviewPage() {
   const [guidanceOptOutIds, setGuidanceOptOutIds] = useState<Record<string, boolean>>({})
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [regenerateTargetId, setRegenerateTargetId] = useState<string | null>(null)
+  const [regenerateNotice, setRegenerateNotice] = useState<string | null>(null)
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all')
   const [draftReady, setDraftReady] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
@@ -275,9 +276,43 @@ export function OperationsReviewPage() {
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
 
-  const regeneratePending = useMutation({
-    mutationFn: () => prepareIteration(projectId!, iterationId!),
-    onSuccess: invalidateAll,
+  const forgetDecision = (operationId: string) => {
+    const without = <T,>(record: Record<string, T>) => {
+      const next = { ...record }
+      delete next[operationId]
+      return next
+    }
+    setReviewById(without)
+    setRejectionReasonById(without)
+    setSavedGuidanceIds(without)
+    setGuidanceOptOutIds(without)
+  }
+
+  const regenerateMutation = useMutation({
+    mutationFn: async (operationId: string) => {
+      const reason = rejectionReasonById[operationId]?.trim() || null
+      await saveOptedInGuidance([operationId])
+      return regenerateOperation(projectId!, iterationId!, operationId, reason)
+    },
+    onMutate: () => {
+      setActionError(null)
+      setRegenerateNotice(null)
+    },
+    onSuccess: async (data, operationId) => {
+      if (data.operations.length === 0) {
+        setRegenerateNotice(
+          'The assistant did not find a different change. The original change stays rejected; you can leave it out or edit the reason and try again.',
+        )
+        return
+      }
+      forgetDecision(operationId)
+      setRegenerateNotice(
+        `The rejected change was replaced by ${data.operations.length} new proposal${
+          data.operations.length === 1 ? '' : 's'
+        }. Review ${data.operations.length === 1 ? 'it' : 'them'} below.`,
+      )
+      await invalidateAll()
+    },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
 
@@ -435,24 +470,9 @@ export function OperationsReviewPage() {
   const canFinalize =
     isPrepared && approvedOperations.length > 0 && counts.pending === 0
 
-  const handleRegenerateChange = async (operationId: string) => {
+  const handleRegenerateChange = (operationId: string) => {
     setRegenerateTargetId(null)
-    const reason = rejectionReasonById[operationId]?.trim()
-    setActionError(null)
-    try {
-      if (reason && !savedGuidanceIds[operationId]) {
-        await saveGuidanceMutation.mutateAsync({ operationId, reason })
-      }
-      await deleteIterationOperation(projectId, iterationId, operationId)
-      setReviewById((prev) => {
-        const next = { ...prev }
-        delete next[operationId]
-        return next
-      })
-      await regeneratePending.mutateAsync()
-    } catch (error) {
-      setActionError(toErrorMessage(error))
-    }
+    regenerateMutation.mutate(operationId)
   }
 
   const missingClassesById = new Map(
@@ -581,6 +601,22 @@ export function OperationsReviewPage() {
         <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
           {actionError}
         </p>
+      ) : null}
+
+      {regenerateNotice ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950"
+        >
+          <p className="min-w-0 flex-1">{regenerateNotice}</p>
+          <button
+            type="button"
+            onClick={() => setRegenerateNotice(null)}
+            className="text-xs font-medium text-violet-800 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
       ) : null}
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -800,9 +836,11 @@ export function OperationsReviewPage() {
                                 type="button"
                                 className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-60"
                                 onClick={() => setRegenerateTargetId(op.id)}
-                                disabled={regeneratePending.isPending}
+                                disabled={regenerateMutation.isPending}
                               >
-                                {regeneratePending.isPending ? 'Regenerating…' : 'Regenerate'}
+                                {regenerateMutation.isPending && regenerateMutation.variables === op.id
+                                  ? 'Regenerating…'
+                                  : 'Regenerate'}
                               </button>
                             ) : null}
                           </>
@@ -895,8 +933,8 @@ export function OperationsReviewPage() {
           title="Regenerate this rejected change?"
           description={
             rejectionReasonById[regenerateTargetId]?.trim()
-              ? 'The assistant will try again using your rejection reason.'
-              : 'The assistant will try again using your project guidance.'
+              ? 'The assistant proposes a replacement for this change only, using your rejection reason. Other changes of this work item stay as they are.'
+              : 'The assistant proposes a replacement for this change only. Adding a reason first gives it a better hint. Other changes of this work item stay as they are.'
           }
           confirmLabel="Regenerate"
           onConfirm={() => handleRegenerateChange(regenerateTargetId)}

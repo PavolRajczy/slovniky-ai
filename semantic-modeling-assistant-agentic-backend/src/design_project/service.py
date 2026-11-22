@@ -42,6 +42,41 @@ def _locked_by_project(method):
     return wrapper
 
 
+def _operation_key(operation: OntologyEditOperation):
+    return type(operation).__name__, str(getattr(operation, "uri", ""))
+
+
+def _describe_operation(operation: OntologyEditOperation) -> str:
+    action = type(operation).__name__.replace("Operation", "")
+    label = getattr(operation, "label", None) or "(no label)"
+    definition = getattr(operation, "definition", None)
+    text = f"{action}: {label} ({operation.uri})"
+    return f"{text} - {definition}" if definition else text
+
+
+def _rejection_feedback(
+    rejected: IdentifiedOperation,
+    reason: Optional[str],
+    siblings: List[IdentifiedOperation],
+) -> str:
+    """Prompt section that asks the modeler to replace exactly one rejected change."""
+    reason_line = (
+        f"The user rejected it with this reason: {reason.strip()}"
+        if reason and reason.strip()
+        else "The user rejected it without giving a reason."
+    )
+    sibling_lines = "\n".join(f"- {_describe_operation(op.operation)}" for op in siblings) or "- None"
+    return f"""<REJECTED_CHANGE>
+You previously proposed this change for the current design task:
+- {_describe_operation(rejected.operation)}
+{reason_line}
+Propose only a corrected replacement for this rejected change, taking the reason into account.
+Do not propose the rejected change again in the same form. If no replacement makes sense, return an empty list.
+These other changes for the current design task are already proposed; do not repeat them:
+{sibling_lines}
+</REJECTED_CHANGE>"""
+
+
 class DesignProjectService:
     """
     A service for managing design projects.
@@ -874,6 +909,75 @@ class DesignProjectService:
             iteration.status = DesignIterationStatus.TASKS_PLANNED
             self.store.store_project(project)
             raise e
+
+    @_locked_by_project
+    def regenerate_rejected_operation(
+        self,
+        project_id: str,
+        iteration_id: str,
+        operation_id: str,
+        rejection_reason: Optional[str] = None,
+    ) -> List[IdentifiedOperation]:
+        """
+        Asks the modeler for a replacement of one rejected operation.
+
+        The rejected operation is replaced in place by the new proposals. Proposals that repeat the
+        rejected operation or another change already proposed for the same work item are dropped.
+        When nothing new is proposed, the rejected operation stays and an empty list is returned.
+        """
+        project = self.store.load_project(project_id)
+        iteration = project.currentIteration
+        if not iteration or iteration.id != iteration_id:
+            raise ValueError(f"Iteration {iteration_id} is not the current iteration")
+
+        planned_operations = list(iteration.plannedOperations or [])
+        rejected = next((op for op in planned_operations if op.id == operation_id), None)
+        if not rejected:
+            raise ValueError(f"Operation with ID '{operation_id}' not found")
+        task = next((t for t in iteration.plannedTasks if t.id == rejected.created_from_task_id), None)
+        if not task:
+            raise ValueError(f"Work item of operation '{operation_id}' not found")
+
+        siblings = [
+            op for op in planned_operations
+            if op.created_from_task_id == task.id and op.id != operation_id
+        ]
+        guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
+        feedback = _rejection_feedback(rejected, rejection_reason, siblings)
+        proposals = self.modeler_agent.get_operations_for_design_task(
+            project,
+            copy.deepcopy(project.designedOntology),
+            iteration,
+            task,
+            project_guidance_text="\n\n".join(text for text in [guidance, feedback] if text),
+        )
+
+        taken = {_operation_key(op.operation) for op in siblings}
+        replacements = [
+            op for op in proposals
+            if op != rejected.operation and _operation_key(op) not in taken
+        ]
+        if not replacements:
+            return []
+
+        other_pending = [op for op in planned_operations if op.id != operation_id]
+        replacements = with_missing_referenced_classes(project.designedOntology, replacements, other_pending)
+        replacements = [
+            op for op in replacements
+            if _operation_key(op) not in taken
+        ]
+        new_operations = [
+            IdentifiedOperation(id=str(uuid.uuid4()), operation=op, created_from_task_id=task.id)
+            for op in replacements
+        ]
+        index = planned_operations.index(rejected)
+        iteration.plannedOperations = [
+            *planned_operations[:index],
+            *new_operations,
+            *planned_operations[index + 1:],
+        ]
+        self.store.store_project(project)
+        return new_operations
 
     def _ensure_no_other_iteration_in_progress(self, project: DesignProject, iteration_id: str) -> None:
         current = project.currentIteration
