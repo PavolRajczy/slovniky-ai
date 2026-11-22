@@ -637,7 +637,7 @@ def _convert_project_to_model(project: DesignProject) -> ProjectModel:
 # ============================================================================
 
 @router.post("/projects", response_model=ProjectModel, status_code=status.HTTP_201_CREATED)
-async def create_project(request: CreateProjectRequest):
+def create_project(request: CreateProjectRequest):
     """
     Create a new design project with empty knowledge base.
     
@@ -676,7 +676,7 @@ async def create_project(request: CreateProjectRequest):
 
 
 @router.get("/projects/{project_id}/dataspecer-export-url")
-async def dataspecer_export_url(project_id: str):
+def dataspecer_export_url(project_id: str):
     """
     URL that receives this project's ontology on the configured Dataspecer backend.
     """
@@ -697,7 +697,7 @@ async def dataspecer_export_url(project_id: str):
 
 
 @router.post("/projects/{project_id}/dataspecer-sync", response_model=DataspecerSyncResponse)
-async def sync_project_to_dataspecer(project_id: str):
+def sync_project_to_dataspecer(project_id: str):
     """
     Send the current project ontology to the linked Dataspecer vocabulary again.
 
@@ -720,7 +720,7 @@ async def sync_project_to_dataspecer(project_id: str):
 
 
 @router.post("/projects/open-from-dataspecer", response_model=ProjectModel)
-async def open_project_from_dataspecer(request: OpenFromDataspecerRequest):
+def open_project_from_dataspecer(request: OpenFromDataspecerRequest):
     """
     Open the project linked to a Dataspecer vocabulary.
 
@@ -2295,7 +2295,7 @@ async def update_iteration(project_id: str, iteration_id: str, request: UpdateIt
 
 
 @router.delete("/projects/{project_id}/iterations/{iteration_id}", response_model=SuccessResponse)
-async def delete_iteration(project_id: str, iteration_id: str):
+def delete_iteration(project_id: str, iteration_id: str):
     """
     Remove an iteration (planned or current).
     
@@ -2902,7 +2902,7 @@ async def get_iteration_operations(project_id: str, iteration_id: str):
 
 
 @router.put("/projects/{project_id}/iterations/{iteration_id}/operations/reorder", response_model=SuccessResponse)
-async def reorder_operations(project_id: str, iteration_id: str, request: ReorderOperationsRequest):
+def reorder_operations(project_id: str, iteration_id: str, request: ReorderOperationsRequest):
     """
     Reorder operations within the current iteration.
     
@@ -2949,7 +2949,7 @@ async def reorder_operations(project_id: str, iteration_id: str, request: Reorde
 
 
 @router.put("/projects/{project_id}/iterations/{iteration_id}/operations/{operation_id}", response_model=OntologyOperationModel)
-async def update_operation(
+def update_operation(
     project_id: str,
     iteration_id: str,
     operation_id: str,
@@ -3028,7 +3028,7 @@ async def update_operation(
 
 
 @router.delete("/projects/{project_id}/iterations/{iteration_id}/operations/{operation_id}", response_model=SuccessResponse)
-async def delete_operation(project_id: str, iteration_id: str, operation_id: str):
+def delete_operation(project_id: str, iteration_id: str, operation_id: str):
     """
     Delete a specific operation from the current iteration.
     
@@ -3107,7 +3107,7 @@ def _iteration_already_applied_response(
 
 
 @router.post("/projects/{project_id}/iterations/{iteration_id}/apply", response_model=IterationAppliedResponse)
-async def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOperationsRequest):
+def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOperationsRequest):
     """
     Apply the operations to the ontology and complete the iteration.
     
@@ -3398,7 +3398,7 @@ async def get_project_ofn(project_id: str, format: str = Query("json")):
 
 
 @router.post("/projects/{project_id}/ofn/regenerate")
-async def regenerate_project_ofn_endpoint(project_id: str):
+def regenerate_project_ofn_endpoint(project_id: str):
     """
     Regenerate OFN from the current project ontology and overwrite `ofn.json`.
     """

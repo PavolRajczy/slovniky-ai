@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
+import functools
 import uuid
 import copy
 import threading
@@ -23,6 +24,21 @@ from ontology.edit_operation_handlers import CreatedElementExistsError, DeletedE
 from ontology.edit_operations import OperationType
 from ontology.service import OntologyService
 from ontology.edit_operations import OntologyEditOperation
+
+
+def _locked_by_project(method):
+    """
+    Run the method while holding the project's lock.
+
+    The store hands out one cached project object, so preparing, applying and editing
+    the prepared changes of the same project must not interleave.
+    """
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        project_id = kwargs["project_id"] if "project_id" in kwargs else args[0]
+        with self._project_lock(project_id):
+            return method(self, *args, **kwargs)
+    return wrapper
 
 
 class DesignProjectService:
@@ -56,6 +72,16 @@ class DesignProjectService:
         # Initialize the design task patterns factory to be used to get design task patterns.
         self.design_task_patterns_factory = DesignTaskPatternsFactory_Basic()
         self._dataspecer_open_lock = threading.Lock()
+        self._project_locks: Dict[str, threading.RLock] = {}
+        self._project_locks_guard = threading.Lock()
+
+    def _project_lock(self, project_id: str) -> threading.RLock:
+        with self._project_locks_guard:
+            lock = self._project_locks.get(project_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._project_locks[project_id] = lock
+            return lock
 
     def _effective_user_instruction(self, project_id: str, user_instruction: str) -> str:
         """Combine project guidance (if any) with the per-request user_instruction for agent prompts."""
@@ -634,6 +660,7 @@ class DesignProjectService:
 
         return iteration.plannedTasks
 
+    @_locked_by_project
     def prepare_planned_iteration(self, project_id: str, iteration_id: str):
         """
         Prepares a planned design iteration by generating operations for all tasks.
@@ -755,6 +782,7 @@ class DesignProjectService:
             self.store.store_project(project)
             raise e
 
+    @_locked_by_project
     def prepare_planned_iteration_task(self, project_id: str, iteration_id: str, task_id: str):
         """
         Prepares a single planned task by generating only that task's operations.
@@ -933,6 +961,7 @@ class DesignProjectService:
                 print(f"  Warning: {e}. Skipping operation.")
             print(f"  ... processed operation {i+1}")
 
+    @_locked_by_project
     def apply_current_iteration_changes(self, project_id: str, operations=None):
         """
         Applies the provided ontology edit operations to the current iteration.
@@ -1096,6 +1125,7 @@ class DesignProjectService:
         """
         self.store.store_project(project)
 
+    @_locked_by_project
     def remove_iteration(self, project_id: str, iteration_id: str) -> None:
         """
         Removes a design iteration from the given project.
@@ -1154,6 +1184,7 @@ class DesignProjectService:
         self.store.store_project(project)
         print(f"... rejected iteration {iteration.id}")
 
+    @_locked_by_project
     def reorder_iteration_operations(self, project_id: str, iteration_id: str, operation_ids: List[str]) -> None:
         """
         Reorder operations within the current iteration.
@@ -1194,6 +1225,7 @@ class DesignProjectService:
         
         self.save_project(project)
 
+    @_locked_by_project
     def update_iteration_operation(self, project_id: str, iteration_id: str, operation_id: str, updated_operation):
         """
         Update a specific operation within the current iteration.
@@ -1239,6 +1271,7 @@ class DesignProjectService:
         
         raise ValueError(f"Operation with ID '{operation_id}' not found")
 
+    @_locked_by_project
     def delete_iteration_operation(self, project_id: str, iteration_id: str, operation_id: str) -> None:
         """
         Delete a specific operation from the current iteration.
