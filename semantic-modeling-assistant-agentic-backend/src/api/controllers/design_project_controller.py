@@ -56,6 +56,7 @@ from ontology.edit_operations import OntologyEditOperation, OperationType
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer_openai_simple import KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI
 from agents.iteration_suggesters.iteration_suggester_openai_simple import IterationSuggesterAgent_Simple_OpenAI
 from agents.task_planners.task_planner_openai_simple import TaskPlannerAgent_Simple_OpenAI
+from agents.modelers.modeler import OperationGenerationError
 from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
 
 from design_project.dataspecer_link import DataspecerLinkError, export_url_for_package
@@ -161,6 +162,11 @@ def _ensure_project_documents_indexed(project: DesignProject) -> None:
 def _ai_unavailable(error: AIServiceUnavailableError) -> HTTPException:
     logger.error(f"AI service unavailable: {error}")
     return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error))
+
+
+def _ai_answer_unreadable(error: OperationGenerationError) -> HTTPException:
+    logger.error(f"AI answer could not be read: {error}")
+    return HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(error))
 
 
 def _sync_project_to_dataspecer(project_id: str, iteration_id: Optional[str] = None) -> tuple[Optional[bool], Optional[str]]:
@@ -2769,6 +2775,8 @@ def prepare_iteration(project_id: str, iteration_id: str):
         )
     except AIServiceUnavailableError as e:
         raise _ai_unavailable(e) from e
+    except OperationGenerationError as e:
+        raise _ai_answer_unreadable(e) from e
     except Exception as e:
         logger.error(f"Error preparing iteration: {e}")
         raise HTTPException(
@@ -2821,6 +2829,8 @@ def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
         )
     except AIServiceUnavailableError as e:
         raise _ai_unavailable(e) from e
+    except OperationGenerationError as e:
+        raise _ai_answer_unreadable(e) from e
     except Exception as e:
         logger.error(f"Error preparing task: {e}")
         raise HTTPException(

@@ -11,6 +11,7 @@ from rdflib import URIRef
 # Add the src directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+from agents.modelers.modeler import OperationGenerationError
 from agents.modelers.modeler_openai_basic import (
     ClassOperationOutput,
     EditOperationsOutput,
@@ -226,9 +227,42 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
         self.assertEqual(result[0].label, "Test Class")
 
     @patch("agents.modelers.modeler_openai_basic.parse_structured")
-    def test_do_design_task_error_handling(self, mock_parse):
-        """Test error handling in do_design_task method."""
-        mock_parse.side_effect = Exception("OpenAI API failed")
+    def test_unreadable_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """An answer that cannot be parsed twice is an error, not an empty result."""
+        mock_parse.side_effect = Exception("Invalid tool call arguments")
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError) as context:
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+        self.assertIn("Test Task", str(context.exception))
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_missing_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """A model that does not call the output tool is an error, not an empty result."""
+        mock_parse.return_value = None
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError):
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unreadable_answer_is_asked_again_once(self, mock_parse):
+        """A second readable answer is used when the first one cannot be parsed."""
+        mock_parse.side_effect = [
+            Exception("Invalid tool call arguments"),
+            EditOperationsOutput(class_operations=[self._class_output()]),
+        ]
         self.knowledge_base_index_service.search_relative.return_value = []
 
         result = self.agent.get_operations_for_design_task(
@@ -238,8 +272,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             self.test_task,
         )
 
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 0)
+        self.assertEqual([op.label for op in result], ["Test Class"])
 
     @patch("agents.modelers.modeler_openai_basic.parse_structured")
     def test_unusable_reference_does_not_drop_the_change(self, mock_parse):

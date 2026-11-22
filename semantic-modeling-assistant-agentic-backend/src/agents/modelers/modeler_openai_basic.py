@@ -7,7 +7,7 @@ from rdflib import URIRef
 from agents.iteration_scope_prompt import render_iteration_scope
 from agents.model_config import get_mini_model
 from llm.provider import AIServiceUnavailableError, parse_structured
-from agents.modelers.modeler import ModelerAgent
+from agents.modelers.modeler import ModelerAgent, OperationGenerationError
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
 from knowledge_base.service import KnowledgeBaseService
@@ -21,6 +21,8 @@ from ontology.edit_operations import (
     CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation,
     CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation
 )
+
+GENERATION_ATTEMPTS = 2
 
 
 class SearchQueryDefinitionOutput(BaseModel):
@@ -752,23 +754,30 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             {"role": "user", "content": snippets_xml},
         ]
 
-        operations_output = None
-
-        # Generate edit operations
-        try:
-            operations_output = parse_structured(
-                input_generate_operations,
-                EditOperationsOutput,
-                self.model_name,
-            )
-        except AIServiceUnavailableError:
-            raise
-        except Exception as e:
-            print(f"Error generating edit operations: {e}")
-            return []
+        operations_output = self._request_operations_output(input_generate_operations, task)
 
         # Convert Pydantic models to actual edit operation objects
         return self._convert_operations_output_to_edit_operations(design_project.designedOntology.uri, operations_output)
+
+    def _request_operations_output(self, messages: List[dict], task: DesignTask) -> EditOperationsOutput:
+        """
+        Asks the model for edit operations and asks once more when the answer cannot be read.
+        An unreadable answer must not look like "nothing to change", so the last error is raised.
+        """
+        last_error: Exception = ValueError("The model returned no edit operations.")
+        for attempt in range(1, GENERATION_ATTEMPTS + 1):
+            try:
+                operations_output = parse_structured(messages, EditOperationsOutput, self.model_name)
+            except AIServiceUnavailableError:
+                raise
+            except Exception as e:
+                print(f"Error generating edit operations (attempt {attempt}/{GENERATION_ATTEMPTS}): {e}")
+                last_error = e
+                continue
+            if operations_output is not None:
+                return operations_output
+            print(f"The model returned no edit operations (attempt {attempt}/{GENERATION_ATTEMPTS})")
+        raise OperationGenerationError(task.name, last_error)
 
     def _convert_operations_output_to_edit_operations(self, ontology_uri: str, operations_output: EditOperationsOutput) -> List[OntologyEditOperation]:
         """
