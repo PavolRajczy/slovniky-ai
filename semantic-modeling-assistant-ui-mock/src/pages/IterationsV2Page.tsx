@@ -121,7 +121,7 @@ export function IterationsV2Page() {
   const handleSuggest = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!effectiveAreaId) {
-      setSuggestError('Pick a domain area first.')
+      setSuggestError('Pick a section on the domain map first.')
       return
     }
     if (suggestForm.count < 1 || suggestForm.count > 10) {
@@ -139,7 +139,7 @@ export function IterationsV2Page() {
       return
     }
     if (!focusedAreaId) {
-      setManualError('Pick a domain area for this direction.')
+      setManualError('Pick a section for this direction.')
       return
     }
     createMutation.mutate({ ...manualForm, focusedAreaId })
@@ -173,28 +173,28 @@ export function IterationsV2Page() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="rounded-2xl border border-emerald-200 bg-linear-to-br from-emerald-50 to-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-            Iterations v2 concept
+            Directions{currentDomain ? ` · ${currentDomain.label}` : ''}
           </p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
             What should we explore next?
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-700">
-            This page treats iterations as direction suggestions, not as a fixed plan. Ask the assistant for
-            the next promising work in a domain, review the proposed changes, and return here whenever the
-            ontology still needs another pass.
+            A <strong>direction</strong> is one focused modeling goal inside the selected section, for example{' '}
+            <em>identify the core classes for vehicle registration</em>. Ask the assistant for a few directions,
+            pick one, and it will be split into work items with proposed changes for you to review.
           </p>
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm shadow-sm">
-          <h3 className="font-semibold text-slate-900">How this flow should feel</h3>
+          <h3 className="font-semibold text-slate-900">How it works</h3>
           <ol className="mt-3 space-y-3 text-slate-600">
             <li>
-              <span className="font-medium text-slate-900">1. Choose a direction.</span> Say what part of the
-              domain deserves attention now.
+              <span className="font-medium text-slate-900">1. Choose a direction.</span> Pick the goal inside this
+              section that deserves attention now.
             </li>
             <li>
-              <span className="font-medium text-slate-900">2. Work through it.</span> Turn one suggestion into
-              tasks and review the resulting changes.
+              <span className="font-medium text-slate-900">2. Work through it.</span> Turn the direction into work
+              items and review the proposed changes.
             </li>
             <li>
               <span className="font-medium text-slate-900">3. Come back for more.</span> If review reveals more
@@ -212,7 +212,7 @@ export function IterationsV2Page() {
                 Ask for next directions
               </h3>
               <p className="mt-1 text-sm text-slate-600">
-                Keep this simple: describe what you want to improve or understand in the current domain.
+                Keep this simple: describe what you want to improve or understand in the current section.
               </p>
             </div>
             {iterationsQuery.isFetching ? (
@@ -370,7 +370,7 @@ export function IterationsV2Page() {
                 }
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="">Pick a domain area</option>
+                <option value="">Pick a section</option>
                 {areas.map((area) => (
                   <option key={area.id} value={area.id}>
                     {area.label}
@@ -436,13 +436,13 @@ function DomainFeedbackPanel({ domain, progress, projectId }: DomainFeedbackPane
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current domain</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected section</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
-            {domain?.label ?? 'No domain selected'}
+            {domain?.label ?? 'No section selected'}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
             {domain?.description ??
-              'Open a domain area first so the assistant can suggest where to continue.'}
+              'Choose a section on the domain map first so the assistant can suggest where to continue.'}
           </p>
           {domain && domain.key_concepts.length > 0 ? (
             <div className="mt-3 flex flex-wrap gap-1">
@@ -487,7 +487,7 @@ function DomainFeedbackPanel({ domain, progress, projectId }: DomainFeedbackPane
           search={{ projectId, packageIri: undefined }}
           className="text-xs font-medium text-emerald-700 hover:underline"
         >
-          Choose a different domain
+          Choose a different section
         </Link>
       </div>
     </section>
