@@ -352,46 +352,15 @@ export function DomainAreasPage() {
         ) : null}
       </section>
 
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Create section manually</h3>
-        <form onSubmit={handleCreate} className="mt-4 grid gap-3 md:grid-cols-2">
-          <input
-            value={createForm.label}
-            onChange={(event) => setCreateForm((s) => ({ ...s, label: event.target.value }))}
-            placeholder="Section name"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          <input
-            value={createForm.keyConcepts}
-            onChange={(event) => setCreateForm((s) => ({ ...s, keyConcepts: event.target.value }))}
-            placeholder="Key concepts (comma separated)"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          <textarea
-            value={createForm.description}
-            onChange={(event) => setCreateForm((s) => ({ ...s, description: event.target.value }))}
-            rows={2}
-            placeholder="What this section is about and which legal chapters it covers."
-            className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          {createError ? (
-            <p className="md:col-span-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-              {createError}
-            </p>
-          ) : null}
-          <div className="md:col-span-2 flex justify-end">
-            <button
-              type="submit"
-              disabled={createMutation.isPending}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-            >
-              {createMutation.isPending ? 'Saving…' : 'Save manual section'}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Sections of the domain map</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Each section is one part of the domain covered by the main source. Pick the section you want to work
+            on and click <strong>Explore next directions</strong>.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <tr>
@@ -417,7 +386,7 @@ export function DomainAreasPage() {
             ) : areas.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-500">
-                  No domain map yet. Suggest one with AI above, or create a section manually.
+                  No domain map yet. Suggest one with AI above, or create a section manually below.
                 </td>
               </tr>
             ) : (
@@ -493,23 +462,8 @@ export function DomainAreasPage() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleStartEdit(area)}
-                          className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(area)}
-                          disabled={deleteMutation.isPending && deleteMutation.variables === area.id}
-                          className="whitespace-nowrap rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
-                        >
-                          Delete
-                        </button>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col items-end gap-2">
                         <Link
                           to="/iterations-v2"
                           search={{ projectId, domainId: area.id }}
@@ -517,6 +471,23 @@ export function DomainAreasPage() {
                         >
                           Explore next directions
                         </Link>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(area)}
+                            className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(area)}
+                            disabled={deleteMutation.isPending && deleteMutation.variables === area.id}
+                            className="whitespace-nowrap rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -525,7 +496,61 @@ export function DomainAreasPage() {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 shadow-sm">
+        <details className="group [&_summary::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Advanced: create a section manually
+              </h3>
+              <p className="mt-1 text-xs text-slate-600">
+                Use this when an important part of the domain is missing from the suggested map.
+              </p>
+            </div>
+            <span className="text-slate-400 transition-transform duration-200 group-open:rotate-180" aria-hidden>
+              ▼
+            </span>
+          </summary>
+        <form onSubmit={handleCreate} className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2">
+          <input
+            value={createForm.label}
+            onChange={(event) => setCreateForm((s) => ({ ...s, label: event.target.value }))}
+            placeholder="Section name"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          <input
+            value={createForm.keyConcepts}
+            onChange={(event) => setCreateForm((s) => ({ ...s, keyConcepts: event.target.value }))}
+            placeholder="Key concepts (comma separated)"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          <textarea
+            value={createForm.description}
+            onChange={(event) => setCreateForm((s) => ({ ...s, description: event.target.value }))}
+            rows={2}
+            placeholder="What this section is about and which legal chapters it covers."
+            className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+          {createError ? (
+            <p className="md:col-span-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+              {createError}
+            </p>
+          ) : null}
+          <div className="md:col-span-2 flex justify-end">
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+            >
+              {createMutation.isPending ? 'Saving…' : 'Save manual section'}
+            </button>
+          </div>
+        </form>
+        </details>
+      </section>
 
       {deleteTarget ? (
         <ConfirmDialog
