@@ -11,7 +11,12 @@ from rdflib import URIRef
 # Add the src directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
+from agents.modelers.modeler_openai_basic import (
+    ClassOperationOutput,
+    EditOperationsOutput,
+    KnowledgeBaseReference,
+    ModelerAgent_Simple_OpenAI,
+)
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, 
     DesignTaskCategory, DesignTaskStatus, KnowledgeDomainArea, KnowledgeDomain
@@ -235,6 +240,40 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
 
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 0)
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unusable_reference_does_not_drop_the_change(self, mock_parse):
+        """A reference without a snippet ID is left out, the change itself is kept."""
+        class_output = self._class_output(
+            definition_references=[
+                KnowledgeBaseReference(fragment_id="f12"),
+                KnowledgeBaseReference(snippet_id="snippet-1", fragment_id="#f3"),
+            ],
+        )
+        mock_parse.return_value = EditOperationsOutput(class_operations=[class_output])
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].definition_references, ["snippet-1#f3"])
+
+    def _class_output(self, **overrides) -> ClassOperationOutput:
+        values = {
+            "operation_type": "create",
+            "prefixed_name": ":TestClass",
+            "label": "Test Class",
+            "definition": "A test class",
+            "description": "Description of test class",
+            "kind": Kind.OBJECT,
+        }
+        values.update(overrides)
+        return ClassOperationOutput(**values)
 
 
 if __name__ == '__main__':

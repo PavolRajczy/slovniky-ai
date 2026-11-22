@@ -52,10 +52,11 @@ class KnowledgeBaseReference(BaseModel):
     """
     Pydantic model representing a reference to a knowledge base snippet or its fragment.
     """
-    snippet_id: str = Field(
+    snippet_id: Optional[str] = Field(
+        default=None,
         description="The unique ID of the knowledge base snippet."
     )
-    fragment_id: str = Field(
+    fragment_id: Optional[str] = Field(
         default=None,
         description="An optional ID indicating a specific fragment of the snippet."
     )
@@ -683,8 +684,8 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             - If only snippet_id: return snippet_id
             - If both snippet_id and fragment_id: return snippet_id + fragment_id (concatenated)
             - If only fragment_id:
-                - If starts with "http://": return fragment_id
-                - Otherwise: raise exception
+                - If it is an absolute http(s) IRI: return fragment_id
+                - Otherwise: skip the reference, so one bad reference does not drop the whole change
         """
         if not references:
             return []
@@ -699,10 +700,10 @@ As a source of the domain knowledge to guide your decisions, use the domain know
                 result.append(ref.snippet_id)
             elif ref.fragment_id:
                 # Only fragment_id
-                if ref.fragment_id.startswith("http://"):
+                if ref.fragment_id.startswith(("http://", "https://")):
                     result.append(ref.fragment_id)
                 else:
-                    raise ValueError(f"Fragment ID '{ref.fragment_id}' without snippet_id must be an absolute IRI starting with 'http://'")
+                    print(f"Skipping reference with fragment ID '{ref.fragment_id}' and no snippet ID")
             else:
                 # Neither present - skip this reference
                 continue
