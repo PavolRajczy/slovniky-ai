@@ -18,7 +18,11 @@ import {
   planTasks,
   updateTask,
 } from '@/api/tasks'
-import { usePrepareQueue, type PreparedTaskResult } from '@/hooks/usePrepareQueue'
+import {
+  usePrepareQueue,
+  type PreparedTaskResult,
+  type PrepareQueueEntry,
+} from '@/hooks/usePrepareQueue'
 import type {
   DesignIterationModel,
   DesignIterationStatus,
@@ -114,7 +118,9 @@ export function TasksPage() {
   const [taskFormError, setTaskFormError] = useState<string | null>(null)
   const [planInstruction, setPlanInstruction] = useState('')
   const [planError, setPlanError] = useState<string | null>(null)
-  const [prepareError, setPrepareError] = useState<string | null>(null)
+  const [prepareFailure, setPrepareFailure] = useState<{ entry: PrepareQueueEntry; message: string } | null>(
+    null,
+  )
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<TaskFormState>(INITIAL_TASK_FORM)
   const [editError, setEditError] = useState<string | null>(null)
@@ -202,7 +208,7 @@ export function TasksPage() {
   const prepareQueue = usePrepareQueue({
     projectId,
     onPrepared: async (result) => {
-      setPrepareError(null)
+      setPrepareFailure((current) => (current?.entry.taskId === result.taskId ? null : current))
       await invalidateTasks()
       setReadyNotice(result)
       if (result.operationsCount === 0) return
@@ -212,7 +218,7 @@ export function TasksPage() {
       }
     },
     onFailed: async (entry, error) => {
-      setPrepareError(`Could not prepare "${entry.taskName}": ${toErrorMessage(error)}`)
+      setPrepareFailure({ entry, message: toErrorMessage(error) })
       await invalidateTasks()
     },
   })
@@ -323,6 +329,25 @@ export function TasksPage() {
     )
   }
 
+  const plannedTaskById = (taskId: string) =>
+    canMovePlannedWorkItems ? plannedTasks.find((task) => task.id === taskId) : undefined
+
+  const handlePrepareAgain = (taskId: string) => {
+    const task = plannedTaskById(taskId)
+    if (!task) return
+    setReadyNotice(null)
+    setPrepareFailure(null)
+    handlePrepare([task])
+  }
+
+  const handleEditAfterPrepare = (taskId: string) => {
+    const task = plannedTaskById(taskId)
+    if (!task) return
+    setReadyNotice(null)
+    setPrepareFailure(null)
+    startEdit(task)
+  }
+
   const reviewSearch = (taskId: string) => ({
     projectId,
     domainId: activeIteration?.focused_area_id ?? domainId,
@@ -376,10 +401,32 @@ export function TasksPage() {
         </p>
       </div>
 
-      {prepareError ? (
-        <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-          {prepareError}
-        </p>
+      {prepareFailure ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 shadow-sm"
+        >
+          <p className="min-w-0 flex-1">
+            Could not prepare <span className="font-semibold">"{prepareFailure.entry.taskName}"</span>. It stays in
+            To prepare.
+            <span className="mt-1 block text-xs opacity-80">{prepareFailure.message}</span>
+          </p>
+          <div className="flex gap-2">
+            {plannedTaskById(prepareFailure.entry.taskId) ? (
+              <button
+                type="button"
+                onClick={() => handlePrepareAgain(prepareFailure.entry.taskId)}
+                disabled={prepareQueue.statusOf(prepareFailure.entry.taskId) !== null}
+                className={actionButton.primarySm}
+              >
+                Try again
+              </button>
+            ) : null}
+            <button type="button" onClick={() => setPrepareFailure(null)} className={actionButton.secondarySm}>
+              Dismiss
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {readyNotice ? (
@@ -400,7 +447,11 @@ export function TasksPage() {
             ) : (
               <>
                 The assistant proposed no changes for{' '}
-                <span className="font-semibold">"{readyNotice.taskName}"</span>. It stays in To prepare.
+                <span className="font-semibold">"{readyNotice.taskName}"</span>, so it stays in To prepare.
+                <span className="mt-1 block text-xs opacity-80">
+                  Usually the vocabulary or changes prepared for other work items already cover it, or the documents
+                  say nothing specific about it. Try again, or make the work item description more specific.
+                </span>
               </>
             )}
             {prepareQueue.pendingCount > 0 ? (
@@ -419,6 +470,24 @@ export function TasksPage() {
               >
                 Review now
               </Link>
+            ) : plannedTaskById(readyNotice.taskId) ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handlePrepareAgain(readyNotice.taskId)}
+                  disabled={prepareQueue.statusOf(readyNotice.taskId) !== null}
+                  className={actionButton.primarySm}
+                >
+                  Try again
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEditAfterPrepare(readyNotice.taskId)}
+                  className={actionButton.secondarySm}
+                >
+                  Edit work item
+                </button>
+              </>
             ) : null}
             <button type="button" onClick={() => setReadyNotice(null)} className={actionButton.secondarySm}>
               Dismiss
