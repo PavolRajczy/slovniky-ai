@@ -852,23 +852,27 @@ class DesignProjectService:
             iteration.currentTask = None
             if identified_operations:
                 task.status = DesignTaskStatus.OPERATIONS_GENERATED
-                iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
                 iteration.plannedOperations = [*(iteration.plannedOperations or []), *identified_operations]
             else:
                 task.status = DesignTaskStatus.PLANNED
-                iteration.status = (
-                    DesignIterationStatus.OPERATIONS_GENERATED
-                    if iteration.plannedOperations
-                    else DesignIterationStatus.TASKS_PLANNED
-                )
+            iteration.status = self._status_after_task_preparation(iteration)
 
             self.store.store_project(project)
             return identified_operations
         except Exception as e:
             task.status = DesignTaskStatus.PLANNED
-            iteration.status = DesignIterationStatus.TASKS_PLANNED
+            iteration.status = self._status_after_task_preparation(iteration)
             self.store.store_project(project)
             raise e
+
+    @staticmethod
+    def _status_after_task_preparation(iteration: DesignIteration) -> DesignIterationStatus:
+        """Changes prepared for other work items keep the direction ready to review."""
+        return (
+            DesignIterationStatus.OPERATIONS_GENERATED
+            if iteration.plannedOperations
+            else DesignIterationStatus.TASKS_PLANNED
+        )
 
     def _ensure_no_other_iteration_in_progress(self, project: DesignProject, iteration_id: str) -> None:
         current = project.currentIteration

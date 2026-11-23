@@ -11,7 +11,13 @@ from rdflib import URIRef
 # Add the src directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
+from agents.modelers.modeler import OperationGenerationError
+from agents.modelers.modeler_openai_basic import (
+    ClassOperationOutput,
+    EditOperationsOutput,
+    KnowledgeBaseReference,
+    ModelerAgent_Simple_OpenAI,
+)
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, 
     DesignTaskCategory, DesignTaskStatus, KnowledgeDomainArea, KnowledgeDomain
@@ -221,9 +227,42 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
         self.assertEqual(result[0].label, "Test Class")
 
     @patch("agents.modelers.modeler_openai_basic.parse_structured")
-    def test_do_design_task_error_handling(self, mock_parse):
-        """Test error handling in do_design_task method."""
-        mock_parse.side_effect = Exception("OpenAI API failed")
+    def test_unreadable_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """An answer that cannot be parsed twice is an error, not an empty result."""
+        mock_parse.side_effect = Exception("Invalid tool call arguments")
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError) as context:
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+        self.assertIn("Test Task", str(context.exception))
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_missing_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """A model that does not call the output tool is an error, not an empty result."""
+        mock_parse.return_value = None
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError):
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unreadable_answer_is_asked_again_once(self, mock_parse):
+        """A second readable answer is used when the first one cannot be parsed."""
+        mock_parse.side_effect = [
+            Exception("Invalid tool call arguments"),
+            EditOperationsOutput(class_operations=[self._class_output()]),
+        ]
         self.knowledge_base_index_service.search_relative.return_value = []
 
         result = self.agent.get_operations_for_design_task(
@@ -233,8 +272,41 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             self.test_task,
         )
 
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 0)
+        self.assertEqual([op.label for op in result], ["Test Class"])
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unusable_reference_does_not_drop_the_change(self, mock_parse):
+        """A reference without a snippet ID is left out, the change itself is kept."""
+        class_output = self._class_output(
+            definition_references=[
+                KnowledgeBaseReference(fragment_id="f12"),
+                KnowledgeBaseReference(snippet_id="snippet-1", fragment_id="#f3"),
+            ],
+        )
+        mock_parse.return_value = EditOperationsOutput(class_operations=[class_output])
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].definition_references, ["snippet-1#f3"])
+
+    def _class_output(self, **overrides) -> ClassOperationOutput:
+        values = {
+            "operation_type": "create",
+            "prefixed_name": ":TestClass",
+            "label": "Test Class",
+            "definition": "A test class",
+            "description": "Description of test class",
+            "kind": Kind.OBJECT,
+        }
+        values.update(overrides)
+        return ClassOperationOutput(**values)
 
 
 if __name__ == '__main__':
