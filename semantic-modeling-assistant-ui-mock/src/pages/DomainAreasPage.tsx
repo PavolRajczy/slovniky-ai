@@ -1,7 +1,8 @@
 import { Link, getRouteApi } from '@tanstack/react-router'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { WorkflowStepper, resolveWorkflowContext } from '@/components/workflow'
+import { actionButton } from '@/components/ActionButtons'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ApiError } from '@/api/client'
 import {
@@ -36,6 +37,10 @@ type EditFormState = {
   keyConcepts: string
 }
 
+const FIELD_CLASS =
+  'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-normal text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500'
+const FIELD_LABEL_CLASS = 'block text-xs font-medium text-slate-600'
+
 export function DomainAreasPage() {
   const { projectId, packageIri } = domainAreasRouteApi.useSearch()
   const { setProjectId } = useCurrentProject()
@@ -52,6 +57,7 @@ export function DomainAreasPage() {
   const [editForm, setEditForm] = useState<EditFormState>({ label: '', description: '', keyConcepts: '' })
   const [editError, setEditError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<KnowledgeDomainAreaModel | null>(null)
+  const sectionsRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!packageIri || projectId) {
@@ -97,12 +103,15 @@ export function DomainAreasPage() {
     ])
   }
 
+  const showSections = () => sectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
   const generateMutation = useMutation({
     mutationFn: () =>
       generateDomainAreas(projectId!, { user_instruction: generateInstruction.trim() || null }),
     onSuccess: async () => {
       setAnalyzeError(null)
       await invalidateAreas()
+      showSections()
     },
     onError: (error: unknown) => setAnalyzeError(toErrorMessage(error)),
   })
@@ -114,6 +123,7 @@ export function DomainAreasPage() {
       setAnalyzeError(null)
       setReidentifyInstruction('')
       await invalidateAreas()
+      showSections()
     },
     onError: (error: unknown) => setAnalyzeError(toErrorMessage(error)),
   })
@@ -157,6 +167,7 @@ export function DomainAreasPage() {
   })
 
   const areas = areasQuery.data ?? []
+  const hasAreas = areas.length > 0
   const hasKeyDoc = Boolean(projectQuery.data?.key_knowledge_document_id)
 
   const handleCreate = (event: FormEvent<HTMLFormElement>) => {
@@ -198,10 +209,10 @@ export function DomainAreasPage() {
 
   const lastMutationMessage = useMemo(() => {
     if (generateMutation.isSuccess && generateMutation.data) {
-      return `Suggested ${generateMutation.data.length} section${generateMutation.data.length === 1 ? '' : 's'}.`
+      return `Suggested ${generateMutation.data.length} section${generateMutation.data.length === 1 ? '' : 's'}. They are listed below - pick one and click Explore next directions.`
     }
     if (reidentifyMutation.isSuccess && reidentifyMutation.data) {
-      return `Refined the map - now ${reidentifyMutation.data.length} section${reidentifyMutation.data.length === 1 ? '' : 's'}.`
+      return `Refined the map - now ${reidentifyMutation.data.length} section${reidentifyMutation.data.length === 1 ? '' : 's'}, listed below.`
     }
     return null
   }, [generateMutation.isSuccess, generateMutation.data, reidentifyMutation.isSuccess, reidentifyMutation.data])
@@ -288,57 +299,65 @@ export function DomainAreasPage() {
           </p>
         ) : null}
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className={`mt-4 grid gap-4 ${hasAreas ? 'md:grid-cols-2' : ''}`}>
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
             <h4 className="text-sm font-semibold text-slate-900">
-              {areas.length === 0 ? 'Suggest domain map' : 'Regenerate domain map'}
+              {hasAreas ? 'Regenerate domain map' : 'Suggest domain map'}
             </h4>
             <p className="mt-1 text-xs text-slate-600">
-              AI analyzes the main source document and proposes understandable topic sections. Optional steering
-              instruction below.
+              {hasAreas
+                ? 'Replaces all current sections with a new suggestion from the main source document.'
+                : 'The assistant reads the main source document and proposes understandable topic sections. You can start right away - the instruction is optional.'}
             </p>
             <textarea
               rows={2}
               value={generateInstruction}
               onChange={(event) => setGenerateInstruction(event.target.value)}
-              placeholder="Focus on road infrastructure and traffic management"
-              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              placeholder="(Optional) What the map should focus on, e.g. one chapter or topic of the main source"
+              aria-label="Optional focus for the domain map"
+              className={FIELD_CLASS}
             />
             <button
               type="button"
               onClick={() => generateMutation.mutate()}
               disabled={!hasKeyDoc || analyzeBusy}
-              className="mt-2 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+              className={`mt-2 ${hasAreas ? actionButton.secondary : actionButton.primary}`}
             >
-              {generatePending ? 'Suggesting…' : 'Suggest domain map'}
+              {generatePending ? 'Suggesting…' : hasAreas ? 'Regenerate domain map' : 'Suggest domain map'}
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-            <h4 className="text-sm font-semibold text-slate-900">Refine the map</h4>
-            <p className="mt-1 text-xs text-slate-600">
-              Adjust the current sections with a focused instruction. Use this when the map feels too broad,
-              too detailed, or misses an important theme.
-            </p>
-            <textarea
-              rows={2}
-              value={reidentifyInstruction}
-              onChange={(event) => setReidentifyInstruction(event.target.value)}
-              placeholder="Split road-safety into infrastructure and driver-behavior subareas"
-              className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-            <button
-              type="button"
-              onClick={() => reidentifyMutation.mutate()}
-              disabled={
-                !hasKeyDoc || analyzeBusy || areas.length === 0 || reidentifyInstruction.trim().length === 0
-              }
-              className="mt-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
-            >
-              {reidentifyPending ? 'Refining…' : 'Refine map'}
-            </button>
-          </div>
+          {hasAreas ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <h4 className="text-sm font-semibold text-slate-900">Refine the map</h4>
+              <p className="mt-1 text-xs text-slate-600">
+                Keeps the current sections and changes them by your instruction, for example merges, splits or
+                renames them. Use it when the map is too broad, too detailed, or misses a topic.
+              </p>
+              <textarea
+                rows={2}
+                value={reidentifyInstruction}
+                onChange={(event) => setReidentifyInstruction(event.target.value)}
+                placeholder="What to change, e.g. split one broad section into two narrower ones"
+                aria-label="What to change in the domain map"
+                className={FIELD_CLASS}
+              />
+              <button
+                type="button"
+                onClick={() => reidentifyMutation.mutate()}
+                disabled={!hasKeyDoc || analyzeBusy || reidentifyInstruction.trim().length === 0}
+                className={`mt-2 ${actionButton.secondary}`}
+              >
+                {reidentifyPending ? 'Refining…' : 'Refine map'}
+              </button>
+            </div>
+          ) : null}
         </div>
+        {analyzeBusy ? (
+          <p className="mt-3 text-xs text-slate-500">
+            The assistant is working on the map. Editing sections is paused until it finishes.
+          </p>
+        ) : null}
 
         {analyzeError ? (
           <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
@@ -352,7 +371,10 @@ export function DomainAreasPage() {
         ) : null}
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <section
+        ref={sectionsRef}
+        className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm"
+      >
         <div className="border-b border-slate-100 px-5 py-4">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Sections of the domain map</h3>
           <p className="mt-1 text-sm text-slate-600">
@@ -394,34 +416,42 @@ export function DomainAreasPage() {
                 editingId === area.id ? (
                   <tr key={area.id} className="bg-slate-50/60">
                     <td colSpan={4} className="px-4 py-4">
-                      <form onSubmit={handleSaveEdit} className="grid gap-3 md:grid-cols-2">
-                        <input
-                          value={editForm.label}
-                          onChange={(event) => setEditForm((s) => ({ ...s, label: event.target.value }))}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                        <input
-                          value={editForm.keyConcepts}
-                          onChange={(event) =>
-                            setEditForm((s) => ({ ...s, keyConcepts: event.target.value }))
-                          }
-                          placeholder="Key concepts (comma separated)"
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                        <textarea
-                          value={editForm.description}
-                          onChange={(event) =>
-                            setEditForm((s) => ({ ...s, description: event.target.value }))
-                          }
-                          rows={2}
-                          className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
+                      <form onSubmit={handleSaveEdit} className="grid gap-3">
+                        <label className={FIELD_LABEL_CLASS}>
+                          Section name
+                          <input
+                            value={editForm.label}
+                            onChange={(event) => setEditForm((s) => ({ ...s, label: event.target.value }))}
+                            className={FIELD_CLASS}
+                          />
+                        </label>
+                        <label className={FIELD_LABEL_CLASS}>
+                          Description
+                          <textarea
+                            value={editForm.description}
+                            onChange={(event) =>
+                              setEditForm((s) => ({ ...s, description: event.target.value }))
+                            }
+                            rows={3}
+                            className={FIELD_CLASS}
+                          />
+                        </label>
+                        <label className={FIELD_LABEL_CLASS}>
+                          Key concepts (comma separated)
+                          <input
+                            value={editForm.keyConcepts}
+                            onChange={(event) =>
+                              setEditForm((s) => ({ ...s, keyConcepts: event.target.value }))
+                            }
+                            className={FIELD_CLASS}
+                          />
+                        </label>
                         {editError ? (
-                          <p className="md:col-span-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
                             {editError}
                           </p>
                         ) : null}
-                        <div className="md:col-span-2 flex flex-wrap justify-end gap-2">
+                        <div className="flex flex-wrap justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => {
@@ -434,7 +464,7 @@ export function DomainAreasPage() {
                           </button>
                           <button
                             type="submit"
-                            disabled={updateMutation.isPending}
+                            disabled={updateMutation.isPending || analyzeBusy}
                             className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
                           >
                             {updateMutation.isPending ? 'Saving…' : 'Save changes'}
@@ -475,14 +505,15 @@ export function DomainAreasPage() {
                           <button
                             type="button"
                             onClick={() => handleStartEdit(area)}
-                            className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                            disabled={analyzeBusy}
+                            className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(area)}
-                            disabled={deleteMutation.isPending && deleteMutation.variables === area.id}
+                            disabled={analyzeBusy || (deleteMutation.isPending && deleteMutation.variables === area.id)}
                             className="whitespace-nowrap rounded-md border border-rose-200 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-60"
                           >
                             Delete
@@ -514,36 +545,48 @@ export function DomainAreasPage() {
               ▼
             </span>
           </summary>
-        <form onSubmit={handleCreate} className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-2">
-          <input
-            value={createForm.label}
-            onChange={(event) => setCreateForm((s) => ({ ...s, label: event.target.value }))}
-            placeholder="Section name"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          <input
-            value={createForm.keyConcepts}
-            onChange={(event) => setCreateForm((s) => ({ ...s, keyConcepts: event.target.value }))}
-            placeholder="Key concepts (comma separated)"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          <textarea
-            value={createForm.description}
-            onChange={(event) => setCreateForm((s) => ({ ...s, description: event.target.value }))}
-            rows={2}
-            placeholder="What this section is about and which legal chapters it covers."
-            className="md:col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
+        <form onSubmit={handleCreate} className="mt-4 grid gap-3 border-t border-slate-100 pt-4">
+          <label className={FIELD_LABEL_CLASS}>
+            Section name
+            <input
+              value={createForm.label}
+              onChange={(event) => setCreateForm((s) => ({ ...s, label: event.target.value }))}
+              placeholder="A short name of the topic"
+              className={FIELD_CLASS}
+            />
+          </label>
+          <label className={FIELD_LABEL_CLASS}>
+            Description
+            <textarea
+              value={createForm.description}
+              onChange={(event) => setCreateForm((s) => ({ ...s, description: event.target.value }))}
+              rows={2}
+              placeholder="What this section is about and which parts of the main source cover it."
+              className={FIELD_CLASS}
+            />
+          </label>
+          <label className={FIELD_LABEL_CLASS}>
+            Key concepts (comma separated)
+            <input
+              value={createForm.keyConcepts}
+              onChange={(event) => setCreateForm((s) => ({ ...s, keyConcepts: event.target.value }))}
+              placeholder="(Optional) The most important terms of this section"
+              className={FIELD_CLASS}
+            />
+          </label>
           {createError ? (
-            <p className="md:col-span-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-900">
               {createError}
             </p>
           ) : null}
-          <div className="md:col-span-2 flex justify-end">
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {analyzeBusy ? (
+              <span className="text-xs text-slate-500">Wait until the assistant finishes the map.</span>
+            ) : null}
             <button
               type="submit"
-              disabled={createMutation.isPending}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
+              disabled={createMutation.isPending || analyzeBusy}
+              className={actionButton.secondary}
             >
               {createMutation.isPending ? 'Saving…' : 'Save manual section'}
             </button>
