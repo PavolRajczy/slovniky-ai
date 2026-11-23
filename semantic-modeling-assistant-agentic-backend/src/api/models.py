@@ -539,12 +539,31 @@ class IterationPreparedResponse(BaseModel):
     operations: List[OntologyOperationModel]
 
 
+class SkippedOperationModel(BaseModel):
+    """A kept operation that could not be applied, e.g. because its class does not exist."""
+    operation_id: str
+    label: Optional[str] = None
+    uri: str
+    reason: str
+
+
+class RegenerateOperationRequest(BaseModel):
+    """Request to replace one rejected operation with a new proposal."""
+    reason: Optional[str] = None
+
+
+class RegenerateOperationResponse(BaseModel):
+    """New proposals that replaced the rejected operation. Empty when nothing new was proposed."""
+    operations: List[OntologyOperationModel]
+
+
 class IterationAppliedResponse(BaseModel):
     """Response after applying iteration changes."""
     success: bool
     iteration_id: str
     status: str
     applied_operations_count: int
+    skipped_operations: List[SkippedOperationModel] = Field(default_factory=list)
     ontology_changes: Dict[str, int]
     updated_ontology: OntologyModel
     ofn_saved: bool = False

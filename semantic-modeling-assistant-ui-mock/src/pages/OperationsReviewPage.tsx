@@ -1,10 +1,7 @@
 import { Link, getRouteApi, useNavigate } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  WorkflowContextCapsule,
-  resolveWorkflowContext,
-} from '@/components/workflow'
+import { WorkflowContextCapsule } from '@/components/workflow'
 import { ApiError } from '@/api/client'
 import { PageBackLink } from '@/components/PageBackLink'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -15,18 +12,19 @@ import { saveApplySuccessFeedback } from '@/utils/applySuccessFeedback'
 import {
   applyIteration,
   buildDiffSummary,
-  deleteIterationOperation,
   getIterationOperations,
+  regenerateOperation,
 } from '@/api/operations'
 import { getProjectOntology } from '@/api/ontology'
 import { listTaskPatterns } from '@/api/patterns'
-import { listTasks, prepareIteration } from '@/api/tasks'
+import { listTasks } from '@/api/tasks'
 import { addProjectGuidance } from '@/api/guidance'
 import type { OntologyOperationModel } from '@/api/types'
 import {
   buildOperationFieldChanges,
   type OperationFieldChange,
 } from '@/utils/operationUpdateDiff'
+import { findMissingClasses } from '@/utils/operationDependencies'
 import {
   clearReviewDraft,
   loadReviewDraft,
@@ -67,14 +65,7 @@ type ReviewState = 'pending' | 'approved' | 'rejected'
 type SummaryFilter = ReviewState | 'all'
 
 export function OperationsReviewPage() {
-  const search = operationsRouteApi.useSearch()
-  const linkContext = resolveWorkflowContext({
-    projectId: search.projectId,
-    domainId: search.domainId,
-    iterationId: search.iterationId,
-    taskId: search.taskId,
-  })
-  const { projectId, iterationId, domainId, taskId } = search
+  const { projectId, iterationId, domainId, taskId } = operationsRouteApi.useSearch()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -146,6 +137,7 @@ export function OperationsReviewPage() {
   const [guidanceOptOutIds, setGuidanceOptOutIds] = useState<Record<string, boolean>>({})
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [regenerateTargetId, setRegenerateTargetId] = useState<string | null>(null)
+  const [regenerateNotice, setRegenerateNotice] = useState<string | null>(null)
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all')
   const [draftReady, setDraftReady] = useState(false)
   const hydratedDraftKeyRef = useRef<string | null>(null)
@@ -284,9 +276,43 @@ export function OperationsReviewPage() {
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
 
-  const regeneratePending = useMutation({
-    mutationFn: () => prepareIteration(projectId!, iterationId!),
-    onSuccess: invalidateAll,
+  const forgetDecision = (operationId: string) => {
+    const without = <T,>(record: Record<string, T>) => {
+      const next = { ...record }
+      delete next[operationId]
+      return next
+    }
+    setReviewById(without)
+    setRejectionReasonById(without)
+    setSavedGuidanceIds(without)
+    setGuidanceOptOutIds(without)
+  }
+
+  const regenerateMutation = useMutation({
+    mutationFn: async (operationId: string) => {
+      const reason = rejectionReasonById[operationId]?.trim() || null
+      await saveOptedInGuidance([operationId])
+      return regenerateOperation(projectId!, iterationId!, operationId, reason)
+    },
+    onMutate: () => {
+      setActionError(null)
+      setRegenerateNotice(null)
+    },
+    onSuccess: async (data, operationId) => {
+      if (data.operations.length === 0) {
+        setRegenerateNotice(
+          'The assistant did not find a different change. The original change stays rejected; you can leave it out or edit the reason and try again.',
+        )
+        return
+      }
+      forgetDecision(operationId)
+      setRegenerateNotice(
+        `The rejected change was replaced by ${data.operations.length} new proposal${
+          data.operations.length === 1 ? '' : 's'
+        }. Review ${data.operations.length === 1 ? 'it' : 'them'} below.`,
+      )
+      await invalidateAll()
+    },
     onError: (error: unknown) => setActionError(toErrorMessage(error)),
   })
 
@@ -338,7 +364,11 @@ export function OperationsReviewPage() {
       if (projectId) {
         saveApplySuccessFeedback({
           projectId,
-          appliedCount: approvedOperations.length,
+          appliedCount: data.applied_operations_count,
+          skipped: (data.skipped_operations ?? []).map((skipped) => ({
+            label: skipped.label ?? skipped.uri,
+            reason: skipped.reason,
+          })),
           rejectedCount: rejectedOperations.length,
           taskName: activeTask?.name ?? null,
           ofnSaved: Boolean(data.ofn_saved),
@@ -440,25 +470,18 @@ export function OperationsReviewPage() {
   const canFinalize =
     isPrepared && approvedOperations.length > 0 && counts.pending === 0
 
-  const handleRegenerateChange = async (operationId: string) => {
+  const handleRegenerateChange = (operationId: string) => {
     setRegenerateTargetId(null)
-    const reason = rejectionReasonById[operationId]?.trim()
-    setActionError(null)
-    try {
-      if (reason && !savedGuidanceIds[operationId]) {
-        await saveGuidanceMutation.mutateAsync({ operationId, reason })
-      }
-      await deleteIterationOperation(projectId, iterationId, operationId)
-      setReviewById((prev) => {
-        const next = { ...prev }
-        delete next[operationId]
-        return next
-      })
-      await regeneratePending.mutateAsync()
-    } catch (error) {
-      setActionError(toErrorMessage(error))
-    }
+    regenerateMutation.mutate(operationId)
   }
+
+  const missingClassesById = new Map(
+    approvedOperations.map((op) => [
+      op.id,
+      findMissingClasses(op, ontologyQuery.data, approvedOperations, operations),
+    ]),
+  )
+  const blockedKeptCount = [...missingClassesById.values()].filter((missing) => missing.length > 0).length
 
   const applyButtonLabel = applyMutation.isPending
     ? 'Applying…'
@@ -481,7 +504,7 @@ export function OperationsReviewPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageBackLink to="/tasks" search={tasksSearch} label="prepare changes" />
-      <WorkflowContextCapsule linkContext={linkContext} />
+      <WorkflowContextCapsule projectId={projectId} domainId={domainId} iterationId={iterationId} taskId={taskId} />
 
       {isScopedReview ? (
         <section className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-sm text-emerald-950">
@@ -580,6 +603,22 @@ export function OperationsReviewPage() {
         </p>
       ) : null}
 
+      {regenerateNotice ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950"
+        >
+          <p className="min-w-0 flex-1">{regenerateNotice}</p>
+          <button
+            type="button"
+            onClick={() => setRegenerateNotice(null)}
+            className="text-xs font-medium text-violet-800 hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -654,6 +693,7 @@ export function OperationsReviewPage() {
                 const refs = op.specification_references ?? op.references ?? []
                 const rejectionReason = rejectionReasonById[op.id]?.trim()
                 const updateChanges = buildOperationFieldChanges(ontologyQuery.data, op)
+                const missingClasses = missingClassesById.get(op.id) ?? []
                 return (
                   <li
                     key={op.id}
@@ -716,6 +756,17 @@ export function OperationsReviewPage() {
                             guidanceAlreadySaved={Boolean(savedGuidanceIds[op.id])}
                             autoFocus={justRejectedId === op.id}
                           />
+                        ) : null}
+                        {missingClasses.length > 0 ? (
+                          <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] leading-5 text-amber-950">
+                            Needs the class{missingClasses.length === 1 ? '' : 'es'}{' '}
+                            <span className="font-semibold">
+                              {missingClasses.map((cls) => cls.label).join(', ')}
+                            </span>
+                            , which {missingClasses.length === 1 ? 'is' : 'are'} not in the vocabulary yet. Keep the
+                            change that creates {missingClasses.length === 1 ? 'it' : 'them'}, otherwise this change
+                            cannot be applied.
+                          </p>
                         ) : null}
                         <OperationUpdateDiff
                           operation={op}
@@ -785,9 +836,11 @@ export function OperationsReviewPage() {
                                 type="button"
                                 className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-[11px] font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-60"
                                 onClick={() => setRegenerateTargetId(op.id)}
-                                disabled={regeneratePending.isPending}
+                                disabled={regenerateMutation.isPending}
                               >
-                                {regeneratePending.isPending ? 'Regenerating…' : 'Regenerate'}
+                                {regenerateMutation.isPending && regenerateMutation.variables === op.id
+                                  ? 'Regenerating…'
+                                  : 'Regenerate'}
                               </button>
                             ) : null}
                           </>
@@ -850,6 +903,13 @@ export function OperationsReviewPage() {
                 Decide {counts.pending} pending change{counts.pending === 1 ? '' : 's'} before applying.
               </p>
             ) : null}
+            {blockedKeptCount > 0 ? (
+              <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                {blockedKeptCount} kept change{blockedKeptCount === 1 ? ' needs a class' : 's need classes'} that{' '}
+                {blockedKeptCount === 1 ? 'is' : 'are'} not kept. {blockedKeptCount === 1 ? 'It' : 'They'} will be
+                skipped unless you keep the class too.
+              </p>
+            ) : null}
             <button
               type="button"
               disabled={
@@ -873,8 +933,8 @@ export function OperationsReviewPage() {
           title="Regenerate this rejected change?"
           description={
             rejectionReasonById[regenerateTargetId]?.trim()
-              ? 'The assistant will try again using your rejection reason.'
-              : 'The assistant will try again using your project guidance.'
+              ? 'The assistant proposes a replacement for this change only, using your rejection reason. Other changes of this work item stay as they are.'
+              : 'The assistant proposes a replacement for this change only. Adding a reason first gives it a better hint. Other changes of this work item stay as they are.'
           }
           confirmLabel="Regenerate"
           onConfirm={() => handleRegenerateChange(regenerateTargetId)}

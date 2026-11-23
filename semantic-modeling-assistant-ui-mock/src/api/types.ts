@@ -348,11 +348,25 @@ export type IterationPreparedResponse = {
   operations: OntologyOperationModel[]
 }
 
+export type SkippedOperationModel = {
+  operation_id: string
+  label?: string | null
+  uri: string
+  reason: string
+}
+
+export type RegenerateOperationResponse = {
+  /** Empty when the assistant had nothing different to propose. */
+  operations: OntologyOperationModel[]
+}
+
 export type IterationAppliedResponse = {
   success: boolean
   iteration_id: string
   status: string
   applied_operations_count: number
+  /** Kept changes that could not be applied, e.g. because their class does not exist. */
+  skipped_operations?: SkippedOperationModel[]
   ontology_changes: Record<string, number>
   updated_ontology: OntologyModel
   ofn_saved?: boolean

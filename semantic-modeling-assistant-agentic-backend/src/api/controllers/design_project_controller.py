@@ -76,7 +76,8 @@ from api.models import (
     ProjectGuidanceListResponse,
     ProjectActivityEventModel, ProjectActivityListResponse, RecordOperationDecisionsRequest,
     GenerateOperationsRequest, ApplyProjectOperationsRequest, DataspecerSyncResponse,
-    DocumentProcessingJobModel,
+    DocumentProcessingJobModel, RegenerateOperationRequest, RegenerateOperationResponse,
+    SkippedOperationModel,
 )
 from api.controllers.ontology_controller import _convert_ontology_to_model
 from api.controllers.knowledge_base_controller import _convert_document_to_model
@@ -2839,6 +2840,68 @@ def prepare_iteration_task(project_id: str, iteration_id: str, task_id: str):
         )
 
 
+@router.post(
+    "/projects/{project_id}/iterations/{iteration_id}/operations/{operation_id}/regenerate",
+    response_model=RegenerateOperationResponse,
+)
+def regenerate_operation(
+    project_id: str,
+    iteration_id: str,
+    operation_id: str,
+    request: RegenerateOperationRequest,
+):
+    """
+    Replace one rejected operation with a new proposal that takes the rejection reason into account.
+    Returns an empty list when the assistant has nothing different to propose; the rejected
+    operation then stays in place.
+    """
+    try:
+        logger.info(f"Regenerating operation: {operation_id} in iteration: {iteration_id} for project: {project_id}")
+
+        project = design_project_service.load_project(project_id)
+        _ensure_project_documents_indexed(project)
+
+        operations = design_project_service.regenerate_rejected_operation(
+            project_id=project_id,
+            iteration_id=iteration_id,
+            operation_id=operation_id,
+            rejection_reason=request.reason,
+        )
+        activity_service.record(
+            project_id=project_id,
+            type=ProjectActivityEventType.OPERATIONS_GENERATED,
+            actor=ProjectActivityActor.ASSISTANT,
+            summary=f"Proposed {len(operations)} replacement operation(s) for a rejected change",
+            iteration_id=iteration_id,
+            operation_id=operation_id,
+            detail={"operationCount": len(operations), "reason": request.reason},
+        )
+        return RegenerateOperationResponse(
+            operations=[_convert_operation_to_model(op) for op in operations]
+        )
+
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{project_id}' not found"
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except AIServiceUnavailableError as e:
+        raise _ai_unavailable(e) from e
+    except OperationGenerationError as e:
+        raise _ai_answer_unreadable(e) from e
+    except Exception as e:
+        logger.error(f"Error regenerating operation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate the change: {str(e)}"
+        )
+
+
 @router.get("/projects/{project_id}/iterations/{iteration_id}/operations", response_model=IterationPreparedResponse)
 async def get_iteration_operations(project_id: str, iteration_id: str):
     """
@@ -3191,11 +3254,18 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
         # same cached project object, so the name must be read before that call.
         iteration_name = project.currentIteration.name or iteration_id
 
-        # Apply the operations
-        updated_ontology = design_project_service.apply_current_iteration_changes(
+        applied = design_project_service.apply_current_iteration_changes_with_report(
             project_id=project_id,
             operations=operations
         )
+        updated_ontology = applied.ontology
+        if applied.skipped:
+            logger.warning(
+                "Skipped %s of %s operations while applying iteration %s",
+                len(applied.skipped),
+                len(operations),
+                iteration_id,
+            )
 
         ofn_result = regenerate_and_save_project_ofn(project_id, updated_ontology)
         logger.info(
@@ -3208,10 +3278,11 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
             project_id=project_id,
             type=ProjectActivityEventType.ITERATION_APPLIED,
             actor=ProjectActivityActor.USER,
-            summary=f"Applied {len(operations)} operation(s) to the ontology",
+            summary=f"Applied {applied.applied_count} operation(s) to the ontology",
             iteration_id=iteration_id,
             detail={
-                "operationCount": len(operations),
+                "operationCount": applied.applied_count,
+                "skippedOperationCount": len(applied.skipped),
                 "iterationName": iteration_name,
                 "clientModifiedOperations": request.operations is not None,
             },
@@ -3239,7 +3310,16 @@ def apply_iteration_changes(project_id: str, iteration_id: str, request: ApplyOp
             success=True,
             iteration_id=iteration_id,
             status=iteration_status,
-            applied_operations_count=len(operations),
+            applied_operations_count=applied.applied_count,
+            skipped_operations=[
+                SkippedOperationModel(
+                    operation_id=skipped.operation_id,
+                    label=skipped.label,
+                    uri=skipped.uri,
+                    reason=skipped.reason,
+                )
+                for skipped in applied.skipped
+            ],
             ontology_changes=stats,
             updated_ontology=_convert_ontology_to_model(updated_ontology),
             ofn_saved=True,
