@@ -24,7 +24,7 @@ import {
   buildOperationFieldChanges,
   type OperationFieldChange,
 } from '@/utils/operationUpdateDiff'
-import { findMissingClasses } from '@/utils/operationDependencies'
+import { classLabel, findMissingClasses } from '@/utils/operationDependencies'
 import {
   clearReviewDraft,
   loadReviewDraft,
@@ -775,15 +775,24 @@ export function OperationsReviewPage() {
                         />
                         {op.target_type === 'attribute' && op.owning_class_uri ? (
                           <p className="mt-2 text-[11px] text-slate-500">
-                            Owning class: <span className="font-mono">{op.owning_class_uri}</span>
+                            Domain:{' '}
+                            <span className="font-medium text-slate-700" title={op.owning_class_uri}>
+                              {classLabel(op.owning_class_uri, ontologyQuery.data, operations)}
+                            </span>
                           </p>
                         ) : null}
                         {op.target_type === 'relationship' &&
                         op.source_class_uri &&
                         op.target_class_uri ? (
                           <p className="mt-2 text-[11px] text-slate-500">
-                            <span className="font-mono">{op.source_class_uri}</span> →{' '}
-                            <span className="font-mono">{op.target_class_uri}</span>
+                            Domain:{' '}
+                            <span className="font-medium text-slate-700" title={op.source_class_uri}>
+                              {classLabel(op.source_class_uri, ontologyQuery.data, operations)}
+                            </span>{' '}
+                            → Range:{' '}
+                            <span className="font-medium text-slate-700" title={op.target_class_uri}>
+                              {classLabel(op.target_class_uri, ontologyQuery.data, operations)}
+                            </span>
                           </p>
                         ) : null}
                         {refs.length > 0 ? (

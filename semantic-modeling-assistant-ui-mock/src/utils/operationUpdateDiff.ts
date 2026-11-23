@@ -25,9 +25,9 @@ const COMPARABLE_FIELDS: ComparableField[] = [
   { key: 'definition', label: 'Definition' },
   { key: 'description', label: 'Description' },
   { key: 'kind', label: 'Kind' },
-  { key: 'owning_class_uri', label: 'Owning class' },
-  { key: 'source_class_uri', label: 'Source class' },
-  { key: 'target_class_uri', label: 'Target class' },
+  { key: 'owning_class_uri', label: 'Domain' },
+  { key: 'source_class_uri', label: 'Domain' },
+  { key: 'target_class_uri', label: 'Range' },
 ]
 
 function formatValue(value: string | null | undefined): string {
