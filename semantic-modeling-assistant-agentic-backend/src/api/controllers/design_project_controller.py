@@ -3483,7 +3483,7 @@ async def get_project_ofn(project_id: str, format: str = Query("json")):
         logger.error(f"Error loading project OFN: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to load project OFN: {str(e)}",
+            detail=f"Failed to load the vocabulary export (OFN): {str(e)}",
         )
 
 
@@ -3499,7 +3499,7 @@ def regenerate_project_ofn_endpoint(project_id: str):
             project_id=project_id,
             type=ProjectActivityEventType.ONTOLOGY_EXPORTED,
             actor=ProjectActivityActor.USER,
-            summary=f"Exported OFN with {result['pojmy_count']} concept(s)",
+            summary=f"Regenerated the vocabulary export (OFN) with {result['pojmy_count']} concept(s)",
             detail={
                 "pojmyCount": result["pojmy_count"],
                 "path": result["path"],
@@ -3525,7 +3525,7 @@ def regenerate_project_ofn_endpoint(project_id: str):
         logger.error(f"Error regenerating project OFN: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to regenerate project OFN: {str(e)}",
+            detail=f"Failed to regenerate the vocabulary export (OFN): {str(e)}",
         )
 
 
