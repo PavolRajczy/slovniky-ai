@@ -5,7 +5,7 @@ export type MissingClass = {
   label: string
 }
 
-/** Class URIs the change refers to: owning class, relationship ends or generalizations. */
+/** Class URIs the change refers to: attribute domain, relationship domain and range, or generalizations. */
 function referencedClassUris(op: OntologyOperationModel): string[] {
   if (op.operation_type === 'delete') return []
   if (op.target_type === 'attribute') return op.owning_class_uri ? [op.owning_class_uri] : []
@@ -35,6 +35,15 @@ export function findMissingClasses(
   return referencedClassUris(op)
     .filter((uri) => !existing.has(uri) && !keptCreates.has(uri))
     .map((uri) => ({ uri, label: proposedClassLabel(uri, allOperations) }))
+}
+
+/** Label of a class from the vocabulary, or from the change that proposes it. */
+export function classLabel(
+  uri: string,
+  ontology: OntologyModel | undefined,
+  operations: OntologyOperationModel[],
+): string {
+  return ontology?.classes.find((cls) => cls.uri === uri)?.label ?? proposedClassLabel(uri, operations)
 }
 
 function proposedClassLabel(uri: string, operations: OntologyOperationModel[]): string {

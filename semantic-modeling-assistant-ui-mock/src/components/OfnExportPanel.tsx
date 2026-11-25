@@ -217,7 +217,7 @@ export function OfnExportPanel({ projectId, projectName, showStats = true }: Ofn
       : regenerateMutation.error instanceof Error
         ? regenerateMutation.error.message
         : regenerateMutation.isError
-          ? 'Failed to regenerate OFN.'
+          ? 'Failed to regenerate the export.'
           : null
 
   const storageHint = projectId
@@ -233,7 +233,7 @@ export function OfnExportPanel({ projectId, projectName, showStats = true }: Ofn
               OFN Slovníky export
             </p>
             <h3 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">
-              {document ? textCs(document.název) || 'Project OFN' : 'Project OFN'}
+              {(document && textCs(document.název)) || 'Vocabulary'}
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
               The vocabulary in the Czech OFN Slovníky format. It is regenerated automatically every time you
@@ -247,7 +247,7 @@ export function OfnExportPanel({ projectId, projectName, showStats = true }: Ofn
               disabled={!projectId || regenerateMutation.isPending}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate' : 'Generate OFN'}
+              {regenerateMutation.isPending ? 'Saving…' : document ? 'Regenerate export' : 'Generate export'}
             </button>
             <button
               type="button"
@@ -336,19 +336,19 @@ export function OfnExportPanel({ projectId, projectName, showStats = true }: Ofn
 
       <div className="px-6 py-5">
         {!projectId ? (
-          <p className="text-sm text-slate-600">Select a project to see its OFN export.</p>
+          <p className="text-sm text-slate-600">Select a project to see its vocabulary export.</p>
         ) : loadError || regenerateError ? (
           <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
             {loadError || regenerateError}
           </div>
         ) : ofnQuery.isLoading ? (
-          <p className="text-sm text-slate-600">Loading saved OFN…</p>
+          <p className="text-sm text-slate-600">Loading the vocabulary export…</p>
         ) : missingOfn ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-            <p className="font-medium">No OFN export for this project yet.</p>
+            <p className="font-medium">No export of this vocabulary yet.</p>
             <p className="mt-1 text-amber-900/90">
               It is created the first time you apply kept changes. You can also click{' '}
-              <span className="font-semibold">Generate OFN</span> to create it from the current vocabulary.
+              <span className="font-semibold">Generate export</span> to create it from the current vocabulary.
             </p>
           </div>
         ) : document ? (

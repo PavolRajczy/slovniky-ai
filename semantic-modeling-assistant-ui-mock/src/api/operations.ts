@@ -110,11 +110,11 @@ export function buildDiffSummary(operations: OntologyOperationModel[]): DiffSumm
       else if (op.operation_type === 'update') out.classesUpdated.push(label)
       else if (op.operation_type === 'delete') out.classesDeleted.push(label)
     } else if (op.target_type === 'attribute') {
-      const owner = op.owning_class_uri ? ` (on ${shortUri(op.owning_class_uri)})` : ''
-      const labelWithOwner = `${label}${owner}`
-      if (op.operation_type === 'create') out.attributesAdded.push(labelWithOwner)
-      else if (op.operation_type === 'update') out.attributesUpdated.push(labelWithOwner)
-      else if (op.operation_type === 'delete') out.attributesDeleted.push(labelWithOwner)
+      const domain = op.owning_class_uri ? ` (domain: ${shortUri(op.owning_class_uri)})` : ''
+      const labelWithDomain = `${label}${domain}`
+      if (op.operation_type === 'create') out.attributesAdded.push(labelWithDomain)
+      else if (op.operation_type === 'update') out.attributesUpdated.push(labelWithDomain)
+      else if (op.operation_type === 'delete') out.attributesDeleted.push(labelWithDomain)
     } else if (op.target_type === 'relationship') {
       const endpoints =
         op.source_class_uri && op.target_class_uri
