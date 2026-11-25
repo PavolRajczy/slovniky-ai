@@ -7,7 +7,7 @@ from rdflib import URIRef
 from agents.iteration_scope_prompt import render_iteration_scope
 from agents.model_config import get_mini_model
 from llm.provider import AIServiceUnavailableError, parse_structured
-from agents.modelers.modeler import ModelerAgent
+from agents.modelers.modeler import ModelerAgent, OperationGenerationError
 from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskCategory, DesignTaskStatus
 from knowledge_base.domain import KnowledgeDocumentElement
 from knowledge_base.service import KnowledgeBaseService
@@ -21,6 +21,8 @@ from ontology.edit_operations import (
     CreateAttributeOperation, UpdateAttributeOperation, DeleteAttributeOperation,
     CreateRelationshipOperation, UpdateRelationshipOperation, DeleteRelationshipOperation
 )
+
+GENERATION_ATTEMPTS = 2
 
 
 class SearchQueryDefinitionOutput(BaseModel):
@@ -52,10 +54,11 @@ class KnowledgeBaseReference(BaseModel):
     """
     Pydantic model representing a reference to a knowledge base snippet or its fragment.
     """
-    snippet_id: str = Field(
+    snippet_id: Optional[str] = Field(
+        default=None,
         description="The unique ID of the knowledge base snippet."
     )
-    fragment_id: str = Field(
+    fragment_id: Optional[str] = Field(
         default=None,
         description="An optional ID indicating a specific fragment of the snippet."
     )
@@ -683,8 +686,8 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             - If only snippet_id: return snippet_id
             - If both snippet_id and fragment_id: return snippet_id + fragment_id (concatenated)
             - If only fragment_id:
-                - If starts with "http://": return fragment_id
-                - Otherwise: raise exception
+                - If it is an absolute http(s) IRI: return fragment_id
+                - Otherwise: skip the reference, so one bad reference does not drop the whole change
         """
         if not references:
             return []
@@ -699,10 +702,10 @@ As a source of the domain knowledge to guide your decisions, use the domain know
                 result.append(ref.snippet_id)
             elif ref.fragment_id:
                 # Only fragment_id
-                if ref.fragment_id.startswith("http://"):
+                if ref.fragment_id.startswith(("http://", "https://")):
                     result.append(ref.fragment_id)
                 else:
-                    raise ValueError(f"Fragment ID '{ref.fragment_id}' without snippet_id must be an absolute IRI starting with 'http://'")
+                    print(f"Skipping reference with fragment ID '{ref.fragment_id}' and no snippet ID")
             else:
                 # Neither present - skip this reference
                 continue
@@ -751,23 +754,30 @@ As a source of the domain knowledge to guide your decisions, use the domain know
             {"role": "user", "content": snippets_xml},
         ]
 
-        operations_output = None
-
-        # Generate edit operations
-        try:
-            operations_output = parse_structured(
-                input_generate_operations,
-                EditOperationsOutput,
-                self.model_name,
-            )
-        except AIServiceUnavailableError:
-            raise
-        except Exception as e:
-            print(f"Error generating edit operations: {e}")
-            return []
+        operations_output = self._request_operations_output(input_generate_operations, task)
 
         # Convert Pydantic models to actual edit operation objects
         return self._convert_operations_output_to_edit_operations(design_project.designedOntology.uri, operations_output)
+
+    def _request_operations_output(self, messages: List[dict], task: DesignTask) -> EditOperationsOutput:
+        """
+        Asks the model for edit operations and asks once more when the answer cannot be read.
+        An unreadable answer must not look like "nothing to change", so the last error is raised.
+        """
+        last_error: Exception = ValueError("The model returned no edit operations.")
+        for attempt in range(1, GENERATION_ATTEMPTS + 1):
+            try:
+                operations_output = parse_structured(messages, EditOperationsOutput, self.model_name)
+            except AIServiceUnavailableError:
+                raise
+            except Exception as e:
+                print(f"Error generating edit operations (attempt {attempt}/{GENERATION_ATTEMPTS}): {e}")
+                last_error = e
+                continue
+            if operations_output is not None:
+                return operations_output
+            print(f"The model returned no edit operations (attempt {attempt}/{GENERATION_ATTEMPTS})")
+        raise OperationGenerationError(task.name, last_error)
 
     def _convert_operations_output_to_edit_operations(self, ontology_uri: str, operations_output: EditOperationsOutput) -> List[OntologyEditOperation]:
         """

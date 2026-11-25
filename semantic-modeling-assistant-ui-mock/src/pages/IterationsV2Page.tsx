@@ -223,14 +223,14 @@ export function IterationsV2Page() {
           <div className="mt-5 grid gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-700" htmlFor="v2-goal">
-                What should the assistant focus on?
+                What should the assistant focus on? <span className="font-normal text-slate-500">(Optional)</span>
               </label>
               <textarea
                 id="v2-goal"
                 rows={3}
                 value={suggestForm.goal}
                 onChange={(event) => setSuggestForm((state) => ({ ...state, goal: event.target.value }))}
-                placeholder="For example: check whether important concepts are missing, or suggest what should be modeled after the last review."
+                placeholder="(Optional) For example: check whether important concepts are missing, or suggest what should be modeled after the last review. Leave empty and the assistant decides."
                 className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>

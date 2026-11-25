@@ -1,6 +1,8 @@
 export type ApplySuccessFeedback = {
   projectId: string
   appliedCount: number
+  /** Kept changes the backend could not apply. Missing in feedback saved by older versions. */
+  skipped?: { label: string; reason: string }[]
   rejectedCount: number
   taskName: string | null
   ofnSaved: boolean
