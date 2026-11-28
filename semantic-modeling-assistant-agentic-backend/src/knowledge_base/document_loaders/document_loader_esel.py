@@ -1,9 +1,12 @@
-import re
 import json
 import os
+import re
 from pathlib import Path
-from typing import Optional, List
-from rdflib import Graph
+from types import SimpleNamespace
+from typing import List, Optional
+from urllib.error import HTTPError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.store import KnowledgeDocumentLoader
 from knowledge_base.utils.cache_manager import CacheManager
@@ -255,13 +258,11 @@ class ESELKnowledgeDocumentLoader(KnowledgeDocumentLoader):
         :param legal_act_id: The ID of the legal act to fetch
         :return: An instance of LegalAct containing the fetched data
         """
-        g = Graph()
         sparql_str = f"""
             PREFIX esel: <https://slovník.gov.cz/datový/sbírka/pojem/>
 
             SELECT ?fragment_id ?citace ?hierarchie ?poradi ?obsah
             WHERE {{
-                SERVICE <{self.sparql_endpoint}> {{
                     <{legal_act.id}> esel:má-fragment-znění ?fragment_id .
 
                     {{
@@ -275,7 +276,8 @@ class ESELKnowledgeDocumentLoader(KnowledgeDocumentLoader):
                             esel:pořadí-fragmentu-znění-právního-aktu ?poradi ;
                             esel:obsahuje-fragment ?fragment_s_textem .
                         ?fragment_s_textem esel:text-fragmentu ?obsah ;
-                            esel:má-typ-fragmentu <https://opendata.eselpoint.cz/esel-esb/cis-esb-typ-fragmentu/položka/Nadpis_pod>
+                            esel:má-typ-fragmentu ?typ_nadpisu .
+                        FILTER(STRENDS(STR(?typ_nadpisu), "Nadpis_pod"))
                         BIND("Nadpis" AS ?citace)
                     }} UNION {{
                         ?fragment_id 
@@ -284,16 +286,16 @@ class ESELKnowledgeDocumentLoader(KnowledgeDocumentLoader):
                             esel:obsahuje-fragment ?fragment_s_textem .
                         FILTER NOT EXISTS {{?fragment_id esel:citace-označení-fragmentu-znění-právního-aktu []}}
                         ?fragment_s_textem esel:text-fragmentu ?obsah ;
-                            esel:má-typ-fragmentu <https://opendata.eselpoint.cz/esel-esb/cis-esb-typ-fragmentu/položka/Odstavec_Dc>
+                            esel:má-typ-fragmentu ?typ_odstavce .
+                        FILTER(STRENDS(STR(?typ_odstavce), "Odstavec_Dc"))
                         BIND("Text" AS ?citace)
                     }}
-                }}
             }}
             ORDER BY ?poradi
         """
 
         try:
-            results = g.query(sparql_str)
+            results = self._query_sparql(sparql_str)
 
             current_parent = legal_act
             last_element = None
@@ -511,6 +513,38 @@ class ESELKnowledgeDocumentLoader(KnowledgeDocumentLoader):
             return legal_act
         except Exception as e:
             raise RuntimeError(f"Failed to load legal act: {e}")
+
+    def _query_sparql(self, sparql: str) -> List[SimpleNamespace]:
+        """Run a SELECT against the e-Sbírka endpoint.
+
+        rdflib's SERVICE call adds every default namespace to the request.
+        The e-Sbírka gateway answers that with HTTP 403, so the query is sent
+        directly with only the prefix it uses.
+        """
+        request = Request(
+            self.sparql_endpoint,
+            data=urlencode({"query": sparql, "output": "json"}).encode(),
+            headers={
+                "Accept": "application/sparql-results+json",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "slovniky-ai",
+            },
+        )
+        try:
+            with urlopen(request, timeout=180) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as error:
+            detail = error.read().decode("utf-8", "replace")[:300]
+            raise RuntimeError(f"SPARQL endpoint returned HTTP {error.code}: {detail}") from error
+
+        rows: List[SimpleNamespace] = []
+        for binding in payload["results"]["bindings"]:
+            values = {
+                name: binding[name]["value"] if name in binding else ""
+                for name in ("fragment_id", "citace", "hierarchie", "poradi", "obsah")
+            }
+            rows.append(SimpleNamespace(**values))
+        return rows
     
     def _build_hierarchical_xml(self, fragments):
         """

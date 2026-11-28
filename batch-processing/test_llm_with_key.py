@@ -23,7 +23,7 @@ def test_llm_factory():
     """Test LLMFactory with API key."""
     print("\n[TEST] Testing LLMFactory.create_default_llm()...")
     try:
-        llm = LLMFactory.create_default_llm()
+        llm = LLMFactory.create_default_llm(model_name="gpt-4o-mini")
         print(f"[SUCCESS] Created LLM instance: {type(llm).__name__}")
         
         # Test with a simple call
@@ -57,7 +57,7 @@ def test_custom_config():
     try:
         config = LLMConfig(
             provider=LLMProvider.OPENAI,
-            model_name="gpt-3.5-turbo",
+            model_name="gpt-4o-mini",
             temperature=0.0
         )
         llm = LLMFactory.create_llm(config)
@@ -65,7 +65,7 @@ def test_custom_config():
         
         # Test with a simple call
         print("[TEST] Making test API call...")
-        response = llm.invoke("Say 'Hello, custom conewfWERGergrefig works!' if you can read this.")
+        response = llm.invoke("Say 'Hello, custom config works!' if you can read this.")
         print(f"[SUCCESS] LLM response: {response.content}")
         return True
     except Exception as e:
@@ -85,6 +85,7 @@ def main():
         return 1
     
     print(f"[OK] Found OPENAI_API_KEY (length: {len(api_key)})")
+    os.environ["LLM_MODEL_NAME"] = "gpt-4o-mini"
     
     results = []
     results.append(("LLMFactory.create_default_llm()", test_llm_factory()))

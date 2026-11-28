@@ -1,0 +1,55 @@
+# Semantic modeling assistant — mock UI
+
+Production-track frontend for the assistant described in `doc/specifikace.tex` (Frontend section). The app is being wired to the FastAPI backend in [`semantic-modeling-assistant-agentic-backend`](../semantic-modeling-assistant-agentic-backend) screen-by-screen; remaining static placeholders live in `src/data/mockContent.ts` and are removed as each commit lands.
+
+Stack: **TypeScript**, **React**, **Vite**, **TanStack Router**, **TanStack Query**, **Tailwind CSS v4** (same family as the specification).
+
+## Backend connection
+
+The UI talks to the backend via `VITE_API_BASE_URL` (defaults to `http://localhost:8000`). Copy `.env.example` to `.env.local` and adjust if your backend runs elsewhere. In Docker the value is `same-origin` and nginx proxies `/api`. The sidebar header shows a live "Backend OK / Backend down" pill.
+
+## Run locally
+
+```bash
+cd semantic-modeling-assistant-ui-mock
+npm install
+npm run dev
+```
+
+Open the printed local URL (typically `http://localhost:5173`).
+
+## Docker
+
+From the **repository root** (not this folder), with `OPENAI_API_KEY` in `.env`:
+
+```bash
+docker compose up --build
+```
+
+UI: http://localhost:8080 (nginx serves this app and proxies `/api` to the backend). Full guide: [`DOCKER.md`](../DOCKER.md).
+
+### Serving under a sub-path
+
+The image can be served under any URL path without rebuilding: set the `BASE_PATH` env variable of the container (e.g. `BASE_PATH=/slovniky-ai`). On start the container rewrites asset URLs, the router base and the API base (`<BASE_PATH>/api`). A reverse proxy in front must strip the prefix before forwarding, as [`gateway/default.conf.template`](../gateway/default.conf.template) does.
+
+For a local build under a sub-path use `npm run build -- --base=/slovniky-ai/` (or `npx vite --base /slovniky-ai/` for the dev server).
+
+## Routes (for screenshots)
+
+| Path | Spec view |
+|------|-----------|
+| `/` | Redirects to `/project` |
+| `/project` | Project & knowledge base setup |
+| `/domain-areas` | Domain map (Modeling) |
+| `/iterations-v2` | Iterations |
+| `/operations` | Operations review + preview panel |
+| `/tasks` | Task list and task detail flow |
+| `/guidance` | Project guidance (Type B HITL) |
+| `/export-result` | Export result / output overview |
+
+## Build
+
+```bash
+npm run build
+npm run preview
+```

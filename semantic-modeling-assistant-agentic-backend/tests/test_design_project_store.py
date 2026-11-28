@@ -188,40 +188,25 @@ def build_complex_ontology() -> Ontology:
     owned_by_rel_uri = URIRef("http://example.org/ownedBy")
 
     person = OntologyClass(
-        person_uri,
-        "Person",
-        Kind.SUBJECT,
-        "An individual human being considered as an agent in the domain.",
-        "a person",
-        [],
-        [],
-        [],
-        [],
-        [],
+        uri=person_uri,
+        label="Person",
+        kind=Kind.SUBJECT,
+        definition="An individual human being considered as an agent in the domain.",
+        description="a person",
     )
     vehicle = OntologyClass(
-        vehicle_uri,
-        "Vehicle",
-        Kind.OBJECT,
-        "A means of transport designed to carry people or goods.",
-        "a vehicle",
-        [],
-        [],
-        [],
-        [],
-        [],
+        uri=vehicle_uri,
+        label="Vehicle",
+        kind=Kind.OBJECT,
+        definition="A means of transport designed to carry people or goods.",
+        description="a vehicle",
     )
     car = OntologyClass(
-        car_uri,
-        "Car",
-        Kind.OBJECT,
-        "A road vehicle, typically with four wheels, designed to transport a small number of passengers.",
-        "a car",
-        [],
-        [],
-        [],
-        [],
-        [],
+        uri=car_uri,
+        label="Car",
+        kind=Kind.OBJECT,
+        definition="A road vehicle, typically with four wheels, designed to transport a small number of passengers.",
+        description="a car",
     )
 
     # Generalization: Car -> Vehicle
@@ -497,6 +482,10 @@ def assert_complex_loaded(project: DesignProject):
     assert owns.sourceClass is person and owns.targetClass is vehicle
     assert owned_by.sourceClass is vehicle and owned_by.targetClass is person
 
+    assert person.kind == Kind.SUBJECT
+    assert vehicle.kind == Kind.OBJECT and car.kind == Kind.OBJECT
+    assert vehicle.definition == "A means of transport designed to carry people or goods."
+
     # Inheritance links
     assert vehicle in car.generalizations
     assert car in vehicle.specializations
@@ -688,97 +677,45 @@ def test_load_project_with_missing_ontology_creates_empty():
 # ------------------------
 def build_complete_knowledge_documents():
     """Build complete knowledge documents with elements for testing set_project_knowledge."""
-    # Legal knowledge documents
-    legal_doc_1 = KnowledgeDocument(
-        id="leg:1",
-        title="Traffic Law 1",
-        content="Full content of traffic law 1",
-        contentSummary="Summary of traffic law 1"
-    )
-    legal_doc_1.elements = [
-        KnowledgeDocumentElement(
-            id="docel:1",
-            title="Section 1",
-            content="Content of section 1",
-            contentSummary="Summary of section 1"
-        ),
-        KnowledgeDocumentElement(
-            id="docel:l1",
-            title="Legal provision",
-            content="Legal provision content",
-            contentSummary="Legal provision summary"
+    def element(element_id: str, title: str, children=None) -> KnowledgeDocumentElement:
+        return KnowledgeDocumentElement(
+            id=element_id,
+            title=title,
+            content=f"{title} content",
+            contentSummary=f"{title} summary",
+            childElements=children or [],
         )
-    ]
-    
-    legal_doc_2 = KnowledgeDocument(
-        id="leg:2001-56",
-        title="Vehicle Regulation",
-        content="Full content of vehicle regulation",
-        contentSummary="Summary of vehicle regulation"
-    )
-    
-    legal_doc_3 = KnowledgeDocument(
-        id="leg:1000-01",
-        title="Safety Standards",
-        content="Full content of safety standards",
-        contentSummary="Summary of safety standards"
-    )
-    
-    # Expert knowledge documents
-    expert_doc_1 = KnowledgeDocument(
-        id="exp:1",
-        title="Expert Knowledge 1",
-        content="Full expert knowledge content 1",
-        contentSummary="Summary of expert knowledge 1"
-    )
-    
-    expert_doc_2 = KnowledgeDocument(
-        id="exp:vehicles",
-        title="Vehicle Expert Knowledge",
-        content="Full vehicle expert knowledge",
-        contentSummary="Summary of vehicle expert knowledge"
-    )
-    expert_doc_2.elements = [
-        KnowledgeDocumentElement(
-            id="docel:e1",
-            title="Expert element 1",
-            content="Expert element content 1",
-            contentSummary="Expert element summary 1"
-        ),
-        KnowledgeDocumentElement(
-            id="docel:actors-1",
-            title="Actors knowledge",
-            content="Actors knowledge content",
-            contentSummary="Actors knowledge summary"
-        ),
-        KnowledgeDocumentElement(
-            id="docel:assets-1",
-            title="Assets knowledge 1",
-            content="Assets knowledge content 1",
-            contentSummary="Assets knowledge summary 1"
-        ),
-        KnowledgeDocumentElement(
-            id="docel:assets-2",
-            title="Assets knowledge 2", 
-            content="Assets knowledge content 2",
-            contentSummary="Assets knowledge summary 2"
-        ),
-        KnowledgeDocumentElement(
-            id="docel:area-core-1",
-            title="Core area knowledge",
-            content="Core area knowledge content",
-            contentSummary="Core area knowledge summary"
+
+    def document(document_id: str, title: str, children=None) -> KnowledgeDocument:
+        return KnowledgeDocument(
+            id=document_id,
+            title=title,
+            content=f"Full content of {title}",
+            contentSummary=f"Summary of {title}",
+            childElements=children or [],
         )
+
+    legal_docs = [
+        document("leg:1", "Traffic Law 1", [element("docel:1", "Section 1")]),
+        document("leg:2001-56", "Vehicle Regulation", [element("docel:l1", "Legal provision")]),
+        document("leg:1000-01", "Safety Standards"),
     ]
-    
-    expert_doc_3 = KnowledgeDocument(
-        id="exp:traffic",
-        title="Traffic Expert Knowledge",
-        content="Full traffic expert knowledge",
-        contentSummary="Summary of traffic expert knowledge"
-    )
-    
-    return [legal_doc_1, legal_doc_2, legal_doc_3], [expert_doc_1, expert_doc_2, expert_doc_3]
+    expert_docs = [
+        document("exp:1", "Expert Knowledge 1", [element("docel:area-core-1", "Core area knowledge")]),
+        document("exp:vehicles", "Vehicle Expert Knowledge", [
+            element("docel:e1", "Expert element 1"),
+            element("docel:actors-1", "Actors knowledge"),
+            # Nested one level down: resolution must search the whole element tree.
+            element("docel:assets-1", "Assets knowledge 1", [element("docel:assets-2", "Assets knowledge 2")]),
+        ]),
+        document("exp:traffic", "Traffic Expert Knowledge"),
+    ]
+    return legal_docs, expert_docs
+
+
+def documents_with_ids(documents, ids):
+    """The knowledge base service loads exactly the documents a project references."""
+    return [doc for doc in documents if doc.id in ids]
 
 
 def test_set_project_knowledge_simple():
@@ -822,8 +759,11 @@ def test_set_project_knowledge_simple():
     # Build complete knowledge documents
     legal_docs, expert_docs = build_complete_knowledge_documents()
     
-    # Call set_project_knowledge
-    project_store.set_project_knowledge(project.id, legal_docs, expert_docs)
+    project_store.set_project_knowledge(
+        loaded_project,
+        documents_with_ids(legal_docs, {"leg:1"}),
+        documents_with_ids(expert_docs, {"exp:1"}),
+    )
     
     # Verify documents are now complete
     updated_project = project_store.cached_design_projects[project.id]
@@ -833,16 +773,16 @@ def test_set_project_knowledge_simple():
     legal_doc = updated_project.legalKnowledgeBase[0]
     assert legal_doc.id == "leg:1"
     assert legal_doc.title == "Traffic Law 1"
-    assert legal_doc.content == "Full content of traffic law 1"
-    assert legal_doc.contentSummary == "Summary of traffic law 1"
+    assert legal_doc.content == "Full content of Traffic Law 1"
+    assert legal_doc.contentSummary == "Summary of Traffic Law 1"
     
     # Check expert knowledge base
     assert len(updated_project.expertKnowledgeBase) == 1
     expert_doc = updated_project.expertKnowledgeBase[0]
     assert expert_doc.id == "exp:1"
     assert expert_doc.title == "Expert Knowledge 1"
-    assert expert_doc.content == "Full expert knowledge content 1"
-    assert expert_doc.contentSummary == "Summary of expert knowledge 1"
+    assert expert_doc.content == "Full content of Expert Knowledge 1"
+    assert expert_doc.contentSummary == "Summary of Expert Knowledge 1"
     
     # Check knowledge resources in tasks
     updated_task = updated_project.finishedIterations[0].finishedTasks[0]
@@ -850,8 +790,8 @@ def test_set_project_knowledge_simple():
     element = updated_task.knowledgeResources[0]
     assert element.id == "docel:1"
     assert element.title == "Section 1"
-    assert element.content == "Content of section 1"
-    assert element.contentSummary == "Summary of section 1"
+    assert element.content == "Section 1 content"
+    assert element.contentSummary == "Section 1 summary"
     
     # Check knowledge domain area resources
     area = updated_project.modeledKnowledgeDomain.areas[0]
@@ -893,7 +833,11 @@ def test_set_project_knowledge_complex():
     legal_docs, expert_docs = build_complete_knowledge_documents()
     
     # Call set_project_knowledge
-    project_store.set_project_knowledge(project.id, legal_docs, expert_docs)
+    project_store.set_project_knowledge(
+        loaded_project,
+        documents_with_ids(legal_docs, {"leg:2001-56", "leg:1000-01"}),
+        documents_with_ids(expert_docs, {"exp:vehicles", "exp:traffic"}),
+    )
     
     # Verify documents are now complete
     updated_project = project_store.cached_design_projects[project.id]
@@ -922,21 +866,25 @@ def test_set_project_knowledge_complex():
         if updated_project.currentIteration.currentTask:
             all_tasks.append(updated_project.currentIteration.currentTask)
     
-    for task in all_tasks:
-        for element in task.knowledgeResources:
-            # Check that elements that have corresponding complete documents are updated
-            if element.id in ["docel:l1", "docel:e1", "docel:actors-1", "docel:assets-1", "docel:assets-2"]:
-                assert element.title is not None
-                assert element.content is not None
-                assert element.contentSummary is not None
+    resolved_task_resources = {element.id: element for task in all_tasks for element in task.knowledgeResources}
+    assert {"docel:l1", "docel:e1"} <= set(resolved_task_resources)
+    for element in resolved_task_resources.values():
+        assert element.title is not None
+        assert element.content is not None
+        assert element.contentSummary is not None
     
-    # Check knowledge domain areas
-    for area in updated_project.modeledKnowledgeDomain.areas:
-        for element in area.explainingKnowledgeResources:
-            if element.id in ["docel:actors-1", "docel:assets-1", "docel:assets-2"]:
-                assert element.title is not None
-                assert element.content is not None
-                assert element.contentSummary is not None
+    # Check knowledge domain areas, including an element nested below another element
+    area_resources = {
+        element.id: element
+        for area in updated_project.modeledKnowledgeDomain.areas
+        for element in area.explainingKnowledgeResources
+    }
+    assert set(area_resources) == {"docel:actors-1", "docel:assets-1", "docel:assets-2"}
+    for element in area_resources.values():
+        assert element.title is not None
+        assert element.content is not None
+        assert element.contentSummary is not None
+    assert area_resources["docel:assets-2"].title == "Assets knowledge 2"
 
 
 def test_set_project_knowledge_project_not_found():
@@ -945,16 +893,17 @@ def test_set_project_knowledge_project_not_found():
     ontology_service = OntologyService(ontology_store)
     project_store = FileSystemDesignProjectStore(ontology_service=ontology_service, base_dir="data_test/projects")
     legal_docs, expert_docs = build_complete_knowledge_documents()
+    never_loaded_project = build_simple_project("non-existent")
     
     try:
-        project_store.set_project_knowledge("non-existent", legal_docs, expert_docs)
+        project_store.set_project_knowledge(never_loaded_project, legal_docs, expert_docs)
         assert False, "Expected ValueError for non-existent project"
     except ValueError as e:
         assert "Project not found in the store: non-existent" in str(e)
 
 
-def test_set_project_knowledge_partial_matches():
-    """Test set_project_knowledge when only some documents/elements have matches."""
+def test_set_project_knowledge_unresolved_elements_stay_placeholders():
+    """Elements missing from the supplied documents keep their placeholder; the documents themselves are replaced."""
     # Set up stores
     ontology_store = FilesystemOntologyStore(base_dir="data_test/ontologies")
     ontology_service = OntologyService(ontology_store)
@@ -973,95 +922,27 @@ def test_set_project_knowledge_partial_matches():
     # Load project (creates placeholders)
     loaded_project = project_store.load_project(project.id)
     
-    # Build partial knowledge documents (only some IDs match)
-    partial_legal_docs = [
-        KnowledgeDocument(
-            id="leg:1",  # This matches
-            title="Partial Legal Doc",
-            content="Partial legal content",
-            contentSummary="Partial legal summary"
-        )
+    # The documents are loaded, but neither contains the elements the project references
+    legal_without_elements = [
+        KnowledgeDocument(id="leg:1", title="Legal Doc", content="Legal content", contentSummary="Legal summary")
     ]
-    partial_legal_docs[0].elements = [
-        KnowledgeDocumentElement(
-            id="docel:1",  # This matches
-            title="Partial Element",
-            content="Partial element content",
-            contentSummary="Partial element summary"
-        )
+    expert_without_elements = [
+        KnowledgeDocument(id="exp:1", title="Expert Doc", content="Expert content", contentSummary="Expert summary")
     ]
     
-    partial_expert_docs = [
-        KnowledgeDocument(
-            id="exp:other",  # This doesn't match exp:1
-            title="Other Expert Doc",
-            content="Other expert content", 
-            contentSummary="Other expert summary"
-        )
-    ]
+    project_store.set_project_knowledge(loaded_project, legal_without_elements, expert_without_elements)
     
-    # Call set_project_knowledge
-    project_store.set_project_knowledge(project.id, partial_legal_docs, partial_expert_docs)
-    
-    # Verify behavior
     updated_project = project_store.cached_design_projects[project.id]
     
-    # Legal doc should be updated (ID matches)
-    legal_doc = updated_project.legalKnowledgeBase[0]
-    assert legal_doc.id == "leg:1"
-    assert legal_doc.title == "Partial Legal Doc"
-    assert legal_doc.content == "Partial legal content"
+    assert [doc.title for doc in updated_project.legalKnowledgeBase] == ["Legal Doc"]
+    assert [doc.title for doc in updated_project.expertKnowledgeBase] == ["Expert Doc"]
     
-    # Expert doc should remain placeholder (ID doesn't match)
-    expert_doc = updated_project.expertKnowledgeBase[0]
-    assert expert_doc.id == "exp:1"
-    assert expert_doc.title is None
-    assert expert_doc.content is None
-    
-    # Knowledge resource element should be updated (ID matches)
     task = updated_project.finishedIterations[0].finishedTasks[0]
     element = task.knowledgeResources[0]
     assert element.id == "docel:1"
-    assert element.title == "Partial Element"
-    assert element.content == "Partial element content"
-
-
-if __name__ == "__main__":
-    # Allow running this test as a standalone script
-    print("Running FilesystemDesignProjectStore tests...\n")
-    try:
-        print("Running test_store_simple_project...")
-        test_store_simple_project()
-        print("✓ test_store_simple_project passed")
-        print("Running test_load_simple_project...")
-        test_load_simple_project()
-        print("✓ test_load_simple_project passed")
-        print("Running test_store_complex_project...")
-        test_store_complex_project()
-        print("✓ test_store_complex_project passed")
-        print("Running test_load_complex_project...")
-        test_load_complex_project()
-        print("✓ test_load_complex_project passed")
-        print("Running test_load_project_with_missing_ontology_creates_empty...")
-        test_load_project_with_missing_ontology_creates_empty()
-        print("✓ test_load_project_with_missing_ontology_creates_empty passed")
-        print("Running test_set_project_knowledge_simple...")
-        test_set_project_knowledge_simple()
-        print("✓ test_set_project_knowledge_simple passed")
-        print("Running test_set_project_knowledge_complex...")
-        test_set_project_knowledge_complex()
-        print("✓ test_set_project_knowledge_complex passed")
-        print("Running test_set_project_knowledge_project_not_found...")
-        test_set_project_knowledge_project_not_found()
-        print("✓ test_set_project_knowledge_project_not_found passed")
-        print("Running test_set_project_knowledge_partial_matches...")
-        test_set_project_knowledge_partial_matches()
-        print("✓ test_set_project_knowledge_partial_matches passed")
-        print("\nAll tests passed")
-    except AssertionError as e:
-        print(f"Assertion failed: {e}")
-        sys.exit(1)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    assert element.title is None
+    assert element.content is None
+    
+    area_element = updated_project.modeledKnowledgeDomain.areas[0].explainingKnowledgeResources[0]
+    assert area_element.id == "docel:area-core-1"
+    assert area_element.title is None

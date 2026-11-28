@@ -13,7 +13,7 @@ def prepareLegalText(legal_act_number: str, legal_act_year: str, legal_act_valid
 
         SELECT ?fragment ?citace ?hierarchie ?poradi ?obsah
         WHERE {{
-        SERVICE <https://opendata.eselpoint.cz/sparql> {{
+        SERVICE <https://opendata.eselpoint.gov.cz/sparql> {{
             <{legal_act_url}> esel:má-fragment-znění ?fragment .
 
             ?fragment esel:citace-označení-fragmentu-znění-právního-aktu ?citace ;

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List
 from knowledge_base.domain import KnowledgeDocument
+from knowledge_base.processing_progress import NULL_PROGRESS, ProcessingProgressListener
 
 from .domain import IndexDocument, TextChunk, SearchQuery, SearchResult
 
@@ -37,7 +38,7 @@ class KnowledgeDocumentIndexer(ABC):
     """
 
     @abstractmethod
-    def build_index(self, knowledge_document: KnowledgeDocument) -> None:
+    def build_index(self, knowledge_document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         """
         Build an index for the given knowledge document.
         
@@ -47,6 +48,7 @@ class KnowledgeDocumentIndexer(ABC):
         
         Args:
             knowledge_document: The knowledge document to index.
+            progress: Receives the indexing stage with one step per embedding batch.
         """
         pass
 

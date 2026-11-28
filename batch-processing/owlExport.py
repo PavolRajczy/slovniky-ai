@@ -2,6 +2,8 @@
 import os
 import json
 
+from llm_provider import resolve_llm_config, get_model_output_dir_name
+
 
 def modelToOntology(legal_act_year: str, legal_act_number: str, legal_act_valid_from_date: str):
     """
@@ -12,7 +14,9 @@ def modelToOntology(legal_act_year: str, legal_act_number: str, legal_act_valid_
       legal_act_valid_from_date:
     """
     legal_texts_path = f"{os.getcwd()}\\texts\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\"
-    outputs_path = f"{os.getcwd()}\\outputs\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\gpt-4o\\"
+    llm_config = resolve_llm_config()
+    model_dir = get_model_output_dir_name(llm_config)
+    outputs_path = f"{os.getcwd()}\\outputs\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\{model_dir}\\"
     classes_definitions_file = f"{outputs_path}class_definitions_categorized.json"
     with open(classes_definitions_file, 'r', encoding="utf-8") as f:
         classes = json.load(f)

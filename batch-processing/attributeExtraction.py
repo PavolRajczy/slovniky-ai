@@ -10,14 +10,16 @@ from pydantic import BaseModel, Field
 import json
 import os
 import openai
-from llm_provider import get_llm_instance
+from llm_provider import get_llm_instance, resolve_llm_config, get_model_output_dir_name
 
 
 def attributeExtraction(legal_act_number: str, legal_act_year: str, legal_act_valid_from_date: str, legal_act_url: str):
     openai.api_key = os.getenv("OPENAI_API_KEY")
 
     legal_texts_path = f"{os.getcwd()}\\texts\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\"
-    outputs_path = f"{os.getcwd()}\\outputs\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\gpt-4o\\"
+    llm_config = resolve_llm_config()
+    model_dir = get_model_output_dir_name(llm_config)
+    outputs_path = f"{os.getcwd()}\\outputs\\{legal_act_year}-{legal_act_number}\\{legal_act_valid_from_date}\\{model_dir}\\"
 
     # %%
     sources = {}

@@ -1,12 +1,28 @@
 import os
 import re
 import json
+import shutil
 from pathlib import Path
 from typing import Optional, List, Tuple
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
 from knowledge_base.store import KnowledgeDocumentLoader
 from knowledge_base.utils.cache_manager import CacheManager
+
+
+def _disable_huggingface_symlinks() -> None:
+    """Store Docling models by copying files.
+
+    Windows without Developer Mode refuses the symlink Hugging Face uses for
+    its model cache and raises WinError 1314. A text PDF does not need that
+    link to be read.
+    """
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+    import huggingface_hub.file_download as hf_download
+
+    hf_download.are_symlinks_supported = lambda cache_dir=None: False
 
 
 class LocalKnowledgeDocumentLoader(KnowledgeDocumentLoader):
@@ -15,7 +31,10 @@ class LocalKnowledgeDocumentLoader(KnowledgeDocumentLoader):
     It loads various document formats (PDF, DOCX, etc.) as knowledge documents using the docling library.
     A loaded knowledge document has elementType="Document".
     The content of a loaded knowledge document is converted to JSON format using docling.
+    Markdown headings become the document hierarchy, so a structured PDF can be the key document.
     """
+
+    ALLOWED_UPLOAD_SUFFIXES = {".pdf", ".docx"}
 
     def __init__(self, base_dir: str = "data/knowledge_base/local"):
         """
@@ -23,7 +42,48 @@ class LocalKnowledgeDocumentLoader(KnowledgeDocumentLoader):
         """
         self.base_local_data_dir = Path(base_dir)
         self.base_local_data_dir.mkdir(parents=True, exist_ok=True)
-        self.converter = DocumentConverter()
+        _disable_huggingface_symlinks()
+        pdf_options = PdfPipelineOptions()
+        pdf_options.do_ocr = False
+        self.converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options),
+            }
+        )
+
+    def store_uploaded_file(self, filename: str, content: bytes) -> str:
+        """Save an uploaded PDF or DOCX and return its local document ID.
+
+        A later load converts headings into the knowledge-document tree.
+        Replacing a file drops the previous conversion cache.
+        """
+        safe_name = self._safe_upload_filename(filename)
+        document_id = f"https://localhost/{safe_name}"
+        document_data_dir = self._get_document_data_dir(document_id)
+        target = document_data_dir / safe_name
+        if target.is_file() and target.read_bytes() == content:
+            return document_id
+        stem = Path(safe_name).stem
+        for cached in document_data_dir.glob(f"{stem}.*"):
+            if cached.is_file() and cached.name != safe_name:
+                cached.unlink()
+        index_dir = document_data_dir / "indexes"
+        if index_dir.exists():
+            shutil.rmtree(index_dir)
+        target.write_bytes(content)
+        return document_id
+
+    def _safe_upload_filename(self, filename: str) -> str:
+        candidate = filename.strip()
+        safe_name = Path(candidate).name
+        if not candidate or safe_name != candidate or safe_name in {".", ".."}:
+            raise ValueError("Upload a file name without a directory.")
+        suffix = Path(safe_name).suffix.lower()
+        if suffix not in self.ALLOWED_UPLOAD_SUFFIXES:
+            raise ValueError("Upload a PDF or DOCX file. Headings in the file become the document structure.")
+        if not Path(safe_name).stem.strip():
+            raise ValueError("The file name is missing.")
+        return safe_name
 
     def _get_document_data_dir(self, document_id: str) -> Path:
         """

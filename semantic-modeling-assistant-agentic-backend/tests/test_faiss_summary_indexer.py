@@ -14,15 +14,14 @@ from knowledge_base_index.indexers.faiss_summary_openai_indexer import FAISSSumm
 from knowledge_base_index.indexers.faiss_fulltext_openai_indexer import FAISSFullTextOpenAIKnowledgeDocumentIndexer
 from knowledge_base_index.domain import SearchQuery
 
+import pytest
+
+pytestmark = pytest.mark.live
+
 def test_summary_indexer_basic_functionality():
     """
     Test the basic functionality of FAISSSummaryOpenAIKnowledgeDocumentIndexer.
     """
-    
-    # Skip test if OpenAI API key is not available
-    if not os.getenv('OPENAI_API_KEY'):
-        print("SKIPPING TEST: OpenAI API key not found. Set OPENAI_API_KEY environment variable to run this test.")
-        return
     
     # Create a temporary directory for testing
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -64,10 +63,7 @@ def test_summary_indexer_basic_functionality():
         print("=== Testing Summary Indexer Basic Functionality ===")
         
         # Create summary indexer instance
-        summary_indexer = FAISSSummaryOpenAIKnowledgeDocumentIndexer(
-            chunk_size=100,
-            embedding_model="text-embedding-3-small"
-        )
+        summary_indexer = FAISSSummaryOpenAIKnowledgeDocumentIndexer(chunk_size=100)
         
         print("1. Building summary index...")
         summary_indexer.build_index(knowledge_doc)
@@ -119,10 +115,7 @@ def test_summary_indexer_basic_functionality():
         print("   Summary index files created successfully")
         
         # Test loading
-        new_summary_indexer = FAISSSummaryOpenAIKnowledgeDocumentIndexer(
-            chunk_size=100,
-            embedding_model="text-embedding-3-small"
-        )
+        new_summary_indexer = FAISSSummaryOpenAIKnowledgeDocumentIndexer(chunk_size=100)
         
         load_success = new_summary_indexer.load_index(knowledge_doc)
         assert load_success, "Should successfully load summary index"
@@ -136,11 +129,6 @@ def test_comparison_fulltext_vs_summary():
     """
     Test to demonstrate the difference between full-text and summary indexers.
     """
-    
-    # Skip test if OpenAI API key is not available
-    if not os.getenv('OPENAI_API_KEY'):
-        print("SKIPPING COMPARISON TEST: OpenAI API key not found.")
-        return
     
     print("\n=== Comparing Full-Text vs Summary Indexers ===")
     

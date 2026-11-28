@@ -1,14 +1,19 @@
-from typing import List
+from typing import Dict, List, Optional
+import functools
 import uuid
 import copy
+import threading
 
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer import KnowledgeDomainAreaAnalyzerAgent
 from agents.iteration_suggesters.iteration_suggester import IterationSuggesterAgent
 from agents.modelers.modeler import ModelerAgent
 from agents.task_planners.task_planner import TaskPlannerAgent
 
-from design_project.domain import DesignIteration, DesignProject, DesignTask, DesignTaskPattern, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus
+from design_project.dataspecer_link import DataspecerLinkError, import_vocabulary, push_vocabulary
+from design_project.domain import AppliedIterationChanges, DesignIteration, DesignProject, DesignTask, DesignTaskPattern, IdentifiedOperation, KnowledgeDomain, KnowledgeDomainArea, DesignTaskStatus, DesignIterationStatus, SkippedOperation
 from design_project.design_task_patterns_factory import DesignTaskPatternsFactory_Basic
+from design_project.operation_dependencies import class_creates_first, with_missing_referenced_classes
+from design_project.project_guidance_service import ProjectGuidanceService
 from design_project.store import DesignProjectStore
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
@@ -22,11 +27,61 @@ from ontology.service import OntologyService
 from ontology.edit_operations import OntologyEditOperation
 
 
+def _locked_by_project(method):
+    """
+    Run the method while holding the project's lock.
+
+    The store hands out one cached project object, so preparing, applying and editing
+    the prepared changes of the same project must not interleave.
+    """
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        project_id = kwargs["project_id"] if "project_id" in kwargs else args[0]
+        with self._project_lock(project_id):
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
+def _operation_key(operation: OntologyEditOperation):
+    return type(operation).__name__, str(getattr(operation, "uri", ""))
+
+
+def _describe_operation(operation: OntologyEditOperation) -> str:
+    action = type(operation).__name__.replace("Operation", "")
+    label = getattr(operation, "label", None) or "(no label)"
+    definition = getattr(operation, "definition", None)
+    text = f"{action}: {label} ({operation.uri})"
+    return f"{text} - {definition}" if definition else text
+
+
+def _rejection_feedback(
+    rejected: IdentifiedOperation,
+    reason: Optional[str],
+    siblings: List[IdentifiedOperation],
+) -> str:
+    """Prompt section that asks the modeler to replace exactly one rejected change."""
+    reason_line = (
+        f"The user rejected it with this reason: {reason.strip()}"
+        if reason and reason.strip()
+        else "The user rejected it without giving a reason."
+    )
+    sibling_lines = "\n".join(f"- {_describe_operation(op.operation)}" for op in siblings) or "- None"
+    return f"""<REJECTED_CHANGE>
+You previously proposed this change for the current design task:
+- {_describe_operation(rejected.operation)}
+{reason_line}
+Propose only a corrected replacement for this rejected change, taking the reason into account.
+Do not propose the rejected change again in the same form. If no replacement makes sense, return an empty list.
+These other changes for the current design task are already proposed; do not repeat them:
+{sibling_lines}
+</REJECTED_CHANGE>"""
+
+
 class DesignProjectService:
     """
     A service for managing design projects.
     """
-    def __init__(self, store: DesignProjectStore, knowledge_base_service: KnowledgeBaseService, ontology_service: OntologyService, knowledge_domain_area_analyzer_agent: KnowledgeDomainAreaAnalyzerAgent, iteration_suggester_agent: IterationSuggesterAgent, task_planner_agent: TaskPlannerAgent, modeler_agent: ModelerAgent):
+    def __init__(self, store: DesignProjectStore, knowledge_base_service: KnowledgeBaseService, ontology_service: OntologyService, knowledge_domain_area_analyzer_agent: KnowledgeDomainAreaAnalyzerAgent, iteration_suggester_agent: IterationSuggesterAgent, task_planner_agent: TaskPlannerAgent, modeler_agent: ModelerAgent, guidance_service: Optional[ProjectGuidanceService] = None):
         """
         Initializes a service for managing design projects.
 
@@ -38,10 +93,12 @@ class DesignProjectService:
             iteration_suggester_agent (IterationSuggesterAgent): The agent for suggesting design iterations.
             task_planner_agent (TaskPlannerAgent): The agent for planning design tasks.
             modeler_agent (ModelerAgent): The agent for modeling ontology elements.
+            guidance_service (ProjectGuidanceService, optional): Service for project-scoped human-in-the-loop guidance. If set, guidance items are injected into agent prompts.
         """
         self.store = store
         self.knowledge_base_service = knowledge_base_service
         self.ontology_service = ontology_service
+        self.guidance_service = guidance_service
 
         self.iteration_suggester_agent = iteration_suggester_agent
         self.knowledge_domain_area_analyzer_agent = knowledge_domain_area_analyzer_agent
@@ -50,6 +107,28 @@ class DesignProjectService:
 
         # Initialize the design task patterns factory to be used to get design task patterns.
         self.design_task_patterns_factory = DesignTaskPatternsFactory_Basic()
+        self._dataspecer_open_lock = threading.Lock()
+        self._project_locks: Dict[str, threading.RLock] = {}
+        self._project_locks_guard = threading.Lock()
+
+    def _project_lock(self, project_id: str) -> threading.RLock:
+        with self._project_locks_guard:
+            lock = self._project_locks.get(project_id)
+            if lock is None:
+                lock = threading.RLock()
+                self._project_locks[project_id] = lock
+            return lock
+
+    def _effective_user_instruction(self, project_id: str, user_instruction: str) -> str:
+        """Combine project guidance (if any) with the per-request user_instruction for agent prompts."""
+        if self.guidance_service is None:
+            return user_instruction or ""
+        guidance = self.guidance_service.get_guidance_text_for_prompt(project_id)
+        if not guidance:
+            return user_instruction or ""
+        if not (user_instruction or "").strip():
+            return guidance
+        return guidance + "\n\n" + (user_instruction or "").strip()
 
     def _rollback_iteration(self, project: DesignProject, iteration: DesignIteration, ontology_backup) -> None:
         """
@@ -215,10 +294,11 @@ class DesignProjectService:
             List[OntologyEditOperation]: The list of proposed edit operations.
         """
         project = self.load_project(project_id)
+        effective = self._effective_user_instruction(project_id, user_instruction)
         return self.modeler_agent.get_operations_from_instruction(
             design_project=project,
             current_ontology=project.designedOntology,
-            user_instruction=user_instruction,
+            user_instruction=effective,
         )
 
     def apply_operations_to_project_ontology(self, project_id: str, operations: List[OntologyEditOperation]) -> Ontology:
@@ -243,6 +323,9 @@ class DesignProjectService:
         """
         Loads an existing design project by its ID.
 
+        Nearly every request loads the project, so this never calls the AI model. Summaries are
+        computed only when a document is added to the knowledge base.
+
         Args:
             project_id (str): The ID of the project to load.
 
@@ -250,8 +333,8 @@ class DesignProjectService:
             DesignProject: The loaded design project.
         """
         project = self.store.load_project(project_id)
-        legal_knowledge_base =  self.knowledge_base_service.load_legal_knowledge_documents([doc.id for doc in project.legalKnowledgeBase])
-        expert_knowledge_base = self.knowledge_base_service.load_expert_knowledge_documents([doc.id for doc in project.expertKnowledgeBase])
+        legal_knowledge_base = self.knowledge_base_service.load_legal_knowledge_documents([doc.id for doc in project.legalKnowledgeBase], summarize=False)
+        expert_knowledge_base = self.knowledge_base_service.load_expert_knowledge_documents([doc.id for doc in project.expertKnowledgeBase], summarize=False)
         self.store.set_project_knowledge(project, legal_knowledge_base, expert_knowledge_base)
         return project
 
@@ -268,7 +351,52 @@ class DesignProjectService:
         """
         return self.store.list_all_projects()
 
-    def initialize_new_project(self, project_name: str, working_ontology_uri: str, knowledge_domain_name: str = "", knowledge_domain_description: str = "") -> DesignProject:
+    def open_from_dataspecer(self, package_iri: str) -> DesignProject:
+        """
+        Return the project linked to a Dataspecer vocabulary.
+
+        When none is stored, import that vocabulary's semantic model and create the project.
+        A later call with the same package id returns the stored project and does not import again.
+        """
+        if not package_iri or not package_iri.strip():
+            raise DataspecerLinkError("Dataspecer package IRI is required.", status_code=400)
+
+        with self._dataspecer_open_lock:
+            existing = self.find_by_dataspecer_package_iri(package_iri)
+            if existing is not None:
+                return existing
+
+            name, ontology = import_vocabulary(package_iri)
+            self.ontology_service.store_ontology(ontology)
+            return self.initialize_new_project(
+                project_name=name,
+                working_ontology_uri=str(ontology.uri),
+                dataspecer_package_iri=package_iri,
+            )
+
+    def push_ontology_to_dataspecer(self, project_id: str) -> bool:
+        """
+        Send the project's designed ontology to its linked Dataspecer vocabulary.
+
+        Returns False when the project is not linked to Dataspecer.
+
+        Raises:
+            DataspecerLinkError: When Dataspecer cannot be reached or rejects the update.
+        """
+        project = self.store.load_project(project_id)
+        if not project.dataspecerPackageIri:
+            return False
+        push_vocabulary(project.dataspecerPackageIri, project.designedOntology)
+        return True
+
+    def find_by_dataspecer_package_iri(self, package_iri: str) -> Optional[DesignProject]:
+        """Return the project linked to this Dataspecer vocabulary, if one was stored."""
+        for project in self.list_all_projects():
+            if project.dataspecerPackageIri == package_iri:
+                return self.load_project(project.id)
+        return None
+
+    def initialize_new_project(self, project_name: str, working_ontology_uri: str, knowledge_domain_name: str = "", knowledge_domain_description: str = "", dataspecer_package_iri: Optional[str] = None) -> DesignProject:
         """
         Initializes a new design project with empty knowledge base.
 
@@ -307,7 +435,8 @@ class DesignProjectService:
             expertKnowledgeBase=[],  # Empty - will be added later
             keyKnowledgeDocument=None,  # Will be set later
             modeledKnowledgeDomain=knowledge_domain,
-            designedOntology=working_ontology
+            designedOntology=working_ontology,
+            dataspecerPackageIri=dataspecer_package_iri,
         )
 
         self.store.store_project(project)
@@ -385,10 +514,12 @@ class DesignProjectService:
         
         print(f"Asking the agent to identify knowledge domain areas in the knowledge domain '{project.modeledKnowledgeDomain.label}' using the key knowledge document '{project.keyKnowledgeDocument.title}' ...")
         
+        effective = self._effective_user_instruction(project_id, user_instruction)
         # Call AI agent to identify domain areas
         areas = self.knowledge_domain_area_analyzer_agent.identify_domain_areas(
             knowledge_domain=project.modeledKnowledgeDomain,
-            knowledge_document=project.keyKnowledgeDocument
+            knowledge_document=project.keyKnowledgeDocument,
+            user_instruction=effective,
         )
         
         project.modeledKnowledgeDomain.areas = areas
@@ -424,12 +555,13 @@ class DesignProjectService:
         
         print(f"Asking the agent to reidentify knowledge domain areas in the knowledge domain '{project.modeledKnowledgeDomain.label}' using the key knowledge document '{project.keyKnowledgeDocument.title}' and considering existing areas ...")
         
+        effective = self._effective_user_instruction(project_id, user_instruction)
         # Call AI agent to reidentify domain areas, considering existing areas
         areas = self.knowledge_domain_area_analyzer_agent.identify_domain_areas(
             knowledge_domain=project.modeledKnowledgeDomain,
             knowledge_document=project.keyKnowledgeDocument,
             consider_existing_areas=True,
-            user_instruction=user_instruction
+            user_instruction=effective,
         )
         
         project.modeledKnowledgeDomain.areas = areas
@@ -439,7 +571,25 @@ class DesignProjectService:
         
         return areas
 
-    def suggest_iterations(self, project_id: str, focused_area_id: str, k: int, user_instruction: str) -> List[DesignIteration]:
+    def validate_subarea_class_uris(self, project: DesignProject, class_uris: Optional[List[str]]) -> List[str]:
+        """
+        Return the subarea class URIs stripped and de-duplicated, keeping the user's order.
+
+        Raises:
+            ValueError: If a URI is not a class of the project's designed ontology.
+        """
+        known = {str(uri) for uri in project.designedOntology.classes}
+        cleaned: List[str] = []
+        for uri in class_uris or []:
+            stripped = uri.strip()
+            if stripped and stripped not in cleaned:
+                cleaned.append(stripped)
+        unknown = [uri for uri in cleaned if uri not in known]
+        if unknown:
+            raise ValueError(f"Subarea classes not found in the project ontology: {', '.join(unknown)}")
+        return cleaned
+
+    def suggest_iterations(self, project_id: str, focused_area_id: str, k: int, user_instruction: str, goal: Optional[str] = None, subarea_class_uris: Optional[List[str]] = None) -> List[DesignIteration]:
         """
         Suggests new design iterations for the given project focusing on the given knowledge domain area.
         If the user instruction is specified, the suggestions are guided by it.
@@ -449,18 +599,31 @@ class DesignProjectService:
             focused_area_id (str): The ID of the knowledge domain area to focus the suggestions on.
             k (int): The number of suggestions to return.
             user_instruction (str): Instructions from the user to guide the suggestions.
+            goal (str, optional): Planning objective the iterations must work toward.
+            subarea_class_uris (List[str], optional): Classes of the designed ontology the iterations are restricted to.
 
         Returns:
-            List[DesignIteration]: A list of k suggested design iterations.
+            List[DesignIteration]: A list of k suggested design iterations, each carrying the goal and subarea.
+
+        Raises:
+            ValueError: If the focused area or a subarea class does not exist.
         """
         project = self.store.load_project(project_id)
         focused_area = next((area for area in project.modeledKnowledgeDomain.areas if area.id == focused_area_id), None)
         if not focused_area:
             raise ValueError(f"Focused area not found: {focused_area_id}")
+        subarea = self.validate_subarea_class_uris(project, subarea_class_uris)
+        goal = (goal or "").strip() or None
 
         print(f"Suggesting {k} iterations for project {project.name} and knowledge domain area {focused_area.label} ...")
 
-        iterations = self.iteration_suggester_agent.suggest_iterations(project, focused_area, k, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iterations = self.iteration_suggester_agent.suggest_iterations(
+            project, focused_area, k, effective, goal=goal, subarea_class_uris=subarea
+        )
+        for iteration in iterations:
+            iteration.goal = goal
+            iteration.subareaClassUris = list(subarea)
         project.plannedIterations.extend(iterations)
         self.store.store_project(project)
         print(f"... suggested {len(iterations)} iterations.")
@@ -490,7 +653,8 @@ class DesignProjectService:
 
         print(f"Initializing tasks for iteration {iteration.id}...")
 
-        iteration.plannedTasks = self.task_planner_agent.build_iteration_plan(project, iteration, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iteration.plannedTasks = self.task_planner_agent.build_iteration_plan(project, iteration, effective)
 
         # Status transition: PLANNED -> TASKS_PLANNED
         # Location: remains in plannedIterations
@@ -523,7 +687,8 @@ class DesignProjectService:
         if not iteration:
             raise ValueError(f"Iteration not found: {iteration_id}")
 
-        iteration.plannedTasks = self.task_planner_agent.update_iteration_plan(project, iteration, user_instruction)
+        effective = self._effective_user_instruction(project_id, user_instruction)
+        iteration.plannedTasks = self.task_planner_agent.update_iteration_plan(project, iteration, effective)
 
         self.store.store_project(project)
 
@@ -531,6 +696,7 @@ class DesignProjectService:
 
         return iteration.plannedTasks
 
+    @_locked_by_project
     def prepare_planned_iteration(self, project_id: str, iteration_id: str):
         """
         Prepares a planned design iteration by generating operations for all tasks.
@@ -538,7 +704,7 @@ class DesignProjectService:
         The iteration can have finished tasks. These tasks will not be repeated nor changed.
         
         This method generates operations and stores them in the iteration for review and traceability.
-        The operations are returned for the client to review and potentially modify before applying.
+        The designed ontology is left unchanged; operations are applied only when the user finalizes.
 
         Args:
             project_id (str): The ID of the project to iterate on.
@@ -549,35 +715,42 @@ class DesignProjectService:
         """
         project = self.store.load_project(project_id)
         iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
+        is_planned = iteration is not None
+        if is_planned:
+            self._ensure_no_other_iteration_in_progress(project, iteration_id)
+        else:
+            iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
         if not iteration:
             raise ValueError(f"Iteration not found in planned iterations: {iteration_id}")
-        if iteration.status not in [DesignIterationStatus.PLANNED, DesignIterationStatus.TASKS_PLANNED]:
-            raise ValueError(f"Iteration must be in PLANNED or TASKS_PLANNED status, but is: {iteration.status}")
-        
-        if not iteration.plannedTasks or len(iteration.plannedTasks) == 0:
+        if iteration.status not in [
+            DesignIterationStatus.PLANNED,
+            DesignIterationStatus.TASKS_PLANNED,
+            DesignIterationStatus.OPERATIONS_GENERATED,
+        ]:
+            raise ValueError(f"Iteration cannot prepare remaining work items from status: {iteration.status}")
+
+        plannedTasksToProcess = [task for task in iteration.plannedTasks if task.status == DesignTaskStatus.PLANNED]
+        if len(plannedTasksToProcess) == 0:
             raise ValueError(f"Iteration has no planned tasks: {iteration_id}")
+
+        # The store caches loaded projects, so the iteration moves only after validation passes.
+        if is_planned:
+            project.plannedIterations.remove(iteration)
+            project.currentIteration = iteration
 
         # Status transition: PLANNED/TASKS_PLANNED -> GENERATING_OPERATIONS
         # Location transition: plannedIterations -> currentIteration
-        project.plannedIterations.remove(iteration)
-        project.currentIteration = iteration
         iteration.status = DesignIterationStatus.GENERATING_OPERATIONS
+        iteration.plannedTasks = [task for task in iteration.plannedTasks if task.status != DesignTaskStatus.PLANNED]
 
         print(f"Preparing iteration {iteration.id}...")
-        
-        # Create a deep copy of the ontology for fake updates during task processing
-        print(f"Creating ontology copy for fake updates during task processing...")
-        current_ontology = copy.deepcopy(project.designedOntology)
-        print(f"... ontology copy created")
-        
-        all_operations = []
+
+        all_operations = list(iteration.plannedOperations or [])
         
         try:
             import uuid
             from design_project.domain import IdentifiedOperation
-            
-            plannedTasksToProcess = list(iteration.plannedTasks)  # Copy of the original planned tasks to process
-            iteration.plannedTasks.clear()
+            project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
             while plannedTasksToProcess and len(plannedTasksToProcess) > 0:
                 task = plannedTasksToProcess.pop(0)
                 iteration.currentTask = task
@@ -588,9 +761,12 @@ class DesignProjectService:
                 task.status = DesignTaskStatus.GENERATING_OPERATIONS
 
                 try:
-                    # Provide the current ontology state (with fake updates from previous tasks)
-                    edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task)
-                    
+                    # Each task sees only the finalized ontology. Unreviewed proposals stay
+                    # on the iteration for the modeler to treat as pending, not applied.
+                    current_ontology = copy.deepcopy(project.designedOntology)
+                    edit_operations = self.modeler_agent.get_operations_for_design_task(project, current_ontology, iteration, task, project_guidance_text=project_guidance)
+                    edit_operations = with_missing_referenced_classes(project.designedOntology, edit_operations, all_operations)
+
                     # Wrap each operation with identity
                     for operation in edit_operations:
                         identified_op = IdentifiedOperation(
@@ -599,13 +775,10 @@ class DesignProjectService:
                             created_from_task_id=task.id
                         )
                         all_operations.append(identified_op)
+
+                    iteration.plannedOperations = all_operations
                     
                     print(f"  Generated {len(edit_operations)} operations for task")
-                    
-                    # Apply operations to the fake ontology copy (without processing references)
-                    if edit_operations:
-                        self._apply_operations_to_ontology(current_ontology, edit_operations)
-                        print(f"  ... applied {len(edit_operations)} operations to fake ontology")
                         
                 except Exception as e:
                     print(f"  Error while generating operations for task {task.id}: {e}")
@@ -614,19 +787,25 @@ class DesignProjectService:
                     self.store.store_project(project)
                     raise e
 
-                # Status transition for task: GENERATING_OPERATIONS -> OPERATIONS_GENERATED
-                task.status = DesignTaskStatus.OPERATIONS_GENERATED
+                # A task with no proposals is still waiting to be prepared.
+                task.status = (
+                    DesignTaskStatus.OPERATIONS_GENERATED
+                    if edit_operations
+                    else DesignTaskStatus.PLANNED
+                )
                 iteration.plannedTasks.append(task)
                 iteration.currentTask = None
 
                 print(f" ... generated operations for task {task.id}")
 
-            # Status transition: GENERATING_OPERATIONS -> OPERATIONS_GENERATED
-            # Location: remains in currentIteration
-            iteration.status = DesignIterationStatus.OPERATIONS_GENERATED
-            
-            # Store the operations in the iteration for traceability and review
-            iteration.plannedOperations = all_operations
+            # Store the operations in the iteration for traceability and review.
+            # With nothing proposed, the iteration stays ready to prepare.
+            iteration.plannedOperations = all_operations or None
+            iteration.status = (
+                DesignIterationStatus.OPERATIONS_GENERATED
+                if iteration.plannedOperations
+                else DesignIterationStatus.TASKS_PLANNED
+            )
             
             self.store.store_project(project)
             
@@ -639,6 +818,178 @@ class DesignProjectService:
             self._rollback_iteration_state(project, iteration)
             self.store.store_project(project)
             raise e
+
+    @_locked_by_project
+    def prepare_planned_iteration_task(self, project_id: str, iteration_id: str, task_id: str):
+        """
+        Prepares a single planned task by generating only that task's operations.
+        Existing prepared operations for other tasks are preserved.
+        The designed ontology is left unchanged until the user finalizes kept changes.
+        """
+        project = self.store.load_project(project_id)
+        iteration = next((it for it in project.plannedIterations if it.id == iteration_id), None)
+
+        if iteration:
+            self._ensure_no_other_iteration_in_progress(project, iteration_id)
+            project.plannedIterations.remove(iteration)
+            project.currentIteration = iteration
+        else:
+            iteration = project.currentIteration if project.currentIteration and project.currentIteration.id == iteration_id else None
+
+        if not iteration:
+            raise ValueError(f"Iteration not found: {iteration_id}")
+
+        if iteration.status not in [
+            DesignIterationStatus.PLANNED,
+            DesignIterationStatus.TASKS_PLANNED,
+            DesignIterationStatus.OPERATIONS_GENERATED,
+        ]:
+            raise ValueError(f"Iteration cannot prepare a single task from status: {iteration.status}")
+
+        task = next((t for t in iteration.plannedTasks if t.id == task_id), None)
+        if not task:
+            raise ValueError(f"Planned task not found: {task_id}")
+
+        existing_operations = [
+            identified_op
+            for identified_op in (iteration.plannedOperations or [])
+            if identified_op.created_from_task_id == task_id
+        ]
+        if existing_operations:
+            return existing_operations
+
+        import uuid
+        from design_project.domain import IdentifiedOperation
+
+        iteration.status = DesignIterationStatus.GENERATING_OPERATIONS
+        task.status = DesignTaskStatus.GENERATING_OPERATIONS
+
+        current_ontology = copy.deepcopy(project.designedOntology)
+
+        project_guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
+
+        try:
+            edit_operations = self.modeler_agent.get_operations_for_design_task(
+                project,
+                current_ontology,
+                iteration,
+                task,
+                project_guidance_text=project_guidance,
+            )
+            edit_operations = with_missing_referenced_classes(
+                project.designedOntology, edit_operations, iteration.plannedOperations or []
+            )
+
+            identified_operations = [
+                IdentifiedOperation(
+                    id=str(uuid.uuid4()),
+                    operation=operation,
+                    created_from_task_id=task.id,
+                )
+                for operation in edit_operations
+            ]
+
+            iteration.currentTask = None
+            if identified_operations:
+                task.status = DesignTaskStatus.OPERATIONS_GENERATED
+                iteration.plannedOperations = [*(iteration.plannedOperations or []), *identified_operations]
+            else:
+                task.status = DesignTaskStatus.PLANNED
+            iteration.status = self._status_after_task_preparation(iteration)
+
+            self.store.store_project(project)
+            return identified_operations
+        except Exception as e:
+            task.status = DesignTaskStatus.PLANNED
+            iteration.status = self._status_after_task_preparation(iteration)
+            self.store.store_project(project)
+            raise e
+
+    @staticmethod
+    def _status_after_task_preparation(iteration: DesignIteration) -> DesignIterationStatus:
+        """Changes prepared for other work items keep the direction ready to review."""
+        return (
+            DesignIterationStatus.OPERATIONS_GENERATED
+            if iteration.plannedOperations
+            else DesignIterationStatus.TASKS_PLANNED
+        )
+
+    @_locked_by_project
+    def regenerate_rejected_operation(
+        self,
+        project_id: str,
+        iteration_id: str,
+        operation_id: str,
+        rejection_reason: Optional[str] = None,
+    ) -> List[IdentifiedOperation]:
+        """
+        Asks the modeler for a replacement of one rejected operation.
+
+        The rejected operation is replaced in place by the new proposals. Proposals that repeat the
+        rejected operation or another change already proposed for the same work item are dropped.
+        When nothing new is proposed, the rejected operation stays and an empty list is returned.
+        """
+        project = self.store.load_project(project_id)
+        iteration = project.currentIteration
+        if not iteration or iteration.id != iteration_id:
+            raise ValueError(f"Iteration {iteration_id} is not the current iteration")
+
+        planned_operations = list(iteration.plannedOperations or [])
+        rejected = next((op for op in planned_operations if op.id == operation_id), None)
+        if not rejected:
+            raise ValueError(f"Operation with ID '{operation_id}' not found")
+        task = next((t for t in iteration.plannedTasks if t.id == rejected.created_from_task_id), None)
+        if not task:
+            raise ValueError(f"Work item of operation '{operation_id}' not found")
+
+        siblings = [
+            op for op in planned_operations
+            if op.created_from_task_id == task.id and op.id != operation_id
+        ]
+        guidance = self.guidance_service.get_guidance_text_for_prompt(project_id) if self.guidance_service else None
+        feedback = _rejection_feedback(rejected, rejection_reason, siblings)
+        proposals = self.modeler_agent.get_operations_for_design_task(
+            project,
+            copy.deepcopy(project.designedOntology),
+            iteration,
+            task,
+            project_guidance_text="\n\n".join(text for text in [guidance, feedback] if text),
+        )
+
+        taken = {_operation_key(op.operation) for op in siblings}
+        replacements = [
+            op for op in proposals
+            if op != rejected.operation and _operation_key(op) not in taken
+        ]
+        if not replacements:
+            return []
+
+        other_pending = [op for op in planned_operations if op.id != operation_id]
+        replacements = with_missing_referenced_classes(project.designedOntology, replacements, other_pending)
+        replacements = [
+            op for op in replacements
+            if _operation_key(op) not in taken
+        ]
+        new_operations = [
+            IdentifiedOperation(id=str(uuid.uuid4()), operation=op, created_from_task_id=task.id)
+            for op in replacements
+        ]
+        index = planned_operations.index(rejected)
+        iteration.plannedOperations = [
+            *planned_operations[:index],
+            *new_operations,
+            *planned_operations[index + 1:],
+        ]
+        self.store.store_project(project)
+        return new_operations
+
+    def _ensure_no_other_iteration_in_progress(self, project: DesignProject, iteration_id: str) -> None:
+        current = project.currentIteration
+        if current and current.id != iteration_id:
+            raise ValueError(
+                f"Iteration \"{current.name}\" is still in progress. "
+                f"Finalize or discard it before preparing another iteration."
+            )
 
     def _rollback_iteration_state(self, project: DesignProject, iteration: DesignIteration) -> None:
         """
@@ -703,7 +1054,11 @@ class DesignProjectService:
             operations (List[OntologyEditOperation]): The operations to apply.
             project (DesignProject, optional): The project for processing references. If None, references are not processed.
 
+        Returns:
+            Dict[int, str]: Index and reason of each operation that could not be applied. An element
+            that already exists is the desired state, so such a create is not reported.
         """
+        skipped: Dict[int, str] = {}
         for i, op in enumerate(operations):
             print(f"  Applying operation {i+1}/{len(operations)}: {type(op).__name__} ...")
             try:
@@ -715,15 +1070,21 @@ class DesignProjectService:
                 
             except CreatedElementExistsError as e:
                 print(f"  Warning: {e}. Skipping operation.")
-            except UpdatedElementNotExistsError as e:
+            except (UpdatedElementNotExistsError, DeletedElementNotExistsError, ReferrencedElementNotExistsError) as e:
                 print(f"  Warning: {e}. Skipping operation.")
-            except DeletedElementNotExistsError as e:
-                print(f"  Warning: {e}. Skipping operation.")
-            except ReferrencedElementNotExistsError as e:
-                print(f"  Warning: {e}. Skipping operation.")
+                skipped[i] = str(e)
             print(f"  ... processed operation {i+1}")
+        return skipped
 
-    def apply_current_iteration_changes(self, project_id: str, operations=None):
+    def apply_current_iteration_changes(self, project_id: str, operations=None) -> Ontology:
+        """
+        Applies the provided ontology edit operations and returns the updated ontology.
+        See apply_current_iteration_changes_with_report.
+        """
+        return self.apply_current_iteration_changes_with_report(project_id, operations).ontology
+
+    @_locked_by_project
+    def apply_current_iteration_changes_with_report(self, project_id: str, operations=None) -> AppliedIterationChanges:
         """
         Applies the provided ontology edit operations to the current iteration.
         The current iteration must be in OPERATIONS_GENERATED status.
@@ -734,7 +1095,7 @@ class DesignProjectService:
             operations: Optional list of IdentifiedOperations. If None, uses persisted operations.
         
         Returns:
-            Ontology: The updated ontology.
+            AppliedIterationChanges: The updated ontology and the operations that could not be applied.
         """
         project = self.store.load_project(project_id)
         iteration = project.currentIteration
@@ -750,7 +1111,8 @@ class DesignProjectService:
             if iteration.plannedOperations is None:
                 raise ValueError("No operations available to apply")
             ops_to_apply = iteration.plannedOperations
-        
+        ops_to_apply = class_creates_first(list(ops_to_apply))
+
         # Extract the actual operations from the wrappers
         actual_operations = [identified_op.operation for identified_op in ops_to_apply]
 
@@ -766,23 +1128,72 @@ class DesignProjectService:
         print(f"... ontology backup created")
 
         try:
-            self._apply_operations_to_ontology(project.designedOntology, actual_operations, project)
-            print(f"Successfully applied {len(actual_operations)} operations")
+            skipped_reasons = self._apply_operations_to_ontology(project.designedOntology, actual_operations, project)
+            skipped = [
+                SkippedOperation(
+                    operation_id=ops_to_apply[index].id,
+                    label=getattr(ops_to_apply[index].operation, "label", None),
+                    uri=str(ops_to_apply[index].operation.uri),
+                    reason=reason,
+                )
+                for index, reason in skipped_reasons.items()
+            ]
+            print(f"Applied {len(actual_operations) - len(skipped)} of {len(actual_operations)} operations")
 
-            # Mark all tasks as completed
-            for task in iteration.plannedTasks:
-                task.status = DesignTaskStatus.COMPLETED
-                iteration.finishedTasks.append(task)
-            iteration.plannedTasks.clear()
+            persisted_operations = iteration.plannedOperations or []
+            is_partial_apply = operations is not None
+            applied_task_ids = {
+                identified_op.created_from_task_id
+                for identified_op in ops_to_apply
+                if identified_op.created_from_task_id
+            }
 
-            # Status transition: APPLYING_OPERATIONS -> COMPLETED
-            # Location transition: currentIteration -> finishedIterations
-            iteration.status = DesignIterationStatus.COMPLETED
-            project.finishedIterations.append(iteration)
-            project.currentIteration = None
+            if is_partial_apply and applied_task_ids:
+                remaining_tasks = []
+                for task in iteration.plannedTasks:
+                    if task.id in applied_task_ids:
+                        task.status = DesignTaskStatus.COMPLETED
+                        iteration.finishedTasks.append(task)
+                    else:
+                        remaining_tasks.append(task)
+                iteration.plannedTasks = remaining_tasks
 
-            # Clear the stored operations as they've been applied
-            iteration.plannedOperations = None
+                iteration.plannedOperations = [
+                    identified_op
+                    for identified_op in persisted_operations
+                    if identified_op.created_from_task_id not in applied_task_ids
+                ] or None
+                tasks_with_operations = {
+                    identified_op.created_from_task_id
+                    for identified_op in (iteration.plannedOperations or [])
+                    if identified_op.created_from_task_id
+                }
+                for task in remaining_tasks:
+                    if task.id not in tasks_with_operations:
+                        task.status = DesignTaskStatus.PLANNED
+
+                if iteration.plannedTasks:
+                    iteration.status = (
+                        DesignIterationStatus.OPERATIONS_GENERATED
+                        if iteration.plannedOperations
+                        else DesignIterationStatus.TASKS_PLANNED
+                    )
+                else:
+                    iteration.status = DesignIterationStatus.COMPLETED
+                    project.finishedIterations.append(iteration)
+                    project.currentIteration = None
+                    iteration.plannedOperations = None
+            else:
+                # Legacy full-iteration apply.
+                for task in iteration.plannedTasks:
+                    task.status = DesignTaskStatus.COMPLETED
+                    iteration.finishedTasks.append(task)
+                iteration.plannedTasks.clear()
+
+                iteration.status = DesignIterationStatus.COMPLETED
+                project.finishedIterations.append(iteration)
+                project.currentIteration = None
+                iteration.plannedOperations = None
 
             self.store.store_project(project)
             self.ontology_service.store_ontology(project.designedOntology)
@@ -812,8 +1223,34 @@ class DesignProjectService:
             self.ontology_service.store_ontology(project.designedOntology)
             print(f"... ontology restored from backup")
             raise e
-        
-        return project.designedOntology
+
+        return AppliedIterationChanges(
+            ontology=project.designedOntology,
+            applied_count=len(actual_operations) - len(skipped),
+            skipped=skipped,
+        )
+
+    def release_tasks_without_proposals(self, project: DesignProject, iteration: DesignIteration) -> bool:
+        """Return work items marked ready for review to the prepare column when they have no proposals."""
+        task_ids_with_operations = {
+            identified_op.created_from_task_id
+            for identified_op in (iteration.plannedOperations or [])
+            if identified_op.created_from_task_id
+        }
+        changed = False
+        for task in iteration.plannedTasks:
+            if task.status == DesignTaskStatus.OPERATIONS_GENERATED and task.id not in task_ids_with_operations:
+                task.status = DesignTaskStatus.PLANNED
+                changed = True
+        if (
+            changed
+            and not iteration.plannedOperations
+            and iteration.status == DesignIterationStatus.OPERATIONS_GENERATED
+        ):
+            iteration.status = DesignIterationStatus.TASKS_PLANNED
+        if changed:
+            self.store.store_project(project)
+        return changed
 
     def save_project(self, project: DesignProject) -> None:
         """
@@ -824,6 +1261,7 @@ class DesignProjectService:
         """
         self.store.store_project(project)
 
+    @_locked_by_project
     def remove_iteration(self, project_id: str, iteration_id: str) -> None:
         """
         Removes a design iteration from the given project.
@@ -882,6 +1320,7 @@ class DesignProjectService:
         self.store.store_project(project)
         print(f"... rejected iteration {iteration.id}")
 
+    @_locked_by_project
     def reorder_iteration_operations(self, project_id: str, iteration_id: str, operation_ids: List[str]) -> None:
         """
         Reorder operations within the current iteration.
@@ -922,6 +1361,7 @@ class DesignProjectService:
         
         self.save_project(project)
 
+    @_locked_by_project
     def update_iteration_operation(self, project_id: str, iteration_id: str, operation_id: str, updated_operation):
         """
         Update a specific operation within the current iteration.
@@ -967,6 +1407,7 @@ class DesignProjectService:
         
         raise ValueError(f"Operation with ID '{operation_id}' not found")
 
+    @_locked_by_project
     def delete_iteration_operation(self, project_id: str, iteration_id: str, operation_id: str) -> None:
         """
         Delete a specific operation from the current iteration.

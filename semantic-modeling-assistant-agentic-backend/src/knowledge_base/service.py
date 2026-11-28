@@ -2,7 +2,54 @@ from typing import List, Dict
 import json
 from pathlib import Path
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, ProcessingProgressListener
 from knowledge_base.store import KnowledgeDocumentLoader, KnowledgeDocumentSummarizer, KnowledgeStore
+
+
+def summary_index_file(document: KnowledgeDocument) -> Path | None:
+    """Path of the cached summary FAISS index for a document, when its cache path is known."""
+    if not document.cacheFilePath:
+        return None
+    return Path(document.cacheFilePath).parent / "indexes" / "faiss_summary_openai" / "faiss.index"
+
+
+class _ReuseCachedSummaryIndex(KnowledgeDocumentSummarizer):
+    """Skip the LLM summary when this document already has a summary index on disk."""
+
+    def __init__(self, inner: KnowledgeDocumentSummarizer):
+        self.inner = inner
+
+    def summarize_document(self, document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
+        index_file = summary_index_file(document)
+        if index_file is not None and index_file.is_file():
+            print(f"Skipping summary for {document.id}; summary index already cached")
+            return
+        self.inner.summarize_document(document, progress)
+
+
+_SKIP_SUMMARIES = KnowledgeDocumentSummarizer()
+
+ESEL_OPENDATA_ORIGIN = "https://opendata.eselpoint.gov.cz"
+ESEL_SPARQL_ENDPOINT = f"{ESEL_OPENDATA_ORIGIN}/sparql"
+LEGAL_DOCUMENT_ID_PREFIX = f"{ESEL_OPENDATA_ORIGIN}/esel-esb/eli/cz/sb"
+_ACCEPTED_LEGAL_DOCUMENT_PREFIXES = (
+    LEGAL_DOCUMENT_ID_PREFIX,
+    "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb",
+)
+
+
+def canonical_legal_document_id(document_id: str) -> str:
+    """Return the act IRI stored in the e-Sbírka graph.
+
+    The SPARQL endpoint and the act identifiers both live on
+    opendata.eselpoint.gov.cz. The older opendata.eselpoint.cz host is accepted
+    and rewritten to that IRI.
+    """
+    stripped = document_id.strip()
+    for prefix in _ACCEPTED_LEGAL_DOCUMENT_PREFIXES:
+        if stripped.startswith(prefix):
+            return LEGAL_DOCUMENT_ID_PREFIX + stripped[len(prefix):]
+    raise ValueError(f"Invalid legal knowledge document ID: {document_id}")
 
 
 class KnowledgeBaseService:
@@ -39,32 +86,41 @@ class KnowledgeBaseService:
         knowledge_documents += self.knowledge_store.load_documents(expert_knowledge_document_ids, self.expert_knowledge_document_loader, self.document_summarizer)
         return knowledge_documents
 
-    def load_legal_knowledge_documents(self, document_ids: List[str]) -> List[KnowledgeDocument]:
+    def load_legal_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS, summarize: bool = True) -> List[KnowledgeDocument]:
         """
         Retrieve multiple legal knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of legal knowledge document IDs to retrieve.
+            progress: Receives the loading and summarizing stages.
+            summarize: Ask the AI model for the summaries the documents are still missing.
         
         Returns:
             A list of retrieved legal knowledge documents.
         """
-        for doc_id in document_ids:
-            if not doc_id.startswith("https://opendata.eselpoint.cz/esel-esb/eli/cz/sb"):
-                raise ValueError(f"Invalid legal knowledge document ID: {doc_id}")
-        return self.knowledge_store.load_documents(document_ids, self.legal_knowledge_document_loader, self.document_summarizer)
+        canonical_ids = [canonical_legal_document_id(doc_id) for doc_id in document_ids]
+        summarizer = self.document_summarizer if summarize else _SKIP_SUMMARIES
+        return self.knowledge_store.load_documents(canonical_ids, self.legal_knowledge_document_loader, summarizer, progress)
 
-    def load_expert_knowledge_documents(self, document_ids: List[str]) -> List[KnowledgeDocument]:
+    def load_expert_knowledge_documents(self, document_ids: List[str], progress: ProcessingProgressListener = NULL_PROGRESS, summarize: bool = True) -> List[KnowledgeDocument]:
         """
         Retrieve multiple expert knowledge documents by their IDs, loading and summarizing them as needed.
 
         Args:
             document_ids: A list of expert knowledge document IDs to retrieve.
+            progress: Receives the loading and summarizing stages.
+            summarize: Ask the AI model for the summaries the documents are still missing.
 
         Returns:
             A list of retrieved expert knowledge documents.
         """
-        return self.knowledge_store.load_documents(document_ids, self.expert_knowledge_document_loader, self.document_summarizer)
+        summarizer = _ReuseCachedSummaryIndex(self.document_summarizer) if summarize else _SKIP_SUMMARIES
+        return self.knowledge_store.load_documents(
+            document_ids,
+            self.expert_knowledge_document_loader,
+            summarizer,
+            progress,
+        )
 
     def list_legal_knowledge_documents(self, base_dir: str = "data/knowledge_base/esel") -> List[Dict[str, str]]:
         """

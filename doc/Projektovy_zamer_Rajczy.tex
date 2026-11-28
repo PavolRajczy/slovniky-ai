@@ -1,0 +1,95 @@
+\documentclass{article}
+
+% Projektový záměr pro Komisi – výzkumný projekt.
+% Záměr: oblast, problém, stávající stav, týmový prvek, rozsah a období. Bez opakování téhož v několika sekcích.
+
+\usepackage[a-2u]{pdfx}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\usepackage[ddmmyyyy]{datetime}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\renewcommand{\dateseparator}{.}
+\renewcommand{\baselinestretch}{1.5}
+
+\geometry{margin=2cm}
+
+\def\ResearchProject{Výzkumný projekt}
+\def\CompanyProject{Firemní projekt}
+\def\SoftwareProject{Softwarový projekt}
+
+% METADATA SECTION START
+\def\StudentsFullName{Pavol Rajczy}
+\def\Obor{Computer Science -- Software and Data Engineering}
+\def\ProjetTitle{Podpora návrhu ontologií s asistentem a integrace s nástrojem Dataspecer}
+\def\ProjectType{\ResearchProject}
+\def\SupervisorFullName{prof. Mgr. Martin Nečaský, Ph.D.}
+\def\ConsultantsFullName{Mgr. Štěpán Stenchlák}
+\def\ExpectedStart{2025-03-01}
+\def\ExpectedEnd{2026-09-01}
+% METADATA SECTION END
+
+\title{\ProjetTitle}
+\author{\StudentsFullName}
+
+\begin{document}
+
+\centerline{\Large \textbf{Návrh projektového záměru}}
+\centerline{\textbf{Katedra softwarového inženýrství}}
+\centerline{\textbf{Matematicko-fyzikální fakulta, Univerzita Karlova}}
+\bigskip
+{\noindent\begin{tabular*}{\textwidth}{ >{\raggedleft}m{4cm} l}
+ {\bf Řešitel:} & \StudentsFullName \\
+ {\bf Studijní program:} & \Obor \\
+ & \\
+ {\bf Název projektu:} & \ProjetTitle \\
+ {\bf Typ projektu:} & \ProjectType \\
+ & \\
+ {\bf Supervizor:} & \SupervisorFullName \\
+ {\bf Konzultant(i):} & \ConsultantsFullName \\
+ & \\
+ {\bf Předpokládaný začátek:} & \ExpectedStart \\
+ {\bf Předpokládaný konec:} & \ExpectedEnd \\
+\end{tabular*}}
+
+\medskip
+\noindent\textbf{Souhlas:} Se záměrem projektu souhlasí všichni uvedení (řešitel, supervizor, konzultant). Souhlas může být doložen např. uvedením do kopie e-mailu se záměrem nebo podpisem na vytištěném záměru.
+
+\section{Úvod}
+
+V oblasti sémantického modelování dat slouží \emph{datové specifikace} k popisu struktury a významu dat tak, aby je různé systémy mohly konzistentně interpretovat a validovat. Specifikace zahrnují slovníky, aplikační profily a z nich odvozené technické artefakty -- schémata pro XML, JSON, CSV a dokumentaci. Návrh takové specifikace, zejména návrh ontologie nebo slovníku, je náročný: vyžaduje identifikaci pojmů, vztahů a omezení z odborných nebo právních dokumentů a jejich formalizaci.
+
+Pro usnadnění této práce vznikl ve výzkumné skupině vedoucího projektu systém pro \emph{agentické sémantické modelování}: využívá velké jazykové modely (LLM) k iterativnímu návrhu ontologie z textu -- např. z právních předpisů uložených v \emph{knowledge base}. Knowledge base zde znamená soubor dokumentů (právní texty, odborná literatura), ze kterých asistent navrhuje třídy, atributy a vztahy; uživatel pracuje v tzv. design projektu, kde má k dispozici navržené doménové oblasti, iterace a konkrétní operace nad ontologií. Předchozí vývoj ukázal, že takový asistent je použitelný, ale zůstávají omezení: výstupy z asistenta nelze přímo využít v nástrojích, které výzkumná skupina a partneři používají pro správu specifikací; chybí ucelený workflow od návrhu po schválení a předání dál; chybí systematická zpětná vazba od uživatele, kterou by se asistent řídil.
+
+\paragraph{Dataspecer.}
+Dataspecer je nástroj pro správu sémantických datových specifikací: od slovníků a aplikačních profilů až po odvozené technické artefakty -- datová schémata, validační pravidla, API a prototypy aplikací. Umožňuje definovat třídy, vlastnosti a vztahy ve stylu RDF Schema, kombinovat termíny z existujících slovníků do aplikačních profilů a z doménové ontologie poloatomaticky odvozovat schémata pro XML, JSON a CSV -- tedy podporuje jak sémantickou, tak technickou interoperabilitu dat.
+
+Cílem tohoto projektu je propojit asistenta s Dataspecerem a doplnit chybějící workflow: aby uživatel mohl návrhy z asistenta \emph{prohlížet, upravovat s využitím zpětné vazby (human-in-the-loop), schválit a výslednou ontologii exportovat} do Dataspeceru -- tedy aby celý proces od dokumentů v knowledge base až po použitelnou specifikaci v Dataspeceru byl možný bez ručního přepisování. Knowledge base by přitom neměla být pevně vázaná jen na asistenta; úložiště dokumentů může být např. jinde (včetně budoucí integrace s Dataspecerem), projekt na ni pouze odkazuje.
+
+\subsection{Vztah k jiným projektům a týmový prvek}
+
+Nástroj Dataspecer je projektem výzkumné skupiny. Pozostáva z rôzných nezavislých komponent spravonavých roznymi členmi týmu. Integrace asistenta s Dataspecerem a návrh workflow se dotýká backendu Daraspeceru, napríklad potrebou importovať a exportovať dáta z asistenta. Taktiež i jeho uživatelského rozhraní, aby sa užívateľ vedel dostať k asistentovi priamo z Dataspeceru, což vyžaduje spolupráci s členy skupiny zodpovědnými za Dataspecer.
+
+Student se bude účastnit pravidelných  schůzek výzkumné skupiny a bude v součinnosti s členy skupiny navrhovat uživatelské scénáře, identifikovat požadované funkcionality a následně je implementovat, dokumentovat a testovat u uživatelů.
+
+\section{Popis projektu}
+
+\paragraph{Stávající stav, na který projekt navazuje.}
+Existující agentický backend (Python, FastAPI) umožňuje: načtení dokumentů do knowledge base, identifikaci doménových oblastí, návrh iterací a plánů úloh a generování operací nad ontologií (přidání tříd, atributů, vztahů). Částečně existuje aplikace operací a perzistence ontologie. Backend nemá podporu výměny s Dataspecerem, chybí pracovní kopie ontologie (uživatel nemůže bezpečně experimentovat bez rizika přepsání původní verze), chybí náhled dopadu operací před schválením, mechanismus human-in-the-loop (zbírka oprav a preferencí uživatele, kterými se asistent řídí, včetně možnosti záznamy prohlížet a odstraňovat) a volitelně zacílení asistenta na část ontologie nebo zadání cíle. \emph{Podoblast ontologie} znamená vybranou část modelu (např. jen třídy a vztahy odpovídající jedné kapitole zákona nebo jednomu doménovému tématu), na kterou asistent omezí své návrhy -- uživatel pak dostává návrhy jen pro tuto část, ne pro celou ontologii. \emph{Cíl} je uživatelský požadavek typu „doplň vztahy mezi třídami X a Y“ nebo „vytvoř třídu Z s atributy z oddílu 3 zákona“.
+
+\paragraph{Cíl projektu a co bude uživatel umět.}
+Rozšířit systém tak, aby byl asistent použitelný v celém workflow až po export do Dataspeceru. Konkrétně:
+\begin{itemize}
+ \item Uživatel bude moci pracovat nad \emph{kopií} ontologie a experimentovat s návrhy bez rizika poškození původní specifikace.
+ \item Uvidí \emph{náhled změn} před tím, než je potvrdí, a před exportem do Dataspeceru.
+ \item Zpětná vazba (opravy, schválení/odmítnutí, preference) bude uložena jako \emph{záznamy, kterými se asistent řídí}; uživatel je bude moci prohlížet a odstraňovat položky, které už nechce.
+ \item Výslednou ontologii bude možné \emph{exportovat} do formátu importovatelného v Dataspeceru.
+ \item Volitelně: zacílení na podoblast a zadání cíle, aby asistent navrhoval jen ve vybrané části nebo směřoval k zadanému cíli.
+\end{itemize}
+
+\paragraph{Rozsah a scope.}
+Rozsah zahrnuje: návrh vazby na knowledge base (ne pevné vázání na asistenta; úložiště může být např. v Dataspeceru nebo jinde) a vazeb projekt--knowledge base--ontologie; zavedení pracovní kopie a náhledu změn (preview/diff); human-in-the-loop -- návrh metod sběru zpětné vazby, reprezentace záznamů pro asistenta, jejich zobrazení a odstranění v UI a integrace do kontextu agentů; export do formátu pro Dataspecer a workflow schválení $\to$ export; volitelně podoblast a cíle; dokumentaci a testování s uživateli. Použité technologie: stávající backend (Python, FastAPI), ontology store, knowledge base, formát Simplified Semantic Model; rozšíření API a uživatelského rozhraní.
+
+\end{document}

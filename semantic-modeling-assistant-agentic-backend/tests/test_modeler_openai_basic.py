@@ -11,12 +11,18 @@ from rdflib import URIRef
 # Add the src directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
+from agents.modelers.modeler import OperationGenerationError
+from agents.modelers.modeler_openai_basic import (
+    ClassOperationOutput,
+    EditOperationsOutput,
+    KnowledgeBaseReference,
+    ModelerAgent_Simple_OpenAI,
+)
 from design_project.domain import (
     DesignProject, DesignIteration, DesignTask, DesignTaskPattern, 
     DesignTaskCategory, DesignTaskStatus, KnowledgeDomainArea, KnowledgeDomain
 )
-from ontology.domain import Ontology
+from ontology.domain import Kind, Ontology, OntologyAttribute, OntologyClass, OntologyRelationship
 from ontology.edit_operations import CreateClassOperation, CreateAttributeOperation, CreateRelationshipOperation
 
 
@@ -90,6 +96,7 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             currentTask=None,
             plannedTasks=[],
             focusedArea=self.test_area,
+            plannedOperations=None,
             designedOntologyChangesSpecification=None
         )
         
@@ -114,18 +121,6 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             designedOntologyChangesSpecification=None
         )
 
-    def test_initialization(self):
-        """Test that the agent initializes correctly."""
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            agent = ModelerAgent_Simple_OpenAI(
-                self.knowledge_base_service, 
-                self.knowledge_base_index_service
-            )
-            
-            self.assertEqual(agent.knowledge_base_service, self.knowledge_base_service)
-            self.assertEqual(agent.knowledge_base_index_service, self.knowledge_base_index_service)
-            self.assertEqual(agent.model_name, "gpt-4o")
-    
     def test_initialization_missing_api_key(self):
         """Test that initialization fails without OpenAI API key."""
         with patch.dict('os.environ', {}, clear=True):
@@ -138,114 +133,180 @@ class TestModelerAgent_Simple_OpenAI(unittest.TestCase):
             self.assertIn("OPENAI_API_KEY", str(context.exception))
     
     def test_prefix_uri_ontology_namespace(self):
-        """Test URI prefixing with ontology namespace."""
-        ontology_uri = URIRef("http://example.org/ontology")
-        element_uri = URIRef("http://example.org/ontology#TestClass")
-        
-        result = self.agent._prefix_uri(element_uri, ontology_uri)
-        self.assertEqual(result, "onto:TestClass")
-    
+        """Elements in the ontology namespace are shortened to their local name."""
+        ontology_uri = URIRef("http://example.org/vehicles#")
+        element_uri = URIRef("http://example.org/vehicles#Car")
+
+        self.assertEqual(self.agent.prefix_uri(element_uri, ontology_uri), "Car")
+
     def test_prefix_uri_external_namespace(self):
-        """Test URI prefixing with external namespaces."""
-        ontology_uri = URIRef("http://example.org/ontology")
-        
-        # Test RDF namespace
-        rdf_uri = URIRef("http://www.w3.org/1999/02/22-rdf-syntax-ns#type")
-        result = self.agent._prefix_uri(rdf_uri, ontology_uri)
-        self.assertEqual(result, "rdf:type")
-        
-        # Test RDFS namespace
-        rdfs_uri = URIRef("http://www.w3.org/2000/01/rdf-schema#label")
-        result = self.agent._prefix_uri(rdfs_uri, ontology_uri)
-        self.assertEqual(result, "rdfs:label")
-    
-    def test_ontology_to_turtle_empty_ontology(self):
-        """Test conversion of empty ontology to Turtle format."""
+        """Elements outside the ontology namespace keep their full URI in angle brackets."""
+        ontology_uri = URIRef("http://example.org/vehicles#")
+        rdfs_label = URIRef("http://www.w3.org/2000/01/rdf-schema#label")
+
+        self.assertEqual(
+            self.agent.prefix_uri(rdfs_label, ontology_uri),
+            "<http://www.w3.org/2000/01/rdf-schema#label>",
+        )
+
+    def test_local_name_to_full_uri(self):
+        """Local names returned by the model become URIs in the ontology namespace."""
+        ontology_uri = "http://example.org/vehicles"
+
+        self.assertEqual(self.agent._local_name_to_full_uri(":Car", ontology_uri), URIRef("http://example.org/vehicles#Car"))
+        self.assertEqual(self.agent._local_name_to_full_uri(":vehicles#Car", ontology_uri), URIRef("http://example.org/vehicles#Car"))
+        self.assertIsNone(self.agent._local_name_to_full_uri("Car", ontology_uri))
+        self.assertIsNone(self.agent._local_name_to_full_uri(":", ontology_uri))
+
+    def test_ontology_to_prompt_empty_ontology(self):
+        """An empty ontology is rendered with its label and empty sections."""
         result = self.agent._ontology_to_prompt(self.test_ontology)
-        
-        self.assertIn("@prefix onto:", result)
-        self.assertIn("owl:Ontology", result)
-        self.assertIn("Test Ontology", result)
+
+        self.assertIn('"Test Ontology"', result)
+        self.assertIn("CLASSES (0):", result)
+        self.assertIn("RELATIONSHIPS (0):", result)
+
+    def test_ontology_to_prompt_lists_classes_attributes_and_relationships(self):
+        """Classes show kind, definition, superclasses and attributes; relationships show their ends."""
+        ontology = Ontology(uri=URIRef("http://example.org/vehicles#"), label="Vehicles", description=None)
+        person = OntologyClass(uri=URIRef("http://example.org/vehicles#Person"), label="Person", definition="A human.", description=None)
+        vehicle = OntologyClass(uri=URIRef("http://example.org/vehicles#Vehicle"), label="Vehicle", definition=None, description=None, kind=Kind.OBJECT)
+        car = OntologyClass(uri=URIRef("http://example.org/vehicles#Car"), label="Car", definition=None, description=None, kind=Kind.OBJECT)
+        car.generalizations.append(vehicle)
+        vin = OntologyAttribute(uri=URIRef("http://example.org/vehicles#vin"), label="VIN", definition="Vehicle identification number.", description=None, owningClass=vehicle)
+        vehicle.attributes.append(vin)
+        owns = OntologyRelationship(uri=URIRef("http://example.org/vehicles#owns"), label="owns", definition=None, description=None, sourceClass=person, targetClass=vehicle)
+        ontology.classes = {c.uri: c for c in (person, vehicle, car)}
+        ontology.attributes = {vin.uri: vin}
+        ontology.relationships = {owns.uri: owns}
+
+        result = self.agent._ontology_to_prompt(ontology)
+
+        self.assertIn("CLASSES (3):", result)
+        self.assertIn(':Person "Person" [SUBJECT]', result)
+        self.assertIn("DEF: A human.", result)
+        self.assertIn(':Car "Car" [OBJECT]', result)
+        self.assertIn("SUPER: :Vehicle", result)
+        self.assertIn('- :vin "VIN"', result)
+        self.assertIn("RELATIONSHIPS (1):", result)
+        self.assertIn("FROM: :Person  TO: :Vehicle", result)
     
-    @patch('agents.modelers.modeler_openai_basic.OpenAI')
-    def test_do_design_task_success(self, mock_openai_class):
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_do_design_task_success(self, mock_parse):
         """Test successful execution of design task."""
-        # Mock OpenAI client and responses
-        mock_client = Mock()
-        mock_openai_class.return_value = mock_client
-        
-        # Mock search queries response
-        mock_search_response = Mock()
-        mock_search_response.choices = [Mock()]
-        mock_search_response.choices[0].message = Mock()
-        mock_search_response.choices[0].message.parsed = Mock()
-        mock_search_response.choices[0].message.parsed.queries = [
-            Mock(query="test query", max_results=10, offset=0)
-        ]
-        
-        # Mock edit operations response
-        mock_ops_response = Mock()
-        mock_ops_response.choices = [Mock()]
-        mock_ops_response.choices[0].message = Mock()
-        mock_ops_response.choices[0].message.parsed = Mock()
-        mock_ops_response.choices[0].message.parsed.class_operations = [
-            Mock(
-                operation_type="create",
-                uri="http://example.org/test-ontology#TestClass",
-                label="Test Class",
-                definition="A test class",
-                description="Description of test class",
-                generalization_uris=None
-            )
-        ]
-        mock_ops_response.choices[0].message.parsed.attribute_operations = []
-        mock_ops_response.choices[0].message.parsed.relationship_operations = []
-        
-        # Configure mock client to return our mock responses
-        mock_client.beta.chat.completions.parse.side_effect = [
-            mock_search_response, 
-            mock_ops_response
-        ]
-        
-        # Mock knowledge base search
-        self.knowledge_base_index_service.search_by_query.return_value = [
-            Mock(element=Mock(content="Test knowledge", source_document_id="doc1"), similarity_score=0.9)
-        ]
-        
-        # Re-initialize agent with mocked OpenAI
-        with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-            self.agent.client = mock_client
-        
-        # Execute the test
-        result = self.agent.get_operations_for_design_task(self.test_project, self.test_iteration, self.test_task)
-        
-        # Verify results
+        class_operation = Mock(
+            operation_type="create",
+            prefixed_name=":TestClass",
+            label="Test Class",
+            definition="A test class",
+            description="Description of test class",
+            generalizations_prefixed_names=None,
+            kind=None,
+            definition_references=None,
+            specification_references=None,
+            references=None,
+        )
+        mock_parse.return_value = Mock(
+            class_operations=[class_operation],
+            attribute_operations=[],
+            relationship_operations=[],
+        )
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], CreateClassOperation)
         self.assertEqual(str(result[0].uri), "http://example.org/test-ontology#TestClass")
         self.assertEqual(result[0].label, "Test Class")
 
-    def test_do_design_task_error_handling(self):
-        """Test error handling in do_design_task method."""
-        # Mock knowledge base search to raise an exception
-        self.knowledge_base_index_service.search_by_query.side_effect = Exception("Search failed")
-        
-        # Mock OpenAI client that fails
-        with patch('agents.modelers.modeler_openai_basic.OpenAI') as mock_openai_class:
-            mock_client = Mock()
-            mock_openai_class.return_value = mock_client
-            mock_client.beta.chat.completions.parse.side_effect = Exception("OpenAI API failed")
-            
-            with patch.dict('os.environ', {'OPENAI_API_KEY': 'test-key'}):
-                self.agent.client = mock_client
-            
-            # Execute the test - should return empty list on error
-            result = self.agent.get_operations_for_design_task(self.test_project, self.test_iteration, self.test_task)
-            
-            # Should return empty list on error
-            self.assertIsInstance(result, list)
-            self.assertEqual(len(result), 0)
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unreadable_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """An answer that cannot be parsed twice is an error, not an empty result."""
+        mock_parse.side_effect = Exception("Invalid tool call arguments")
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError) as context:
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+        self.assertIn("Test Task", str(context.exception))
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_missing_answer_raises_instead_of_returning_no_changes(self, mock_parse):
+        """A model that does not call the output tool is an error, not an empty result."""
+        mock_parse.return_value = None
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        with self.assertRaises(OperationGenerationError):
+            self.agent.get_operations_for_design_task(
+                self.test_project,
+                self.test_ontology,
+                self.test_iteration,
+                self.test_task,
+            )
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unreadable_answer_is_asked_again_once(self, mock_parse):
+        """A second readable answer is used when the first one cannot be parsed."""
+        mock_parse.side_effect = [
+            Exception("Invalid tool call arguments"),
+            EditOperationsOutput(class_operations=[self._class_output()]),
+        ]
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
+        self.assertEqual([op.label for op in result], ["Test Class"])
+
+    @patch("agents.modelers.modeler_openai_basic.parse_structured")
+    def test_unusable_reference_does_not_drop_the_change(self, mock_parse):
+        """A reference without a snippet ID is left out, the change itself is kept."""
+        class_output = self._class_output(
+            definition_references=[
+                KnowledgeBaseReference(fragment_id="f12"),
+                KnowledgeBaseReference(snippet_id="snippet-1", fragment_id="#f3"),
+            ],
+        )
+        mock_parse.return_value = EditOperationsOutput(class_operations=[class_output])
+        self.knowledge_base_index_service.search_relative.return_value = []
+
+        result = self.agent.get_operations_for_design_task(
+            self.test_project,
+            self.test_ontology,
+            self.test_iteration,
+            self.test_task,
+        )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].definition_references, ["snippet-1#f3"])
+
+    def _class_output(self, **overrides) -> ClassOperationOutput:
+        values = {
+            "operation_type": "create",
+            "prefixed_name": ":TestClass",
+            "label": "Test Class",
+            "definition": "A test class",
+            "description": "Description of test class",
+            "kind": Kind.OBJECT,
+        }
+        values.update(overrides)
+        return ClassOperationOutput(**values)
 
 
 if __name__ == '__main__':

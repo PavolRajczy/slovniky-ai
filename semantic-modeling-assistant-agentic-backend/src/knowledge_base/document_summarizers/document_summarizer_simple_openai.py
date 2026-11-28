@@ -1,11 +1,14 @@
 import os
 import json
 from pathlib import Path
-from typing import Optional
-from openai import OpenAI
+from typing import List, Optional
 from dotenv import load_dotenv
 
+from agents.model_config import get_mini_model
+from llm.provider import AIServiceUnavailableError, invoke_chat
+
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 from knowledge_base.store import KnowledgeDocumentSummarizer
 from knowledge_base.utils.cache_manager import CacheManager
 import re
@@ -41,46 +44,57 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
     to summarize only the subtree of elements whose id contains that string.
     Use comma-separated values for multiple parts (e.g. "cast_1,cast_2" for Part 1 and Part 2).
     """
-    def __init__(self, model: str = "gpt-4.1", only_element_id_contains: Optional[str] = None):
-        self.model = model
+    def __init__(self, model: Optional[str] = None, only_element_id_contains: Optional[str] = None):
+        self.model = model or get_mini_model()
         raw = only_element_id_contains or os.getenv("SUMMARIZE_ONLY_ELEMENT_ID_CONTAINS")
         self._only_contains_list = [s.strip() for s in (raw or "").split(",") if s.strip()] or None
-        self.open_api_key = os.getenv("OPENAI_API_KEY")
-        if not self.open_api_key:
+        if not os.getenv("OPENAI_API_KEY"):
             raise ValueError("OPENAI_API_KEY not found in environment variables")
-        self.client = OpenAI(api_key=self.open_api_key)
 
-    def summarize_document(self, document: KnowledgeDocument) -> None:
+    def summarize_document(self, document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         """
         Computes summaries for all elements in the document hierarchy, storing them in contentSummary.
         Modifies the document in place and saves the updated document to its cache file.
         If only_element_id_contains is set, only root children whose id contains any of those strings (and their descendants) are summarized. Comma-separated for multiple parts.
-        """
-        if self._only_contains_list:
-            allowed = self._only_contains_list
-            summarized = 0
-            for child in document.childElements:
-                if any(part in child.id for part in allowed):
-                    print(f"Summarizing subtree: id contains one of {allowed} (e.g. {child.id})")
-                    self._summarize_element(child)
-                    summarized += 1
-            if not summarized:
-                print(f"No root child id contains any of {allowed}; nothing summarized.")
-        else:
-            self._summarize_element(document)
-        
-        # Save the updated document with summaries back to the cache file
-        # Only update content part to preserve metadata
-        if document.cacheFilePath:
-            CacheManager.update_split_cache(document, update_content=True, update_metadata=False)
+        Reports one progress step per summarized element.
 
-    def _summarize_element(self, element: KnowledgeDocumentElement) -> str:
+        Raises:
+            AIServiceUnavailableError: The model stopped answering. Summaries computed so far are saved,
+                so the next run continues with the remaining elements.
+        """
+        roots = self._roots_to_summarize(document)
+        progress.start_stage(DocumentProcessingStage.SUMMARIZING, total=sum(self._count_pending(root) for root in roots))
+        try:
+            for root in roots:
+                self._summarize_element(root, progress)
+        finally:
+            # Only update content part to preserve metadata
+            if document.cacheFilePath:
+                CacheManager.update_split_cache(document, update_content=True, update_metadata=False)
+
+    def _roots_to_summarize(self, document: KnowledgeDocument) -> List[KnowledgeDocumentElement]:
+        if not self._only_contains_list:
+            return [document]
+        allowed = self._only_contains_list
+        roots = [child for child in document.childElements if any(part in child.id for part in allowed)]
+        if roots:
+            print(f"Summarizing subtrees whose id contains one of {allowed}")
+        else:
+            print(f"No root child id contains any of {allowed}; nothing summarized.")
+        return roots
+
+    def _count_pending(self, element: KnowledgeDocumentElement) -> int:
+        if element.contentSummary:
+            return 0
+        return 1 + sum(self._count_pending(child) for child in element.childElements)
+
+    def _summarize_element(self, element: KnowledgeDocumentElement, progress: ProcessingProgressListener) -> str:
         if element.contentSummary:
             return element.contentSummary  # Already summarized
         
         child_summaries = []
         for child in element.childElements:
-            child_summary = self._summarize_element(child)
+            child_summary = self._summarize_element(child, progress)
             if (child_summary is not None):
                 child_summaries.append(child_summary)
 
@@ -96,11 +110,14 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
         print(f"Summarizing element ID {element.id}.")
         try:
             summary = self._summarize_text(text_to_summarize)
+        except AIServiceUnavailableError:
+            raise
         except Exception as e:
             print(f"Failed to summarize element {element.id}: {e}")
             summary = ""  # Leave contentSummary set so we persist progress; empty = failed
         print(f"Summarized element ID {element.id}.")
         element.contentSummary = summary if summary else None  # Keep None if failed so re-run retries
+        progress.advance()
         return element.contentSummary or ""
     
     def _prepare_text(self, text:str) -> str:
@@ -115,12 +132,4 @@ class SimpleOpenAIKnowledgeDocumentSummarizer(KnowledgeDocumentSummarizer):
             {"role": "system", "content": summarization_system_prompt},
             {"role": "user", "content": f"Summarize the following text:\n{text}"}
         ]
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            max_tokens=600,
-            temperature=0.3
-        )
-        if response.choices:
-            return response.choices[0].message.content.strip()
-        return ""
+        return invoke_chat(messages, self.model, temperature=0.3, max_tokens=600)

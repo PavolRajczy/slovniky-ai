@@ -1,6 +1,7 @@
 from typing import List, Dict
 
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 
 class KnowledgeDocumentLoader:
     """
@@ -28,7 +29,7 @@ class KnowledgeDocumentSummarizer:
 
     Each implementation of this interface should provide the logic to summarize a knowledge document and its elements.
     """
-    def summarize_document(self, document: KnowledgeDocument) -> None:
+    def summarize_document(self, document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         # Implementation to summarize the document
         pass
 
@@ -36,7 +37,7 @@ class KnowledgeStore:
     def __init__(self):
         self.documents: Dict[str, KnowledgeDocument] = {}
 
-    def load_documents(self, document_ids: List[str], document_loader: KnowledgeDocumentLoader, document_summarizer: KnowledgeDocumentSummarizer) -> List[KnowledgeDocument]:
+    def load_documents(self, document_ids: List[str], document_loader: KnowledgeDocumentLoader, document_summarizer: KnowledgeDocumentSummarizer, progress: ProcessingProgressListener = NULL_PROGRESS) -> List[KnowledgeDocument]:
         """
         Load multiple knowledge documents by their IDs and summarizes them.
         
@@ -44,15 +45,17 @@ class KnowledgeStore:
             document_ids: A list of knowledge document IDs to load.
             document_loader: The knowledge document loader to use for loading knowledge documents.
             document_summarizer: The knowledge document summarizer to use for summarizing loaded documents.
+            progress: Receives the loading and summarizing stages.
 
         Returns:
             A list of loaded knowledge documents.
         """
         loaded_docs = []
         for doc_id in document_ids:
+            progress.start_stage(DocumentProcessingStage.LOADING)
             doc = document_loader.load_document(doc_id)
             if doc:
-                document_summarizer.summarize_document(doc)
+                document_summarizer.summarize_document(doc, progress)
                 loaded_docs.append(doc)
                 self.documents[doc.id] = doc
         return loaded_docs

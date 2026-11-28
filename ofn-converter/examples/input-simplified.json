@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schemas.dataspecer.com/adapters/simplified-semantic-model.v1.0.schema.json",
+  "classes": [
+    {
+      "iri": "silniční-vozidlo",
+      "title": "Silniční vozidlo",
+      "description": "Silniční vozidlo je motorové nebo nemotorové vozidlo vyrobené pro provoz na pozemních komunikacích."
+    },
+    {
+      "iri": "vlastník-vozidla",
+      "title": "Vlastník vozidla",
+      "description": "Fyzická nebo právnická osoba, která je vlastníkem vozidla."
+    }
+  ],
+  "attributes": [
+    {
+      "iri": "registrační-značka",
+      "title": "registrační značka",
+      "description": "Evidenční číslo přidělené silničnímu vozidlu.",
+      "domain": "silniční-vozidlo",
+      "domainCardinality": "many",
+      "range": "",
+      "rangeCardinality": "many"
+    }
+  ],
+  "relationships": [
+    {
+      "iri": "je-vlastníkem",
+      "title": "je vlastníkem",
+      "description": "Vztah mezi vlastníkem vozidla a silničním vozidlem.",
+      "domain": "vlastník-vozidla",
+      "domainCardinality": "many",
+      "range": "silniční-vozidlo",
+      "rangeCardinality": "many"
+    }
+  ],
+  "generalizations": []
+}

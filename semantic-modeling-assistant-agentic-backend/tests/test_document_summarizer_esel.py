@@ -12,24 +12,30 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 src_path = os.path.join(project_root, 'src')
 sys.path.insert(0, src_path)
 
+import pytest
+
 from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
 from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
 from knowledge_base.domain import KnowledgeDocument
+from knowledge_base.service import ESEL_SPARQL_ENDPOINT, LEGAL_DOCUMENT_ID_PREFIX
 
 
+@pytest.mark.live
 def test_summarizer_on_cached_document():
-    """Test summarizer using a cached document loaded by ESELKnowledgeDocumentLoader."""
+    """Test summarizer using a document loaded by ESELKnowledgeDocumentLoader (cached or fetched)."""
     print("Testing summarizer on cached document...")
 
-    sparql_endpoint = "https://opendata.eselpoint.cz/sparql"
-    loader = ESELKnowledgeDocumentLoader(sparql_endpoint)
-    document_id = "https://opendata.eselpoint.cz/esel-esb/eli/cz/sb/1000/01/1000-01-01"
+    loader = ESELKnowledgeDocumentLoader(ESEL_SPARQL_ENDPOINT, base_dir="data_test/knowledge_base/esel")
+    document_id = f"{LEGAL_DOCUMENT_ID_PREFIX}/2001/56/2025-07-01"
 
-    # Load document from cache (assume cache exists)
     document = loader.load_document(document_id)
     assert document is not None, "Document should not be None"
     assert isinstance(document, KnowledgeDocument), "Document should be a KnowledgeDocument instance"
     print(f"  - Loaded document: {document.id} ({document.title})")
+
+    # Summarizing the whole act takes hundreds of LLM calls, and the trimmed copy must not overwrite the cache.
+    document.childElements = document.childElements[:1]
+    document.cacheFilePath = None
 
     # Summarize document content
     summarizer = SimpleOpenAIKnowledgeDocumentSummarizer()

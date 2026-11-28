@@ -1,4 +1,3 @@
-import os
 import uuid
 import json
 import pickle
@@ -6,11 +5,12 @@ from pathlib import Path
 from typing import List, Dict, Optional
 import numpy as np
 import faiss
-from openai import OpenAI
-
+from llm.provider import ai_service_call, create_embeddings, get_embedding_dimension, get_embedding_model
 from knowledge_base.domain import KnowledgeDocument, KnowledgeDocumentElement
+from knowledge_base.processing_progress import NULL_PROGRESS, DocumentProcessingStage, ProcessingProgressListener
 from knowledge_base_index.indexer import KnowledgeDocumentIndexer
 from ..domain import IndexDocument, TextChunk, SearchQuery, SearchResult, ChunkMatch
+from ..faiss_paths import read_faiss_index, write_faiss_index
 from ..chunkers.semchunk_chunker import SemchunkIndexDocumentChunker
 
 
@@ -27,8 +27,8 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
     def __init__(self,
                  target_model: str = "gpt-4.1",
                  chunk_size: int = 250,
-                 embedding_model: str = "text-embedding-3-large",
-                 embedding_dimension: int = 3072
+                 embedding_model: Optional[str] = None,
+                 embedding_dimension: Optional[int] = None
                  ):
         """
         Initialize the FAISS-based knowledge document indexer for summaries.
@@ -36,19 +36,15 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         Args:
             target_model: Target LLM model the chunks are optimized for.
             chunk_size: Size of text chunks to create.
-            embedding_model: OpenAI embedding model to use.
-            embedding_dimension: Dimension of the embedding vectors.
+            embedding_model: Embedding model name. Defaults to OPENAI_EMBEDDING_MODEL.
+            embedding_dimension: Dimension of the embedding vectors. Defaults to OPENAI_EMBEDDING_DIMENSION.
 
         """
-        self.embedding_model = embedding_model
-        self.embedding_dimension = embedding_dimension
-
-        # Initialize OpenAI client
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OpenAI API key must be provided as OPENAI_API_KEY environment variable")
-
-        self.openai_client = OpenAI(api_key=api_key)
+        self.embedding_model = embedding_model or get_embedding_model()
+        self.embedding_dimension = (
+            embedding_dimension if embedding_dimension is not None else get_embedding_dimension()
+        )
+        self.embeddings = create_embeddings(self.embedding_model)
         
         # Initialize chunker
         self.chunker = SemchunkIndexDocumentChunker(chunk_size=chunk_size, chunk_overlap=0.15, target_model=target_model)
@@ -58,7 +54,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         self.chunk_metadata: List[TextChunk] = []  # Store chunk metadata by index
         self.index_documents: Dict[str, IndexDocument] = {}  # Store index documents by ID
     
-    def build_index(self, knowledge_document: KnowledgeDocument) -> None:
+    def build_index(self, knowledge_document: KnowledgeDocument, progress: ProcessingProgressListener = NULL_PROGRESS) -> None:
         """
         Build an index for the given knowledge document.
         
@@ -70,6 +66,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         
         Args:
             knowledge_document: The knowledge document to index
+            progress: Receives one step per embedding batch
         """
         print(f"Building summary index for knowledge document: {knowledge_document.id}")
         
@@ -99,13 +96,16 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         # Generate embeddings in batches to handle API limits
         batch_size = 100
         all_embeddings = []
+        batch_count = (len(chunk_texts) + batch_size - 1) // batch_size
+        progress.start_stage(DocumentProcessingStage.INDEXING, total=batch_count)
         
         for i in range(0, len(chunk_texts), batch_size):
             batch_texts = chunk_texts[i:i + batch_size]
-            print(f"Generating embeddings for batch {i//batch_size + 1}/{(len(chunk_texts) + batch_size - 1)//batch_size}")
+            print(f"Generating embeddings for batch {i//batch_size + 1}/{batch_count}")
             
             batch_embeddings = self._get_embeddings(batch_texts)
             all_embeddings.append(batch_embeddings)
+            progress.advance()
         
         # Combine all embeddings
         embeddings = np.vstack(all_embeddings) if all_embeddings else np.array([]).reshape(0, self.embedding_dimension)
@@ -262,7 +262,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
         
         # Store FAISS index
         faiss_file = index_dir / "faiss.index"
-        faiss.write_index(self.faiss_index, str(faiss_file))
+        write_faiss_index(self.faiss_index, faiss_file)
         
         # Store chunk metadata (using pickle for numpy arrays)
         metadata_file = index_dir / "chunks.pkl"
@@ -362,7 +362,7 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
                 return False
             
             # Load FAISS index
-            self.faiss_index = faiss.read_index(str(faiss_file))
+            self.faiss_index = read_faiss_index(faiss_file)
             
             # Load chunk metadata
             with open(metadata_file, 'rb') as f:
@@ -459,11 +459,12 @@ class FAISSSummaryOpenAIKnowledgeDocumentIndexer(KnowledgeDocumentIndexer):
             
         Returns:
             NumPy array of embeddings
+
+        Raises:
+            AIServiceUnavailableError: The embedding model did not answer in any attempt.
         """
-        response = self.openai_client.embeddings.create(
-            model=self.embedding_model,
-            input=texts
-        )
-        
-        embeddings = np.array([item.embedding for item in response.data])
-        return embeddings
+        if not texts:
+            return np.array([]).reshape(0, self.embedding_dimension)
+        with ai_service_call(self.embedding_model):
+            vectors = self.embeddings.embed_documents(texts)
+        return np.array(vectors)

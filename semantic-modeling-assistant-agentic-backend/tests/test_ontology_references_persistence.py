@@ -213,7 +213,7 @@ def test_relationship_references_persistence():
 
 
 def test_update_operations_with_references():
-    """Test that update operations can modify reference fields."""
+    """Update operations merge new references into the existing ones, without duplicates."""
     test_dir = tempfile.mkdtemp(prefix="test_ontology_refs_")
     
     try:
@@ -242,7 +242,7 @@ def test_update_operations_with_references():
         update_op = UpdateClassOperation(
             uri=URIRef("http://example.org/test-ontology/Vehicle"),
             definition_references=["updated_ref_1", "updated_ref_2"],
-            specification_references=["updated_ref_3"],
+            specification_references=["updated_ref_3", "initial_ref_2"],
             references=["updated_ref_4", "updated_ref_5", "updated_ref_6"]
         )
         service.apply_edit_operation(ontology, update_op)
@@ -256,9 +256,9 @@ def test_update_operations_with_references():
         vehicle_uri = URIRef("http://example.org/test-ontology/Vehicle")
         vehicle = loaded_ontology.classes[vehicle_uri]
         
-        assert vehicle.definition_references == ["updated_ref_1", "updated_ref_2"]
-        assert vehicle.specification_references == ["updated_ref_3"]
-        assert vehicle.references == ["updated_ref_4", "updated_ref_5", "updated_ref_6"]
+        assert vehicle.definition_references == ["initial_ref_1", "updated_ref_1", "updated_ref_2"]
+        assert vehicle.specification_references == ["initial_ref_2", "updated_ref_3"]
+        assert vehicle.references == ["initial_ref_3", "updated_ref_4", "updated_ref_5", "updated_ref_6"]
         
         print("✓ Update operations with references test passed")
         

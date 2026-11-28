@@ -3,22 +3,26 @@ Quick test to verify the new project creation workflow.
 This is not a rigorous test, just a smoke test to ensure the basic flow works.
 """
 
+import os
+
+import pytest
+
 from design_project.service import DesignProjectService
 from design_project.store import FileSystemDesignProjectStore
 from ontology.service import OntologyService
-from knowledge_base.service import KnowledgeBaseService
-from knowledge_base.document_loaders.document_loader_esel import ESELKnowledgeDocumentLoader
-from knowledge_base.document_loaders.document_loader_local import LocalKnowledgeDocumentLoader
-from knowledge_base.document_summarizers.document_summarizer_simple_openai import SimpleOpenAIKnowledgeDocumentSummarizer
+from ontology.store import FilesystemOntologyStore
 from knowledge_base_index.service import KnowledgeBaseIndexService
 from knowledge_base_index.indexers.faiss_summary_openai_indexer import FAISSSummaryOpenAIKnowledgeDocumentIndexer
 from agents.knowledge_domain_area_analyzers.knowledge_domain_area_analyzer_openai_simple import KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI
 from agents.iteration_suggesters.iteration_suggester_openai_simple import IterationSuggesterAgent_Simple_OpenAI
 from agents.task_planners.task_planner_openai_simple import TaskPlannerAgent_Simple_OpenAI
 from agents.modelers.modeler_openai_basic import ModelerAgent_Simple_OpenAI
+from fakes import create_fake_design_project_service
+from live_support import LIVE_LEGAL_DOCUMENT_ID, create_live_knowledge_base_service
 
 
-def test_new_project_workflow():
+@pytest.mark.live
+def test_new_project_workflow(tmp_path):
     """
     Test the new multi-step project creation workflow:
     1. Create empty project
@@ -28,20 +32,14 @@ def test_new_project_workflow():
     """
     
     # Setup services
-    ontology_service = OntologyService()
-    knowledge_base_service = KnowledgeBaseService(
-        legal_knowledge_document_loader=ESELKnowledgeDocumentLoader(
-            sparql_endpoint="https://opendata.eselpoint.cz/sparql"
-        ),
-        expert_knowledge_document_loader=LocalKnowledgeDocumentLoader(),
-        document_summarizer=SimpleOpenAIKnowledgeDocumentSummarizer()
-    )
+    ontology_service = OntologyService(store=FilesystemOntologyStore(base_dir=os.path.join(tmp_path, "ontologies")))
+    knowledge_base_service = create_live_knowledge_base_service()
     knowledge_base_index_service = KnowledgeBaseIndexService(
         indexer=FAISSSummaryOpenAIKnowledgeDocumentIndexer()
     )
     
     design_project_service = DesignProjectService(
-        store=FileSystemDesignProjectStore(ontology_service=ontology_service),
+        store=FileSystemDesignProjectStore(ontology_service=ontology_service, base_dir=os.path.join(tmp_path, "projects")),
         knowledge_base_service=knowledge_base_service,
         ontology_service=ontology_service,
         knowledge_domain_area_analyzer_agent=KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(
@@ -89,7 +87,7 @@ def test_new_project_workflow():
     
     # Step 2: Add knowledge documents
     print("\n[Step 2] Adding knowledge documents...")
-    legal_doc_id = "https://www.zakonyprolidi.cz/cs/2000-361"
+    legal_doc_id = LIVE_LEGAL_DOCUMENT_ID
     
     # Load and add legal document
     legal_docs = knowledge_base_service.load_legal_knowledge_documents([legal_doc_id])
@@ -142,48 +140,14 @@ def test_new_project_workflow():
     print("\n" + "="*70)
     print("✓ All tests passed!")
     print("="*70)
-    
-    return project.id
 
 
-def test_error_cases():
+def test_error_cases(tmp_path):
     """
     Test error cases for the new workflow.
     """
     
-    # Setup services (minimal for testing)
-    ontology_service = OntologyService()
-    knowledge_base_service = KnowledgeBaseService(
-        legal_knowledge_document_loader=ESELKnowledgeDocumentLoader(
-            sparql_endpoint="https://opendata.eselpoint.cz/sparql"
-        ),
-        expert_knowledge_document_loader=LocalKnowledgeDocumentLoader(),
-        document_summarizer=SimpleOpenAIKnowledgeDocumentSummarizer()
-    )
-    knowledge_base_index_service = KnowledgeBaseIndexService(
-        indexer=FAISSSummaryOpenAIKnowledgeDocumentIndexer()
-    )
-    
-    design_project_service = DesignProjectService(
-        store=FileSystemDesignProjectStore(ontology_service=ontology_service),
-        knowledge_base_service=knowledge_base_service,
-        ontology_service=ontology_service,
-        knowledge_domain_area_analyzer_agent=KnowledgeDomainAreaAnalyzerAgent_Simple_OpenAI(
-            knowledge_base_service=knowledge_base_service
-        ),
-        iteration_suggester_agent=IterationSuggesterAgent_Simple_OpenAI(
-            knowledge_base_service=knowledge_base_service,
-            knowledge_base_index_service=knowledge_base_index_service
-        ),
-        task_planner_agent=TaskPlannerAgent_Simple_OpenAI(
-            knowledge_base_service=knowledge_base_service,
-            knowledge_base_index_service=knowledge_base_index_service
-        ),
-        modeler_agent=ModelerAgent_Simple_OpenAI(
-            knowledge_base_service=knowledge_base_service,
-            knowledge_base_index_service=knowledge_base_index_service
-        )
-    )
+    design_project_service = create_fake_design_project_service(str(tmp_path))
     
     print("\n" + "="*70)
     print("Testing Error Cases")
@@ -222,14 +186,3 @@ def test_error_cases():
     print("\n" + "="*70)
     print("✓ All error tests passed!")
     print("="*70)
-
-
-if __name__ == "__main__":
-    # Run the main workflow test
-    project_id = test_new_project_workflow()
-    
-    # Run error case tests
-    test_error_cases()
-    
-    print(f"\n✓ Test completed successfully!")
-    print(f"  Created project ID: {project_id}")
